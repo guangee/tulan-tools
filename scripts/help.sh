@@ -42,7 +42,7 @@ help_update() {
   cat <<EOF
 brew update — 更新 tulan-tools
 
-  brew update           从 Git 拉取最新代码
+  brew update           从 Git 拉取最新代码，并刷新 bin 分支索引
   brew update --force   立即更新，不等待每日限制
 EOF
 }

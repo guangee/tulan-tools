@@ -58,7 +58,20 @@ should_check() {
   return 0
 }
 
+refresh_bin_index() {
+  local force="${1:-true}"
+
+  tulan_log "刷新 bin 分支二进制索引..."
+  if tulan_manifest_refresh "$force" 2>/dev/null; then
+    tulan_log "bin 索引已更新: $(tulan_manifest_cache_path)"
+  else
+    tulan_log "bin 索引刷新失败，将使用本地缓存"
+  fi
+}
+
 do_update() {
+  local git_updated=false
+
   if [[ ! -d "${TULAN_HOME}/.git" ]]; then
     [[ "$CHECK_ON_START" == false ]] && tulan_log "非 git 安装，跳过更新"
     return 0
@@ -78,22 +91,26 @@ do_update() {
 
   if [[ -z "$remote_hash" ]] || [[ "$remote_hash" == "$local_hash" ]]; then
     [[ "$CHECK_ON_START" == false ]] && tulan_log "已是最新版本"
-    tulan_manifest_refresh false 2>/dev/null || true
-    return 0
+  else
+    tulan_log "发现新版本，正在更新..."
+    git -C "${TULAN_HOME}" pull --ff-only origin "${branch}" || {
+      tulan_error "更新失败，可能存在本地修改或冲突"
+      return 1
+    }
+    git_updated=true
+    chmod +x "${TULAN_HOME}/bin/"* 2>/dev/null || true
+    chmod +x "${TULAN_HOME}/scripts/"* 2>/dev/null || true
+    tulan_log "更新完成: ${local_hash:0:7} -> ${remote_hash:0:7}"
   fi
 
-  tulan_log "发现新版本，正在更新..."
-  git -C "${TULAN_HOME}" pull --ff-only origin "${branch}" || {
-    tulan_error "更新失败，可能存在本地修改或冲突"
-    return 1
-  }
-
-  chmod +x "${TULAN_HOME}/bin/"* 2>/dev/null || true
-  chmod +x "${TULAN_HOME}/scripts/"* 2>/dev/null || true
-
-  tulan_manifest_refresh true 2>/dev/null || tulan_log "二进制索引刷新失败，将使用本地缓存"
-
-  tulan_log "更新完成: ${local_hash:0:7} -> ${remote_hash:0:7}"
+  # 显式 brew update：始终强制刷新 bin 索引；shell 静默检查仍遵守 TTL
+  if [[ "$CHECK_ON_START" == false ]]; then
+    refresh_bin_index true
+  elif [[ "$git_updated" == true ]]; then
+    refresh_bin_index true
+  else
+    refresh_bin_index false
+  fi
 }
 
 main() {
