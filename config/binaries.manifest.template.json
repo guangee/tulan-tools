@@ -60,6 +60,41 @@
       "upstream_only": true,
       "description": "Apache Maven",
       "paths": {}
+    },
+    "node-16": {
+      "version": "上游最新",
+      "install_name": "node-16",
+      "upstream_only": true,
+      "description": "Node.js 16 LTS",
+      "paths": {}
+    },
+    "node-18": {
+      "version": "上游最新",
+      "install_name": "node-18",
+      "upstream_only": true,
+      "description": "Node.js 18 LTS",
+      "paths": {}
+    },
+    "node-20": {
+      "version": "上游最新",
+      "install_name": "node-20",
+      "upstream_only": true,
+      "description": "Node.js 20 LTS",
+      "paths": {}
+    },
+    "node-22": {
+      "version": "上游最新",
+      "install_name": "node-22",
+      "upstream_only": true,
+      "description": "Node.js 22 LTS",
+      "paths": {}
+    },
+    "node-24": {
+      "version": "上游最新",
+      "install_name": "node-24",
+      "upstream_only": true,
+      "description": "Node.js 24",
+      "paths": {}
     }
   }
 }

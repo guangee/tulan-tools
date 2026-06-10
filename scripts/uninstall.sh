@@ -12,12 +12,14 @@ source "${_SCRIPT_ROOT}/lib/binaries.sh"
 source "${_SCRIPT_ROOT}/lib/package.sh"
 # shellcheck source=../lib/jdk-maven.sh
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
+# shellcheck source=../lib/node.sh
+source "${_SCRIPT_ROOT}/lib/node.sh"
 
 usage() {
   cat <<EOF
 用法: brew uninstall <名称> [选项]
 
-卸载二进制工具（kubectl / docker-compose / mc / openjdk / maven）或私有软件包。
+卸载二进制工具（kubectl / docker-compose / mc / openjdk / maven / node）或私有软件包。
 
 选项:
   --version VER   仅卸载二进制工具的指定版本
@@ -63,6 +65,12 @@ main() {
 
   if [[ "$canonical" == maven ]] || tulan_is_maven_tool "$name"; then
     tulan_maven_uninstall "$version"
+    exit 0
+  fi
+
+  major="$(tulan_node_major_for_tool "${canonical:-$name}")"
+  if [[ -n "$major" ]]; then
+    tulan_node_uninstall "$major" "$version"
     exit 0
   fi
 

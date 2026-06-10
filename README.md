@@ -77,6 +77,22 @@ mvn -version
 - Maven：`~/.tulan-tools/cellar/maven/<版本>/`，命令链接 `~/.tulan-tools/bin/mvn`
 - `JAVA_HOME` 写入 shell 配置中的 `# >>> tulan-java >>>` 标记块
 
+## Node.js
+
+从 [nodejs.org](https://nodejs.org/) 安装官方二进制，支持 16 / 18 / 20 / 22 / 24 多版本并存并一键切换：
+
+```bash
+brew install node-16 node-18 node-20 node-22 node-24
+brew versions node              # 查看各版本与当前 NODE_HOME
+brew use node 20                # 切换到 Node 20
+brew use node 22                # 切换到 Node 22
+source ~/.bashrc                # 或 source ~/.zshrc
+node -v && npm -v
+```
+
+- 目录：`~/.tulan-tools/cellar/node-<16|18|20|22|24>/<版本>/`
+- `NODE_HOME` 写入 shell 配置中的 `# >>> tulan-node >>>` 标记块
+
 ## 环境安装
 
 ```bash

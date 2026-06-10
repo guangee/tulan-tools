@@ -12,6 +12,8 @@ source "${_SCRIPT_ROOT}/lib/binaries.sh"
 source "${_SCRIPT_ROOT}/lib/package.sh"
 # shellcheck source=../lib/jdk-maven.sh
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
+# shellcheck source=../lib/node.sh
+source "${_SCRIPT_ROOT}/lib/node.sh"
 
 usage() {
   cat <<EOF
@@ -24,6 +26,8 @@ usage() {
   brew versions openjdk-11
   brew versions java
   brew versions maven
+  brew versions node
+  brew versions node-20
   brew versions my-tool
   brew list                 # 查看所有可安装项
 EOF
@@ -55,6 +59,20 @@ main() {
 
   if [[ "$canonical" == maven ]]; then
     tulan_maven_show_versions
+    exit 0
+  fi
+
+  if [[ "$name" == node ]] || [[ "$name" == nodejs ]]; then
+    for major in "${TULAN_NODE_MAJORS[@]}"; do
+      tulan_node_show_versions "$major"
+      echo ""
+    done
+    exit 0
+  fi
+
+  major="$(tulan_node_major_for_tool "$canonical")"
+  if [[ -n "$major" ]]; then
+    tulan_node_show_versions "$major"
     exit 0
   fi
 

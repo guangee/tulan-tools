@@ -12,6 +12,8 @@ source "${_SCRIPT_ROOT}/lib/binaries.sh"
 source "${_SCRIPT_ROOT}/lib/package.sh"
 # shellcheck source=../lib/jdk-maven.sh
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
+# shellcheck source=../lib/node.sh
+source "${_SCRIPT_ROOT}/lib/node.sh"
 
 usage() {
   cat <<EOF
@@ -48,6 +50,8 @@ main() {
       echo ""
       tulan_jdk_maven_list
       echo ""
+      tulan_node_list
+      echo ""
       tulan_pkg_list_available
       ;;
     installed)
@@ -59,6 +63,8 @@ main() {
       tulan_binaries_list false
       echo ""
       tulan_jdk_maven_list
+      echo ""
+      tulan_node_list
       ;;
     pkgs)
       tulan_pkg_list_available

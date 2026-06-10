@@ -10,6 +10,8 @@ source "${_SCRIPT_ROOT}/lib/common.sh"
 source "${_SCRIPT_ROOT}/lib/binaries.sh"
 # shellcheck source=../lib/jdk-maven.sh
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
+# shellcheck source=../lib/node.sh
+source "${_SCRIPT_ROOT}/lib/node.sh"
 
 INSTALL_DIR="$(tulan_get_home)/bin"
 TOOL_ARGS=()
@@ -20,7 +22,7 @@ REQUESTED_VERSION=""
 
 usage() {
   cat <<EOF
-安装二进制工具: kubectl, docker-compose, mc, openjdk-8/11/17, maven
+安装二进制工具: kubectl, docker-compose, mc, openjdk, maven, node
 
 用法:
   brew install <工具> [工具...] [选项]
@@ -41,9 +43,10 @@ usage() {
 示例:
   brew install kubectl
   brew install kubectl mc
-  brew install openjdk-11 maven
+  brew install openjdk-11 maven node-20
   brew install kubectl --version v1.32.0 --source upstream
   brew use java 11
+  brew use node 20
   brew versions kubectl
 EOF
 }
@@ -234,6 +237,16 @@ run_tool() {
 
   if tulan_is_maven_tool "$raw" || [[ "$canonical" == maven ]]; then
     tulan_install_maven "$REQUESTED_VERSION" "$DRY_RUN"
+    return
+  fi
+
+  major="$(tulan_node_major_for_tool "${canonical:-$raw}")"
+  if [[ -n "$major" ]]; then
+    if ! command -v python3 &>/dev/null; then
+      err "安装 Node.js 需要 python3"
+      exit 1
+    fi
+    tulan_install_node "$major" "$REQUESTED_VERSION" "$DRY_RUN"
     return
   fi
 

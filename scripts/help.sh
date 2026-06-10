@@ -21,7 +21,7 @@ tulan-tools — 个人开发工具集
   brew list                    查看可安装的工具与软件包
   brew versions <名称>         查看版本信息
   brew install <名称>...       安装（默认最新版，需指定名称）
-  brew use <工具> <版本>       切换二进制 / Java 版本
+  brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew uninstall <名称>        卸载
   brew update                  更新 tulan-tools
   brew docker / conda / vim    环境安装
@@ -61,10 +61,13 @@ brew install — 安装工具或软件包（类似 brew install）
   brew install openjdk-8 openjdk-11 openjdk-17
   brew install maven
   brew use java 11                  切换 JAVA_HOME
+  brew install node-16 node-18 node-20 node-22 node-24
+  brew use node 20                  切换 NODE_HOME
 
 多版本: ${TULAN_HOME}/cellar/<工具>/<版本>/
 链接:   ${TULAN_HOME}/bin/
 Java:   ~/.bashrc / ~/.zshrc 中的 # >>> tulan-java >>> 块
+Node:   ~/.bashrc / ~/.zshrc 中的 # >>> tulan-node >>> 块
 EOF
 }
 

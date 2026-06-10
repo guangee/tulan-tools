@@ -10,19 +10,22 @@ source "${_SCRIPT_ROOT}/lib/common.sh"
 source "${_SCRIPT_ROOT}/lib/binaries.sh"
 # shellcheck source=../lib/jdk-maven.sh
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
+# shellcheck source=../lib/node.sh
+source "${_SCRIPT_ROOT}/lib/node.sh"
 
 usage() {
   cat <<EOF
 用法: brew use <工具> <版本>
 
 切换已安装二进制工具的激活版本（更新 bin/ 下的符号链接）。
-Java 切换会更新 ~/.bashrc / ~/.zshrc 中的 JAVA_HOME。
+Java / Node 切换会更新 ~/.bashrc / ~/.zshrc 中的环境变量。
 
 示例:
   brew use kubectl v1.32.0
   brew use docker-compose v5.1.4
   brew use java 11
-  brew use java 17
+  brew use node 20
+  brew use node 22
   brew list --binaries --installed   # 查看已装版本
 EOF
 }
@@ -55,8 +58,24 @@ main() {
     exit 0
   fi
 
+  if [[ "$tool" == node ]] || [[ "$tool" == nodejs ]]; then
+    major="$(tulan_node_major_for_tool "$version")"
+    if [[ -z "$major" ]]; then
+      tulan_error "请指定 Node 主版本: brew use node 16|18|20|22|24"
+      exit 1
+    fi
+    tulan_node_activate "$major"
+    exit 0
+  fi
+
+  major="$(tulan_node_major_for_tool "$canonical")"
+  if [[ -n "$major" ]]; then
+    tulan_node_activate "$major"
+    exit 0
+  fi
+
   if [[ -z "$canonical" ]]; then
-    tulan_error "未知工具: $tool（可选: kubectl, docker-compose, mc, java, maven）"
+    tulan_error "未知工具: $tool（可选: kubectl, docker-compose, mc, java, maven, node）"
     exit 1
   fi
 
