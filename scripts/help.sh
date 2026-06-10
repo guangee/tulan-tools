@@ -29,6 +29,8 @@ tulan-tools — 个人开发工具集
   tulan uninstall <包名>        卸载软件包
   tulan docker                  安装 Docker（阿里云源）
   tulan docker configure        仅配置 registry 镜像加速
+  tulan conda                   安装 Miniconda（阿里云源）
+  tulan conda configure         仅配置 conda/pip 源与 shell
 
 下载选项:
   tulan download --tool kubectl           仅下载 kubectl
@@ -48,6 +50,7 @@ tulan-tools — 个人开发工具集
   tulan help update
   tulan help download
   tulan help docker
+  tulan help conda
   tulan help pkg
 EOF
 }
@@ -95,6 +98,25 @@ tulan docker — 安装 Docker
 EOF
 }
 
+help_conda() {
+  cat <<EOF
+tulan conda — 安装 Miniconda
+
+  tulan conda                         安装并配置（默认 ~/miniconda3）
+  tulan conda fetch                   下载安装包到本地缓存
+  tulan conda configure               仅配置阿里云源与 shell
+  tulan conda --prefix PATH           自定义安装目录
+  tulan conda --refresh-installer     重新下载安装包
+  tulan conda --force                 强制重装
+  tulan conda --no-mirror             从官方源下载安装包
+
+安装包缓存: ${TULAN_HOME}/state/miniconda/
+conda 配置: ~/.condarc
+pip 配置: ~/.pip/pip.conf
+shell: conda init → ~/.bashrc、~/.zshrc
+EOF
+}
+
 help_pkg() {
   cat <<EOF
 tulan list / install / uninstall — 管理工具与软件包
@@ -118,10 +140,11 @@ main() {
     update)       help_update ;;
     download|binaries) help_download ;;
     docker) help_docker ;;
+    conda|miniconda) help_conda ;;
     pkg|package|packages|list) help_pkg ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: update, download, pkg"
+      echo "可用主题: update, download, docker, conda, pkg"
       exit 1
       ;;
   esac

@@ -43,6 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 | `tulan install <包名>` | 安装软件包 |
 | `tulan uninstall <包名>` | 卸载软件包 |
 | `tulan docker` | 安装 Docker（阿里云源 + registry 镜像加速） |
+| `tulan conda` | 安装 Miniconda（阿里云 conda/pip 源） |
 
 打开新终端时会自动检查更新（每天最多一次），也可随时手动执行 `tulan update`。
 
@@ -80,6 +81,23 @@ tulan docker configure              # 仅更新 registry 镜像配置
 tulan docker fetch                  # 仅下载官方脚本
 tulan docker --refresh-script       # 重新下载脚本后安装
 ```
+
+## 安装 Miniconda
+
+从**阿里云**下载 Miniconda 安装包（缓存到 `~/.tulan-tools/state/miniconda/`），安装到 `~/miniconda3`，并自动配置：
+
+- `~/.condarc` — conda 阿里云源
+- `~/.pip/pip.conf` — pip 阿里云源
+- `~/.bashrc`、`~/.zshrc` — `conda init` 环境
+
+```bash
+tulan conda                         # 安装并配置
+tulan conda configure               # 仅更新源与 shell 配置
+tulan conda fetch                   # 仅下载安装包
+tulan conda --prefix ~/miniconda3   # 自定义安装路径
+```
+
+安装后执行 `source ~/.bashrc` 或 `source ~/.zshrc` 生效。
 
 ## 管理私有软件包
 
