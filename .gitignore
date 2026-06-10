@@ -1,6 +1,10 @@
 # 构建产物
 dist/
 
+# tulan download 安装的二进制（与 bin/tulan 同目录，不提交）
+bin/*
+!bin/tulan
+
 # 本地运行时状态（安装信息、更新记录、软件包状态等）
 state/
 .install-info
