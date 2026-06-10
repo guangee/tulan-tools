@@ -18,24 +18,28 @@ tulan_manifest_cache_ts_path() {
   echo "$(tulan_get_home)/state/manifest-fetched-at"
 }
 
-# 推断默认仓库地址
+# 推断默认仓库地址（owner/repo）
 tulan_manifest_default_repo() {
-  local home remote
+  local home remote normalized
+
   if [[ -n "${TULAN_GITHUB_REPO:-}" ]]; then
+    if normalized="$(tulan_normalize_github_repo "${TULAN_GITHUB_REPO}")"; then
+      echo "$normalized"
+      return 0
+    fi
     echo "${TULAN_GITHUB_REPO}"
     return 0
   fi
+
   home="$(tulan_get_home)"
   if git -C "$home" remote get-url origin &>/dev/null; then
     remote="$(git -C "$home" remote get-url origin)"
-    remote="${remote%.git}"
-    remote="${remote#git@github.com:}"
-    remote="${remote#https://github.com/}"
-    if [[ "$remote" == */* ]]; then
-      echo "$remote"
+    if normalized="$(tulan_normalize_github_repo "$remote")"; then
+      echo "$normalized"
       return 0
     fi
   fi
+
   echo "${TULAN_MANIFEST_DEFAULT_REPO}"
 }
 

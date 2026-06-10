@@ -173,6 +173,44 @@ tulan_remove_shell_config() {
   fi
 }
 
+# 从 git remote URL 提取 owner/repo（兼容代理前缀 URL）
+tulan_normalize_github_repo() {
+  local remote="${1:-}"
+  local owner repo _rest
+
+  [[ -n "$remote" ]] || return 1
+  remote="${remote%.git}"
+
+  if [[ "$remote" == git@github.com:* ]]; then
+    echo "${remote#git@github.com:}"
+    return 0
+  fi
+
+  if [[ "$remote" == ssh://git@github.com/* ]]; then
+    remote="${remote#ssh://git@github.com/}"
+    IFS='/' read -r owner repo _rest <<< "$remote"
+    [[ -n "$owner" && -n "$repo" ]] || return 1
+    echo "${owner}/${repo}"
+    return 0
+  fi
+
+  # 兼容 https://proxy/https://github.com/owner/repo 等形式
+  if [[ "$remote" == *github.com/* ]]; then
+    remote="${remote#*github.com/}"
+    IFS='/' read -r owner repo _rest <<< "$remote"
+    [[ -n "$owner" && -n "$repo" ]] || return 1
+    echo "${owner}/${repo}"
+    return 0
+  fi
+
+  if [[ "$remote" == */* && "$remote" != *://* ]]; then
+    echo "$remote"
+    return 0
+  fi
+
+  return 1
+}
+
 # 克隆或更新 git 仓库
 tulan_git_sync() {
   local repo_url="$1"
