@@ -10,6 +10,8 @@ source "${_SCRIPT_ROOT}/lib/common.sh"
 source "${_SCRIPT_ROOT}/lib/binaries.sh"
 # shellcheck source=../lib/package.sh
 source "${_SCRIPT_ROOT}/lib/package.sh"
+# shellcheck source=../lib/jdk-maven.sh
+source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 
 usage() {
   cat <<EOF
@@ -19,7 +21,9 @@ usage() {
 
 示例:
   brew versions kubectl
-  brew versions docker-compose
+  brew versions openjdk-11
+  brew versions java
+  brew versions maven
   brew versions my-tool
   brew list                 # 查看所有可安装项
 EOF
@@ -34,7 +38,26 @@ main() {
     exit 1
   fi
 
+  if [[ "$name" == java ]] || [[ "$name" == openjdk ]]; then
+    for major in 8 11 17; do
+      tulan_openjdk_show_versions "$major"
+      echo ""
+    done
+    exit 0
+  fi
+
   canonical="$(tulan_binary_canonical_name "$name")"
+  major="$(tulan_openjdk_major_for_tool "$canonical")"
+  if [[ -n "$major" ]]; then
+    tulan_openjdk_show_versions "$major"
+    exit 0
+  fi
+
+  if [[ "$canonical" == maven ]]; then
+    tulan_maven_show_versions
+    exit 0
+  fi
+
   if [[ -n "$canonical" ]]; then
     tulan_binary_show_versions "$canonical"
     exit 0

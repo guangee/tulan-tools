@@ -8,33 +8,55 @@ _SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${_SCRIPT_ROOT}/lib/common.sh"
 # shellcheck source=../lib/binaries.sh
 source "${_SCRIPT_ROOT}/lib/binaries.sh"
+# shellcheck source=../lib/jdk-maven.sh
+source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 
 usage() {
   cat <<EOF
 用法: brew use <工具> <版本>
 
 切换已安装二进制工具的激活版本（更新 bin/ 下的符号链接）。
+Java 切换会更新 ~/.bashrc / ~/.zshrc 中的 JAVA_HOME。
 
 示例:
   brew use kubectl v1.32.0
   brew use docker-compose v5.1.4
+  brew use java 11
+  brew use java 17
   brew list --binaries --installed   # 查看已装版本
 EOF
 }
 
 main() {
-  local tool version canonical
+  local tool version canonical major
 
   if [[ $# -lt 2 ]] || [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]]; then
     usage
     exit 1
   fi
 
-  canonical="$(tulan_binary_canonical_name "$1")"
+  tool="$1"
   version="$2"
 
+  if [[ "$tool" == java ]] || [[ "$tool" == openjdk ]]; then
+    major="$(tulan_openjdk_major_for_tool "$version")"
+    if [[ -z "$major" ]]; then
+      tulan_error "请指定 Java 主版本: brew use java 8|11|17"
+      exit 1
+    fi
+    tulan_java_activate "$major"
+    exit 0
+  fi
+
+  canonical="$(tulan_binary_canonical_name "$tool")"
+  major="$(tulan_openjdk_major_for_tool "$canonical")"
+  if [[ -n "$major" ]]; then
+    tulan_java_activate "$major"
+    exit 0
+  fi
+
   if [[ -z "$canonical" ]]; then
-    tulan_error "未知工具: $1（可选: kubectl, docker-compose, mc）"
+    tulan_error "未知工具: $tool（可选: kubectl, docker-compose, mc, java, maven）"
     exit 1
   fi
 

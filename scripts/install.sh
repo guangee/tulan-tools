@@ -15,7 +15,7 @@ usage() {
   cat <<EOF
 用法: brew install <名称> [名称...] [选项]
 
-安装二进制工具（kubectl、docker-compose、mc）或私有软件包。
+安装二进制工具（kubectl、docker-compose、mc、openjdk、maven）或私有软件包。
 请先 brew list 查看可用项，默认安装最新版本。
 
 选项:
@@ -32,6 +32,8 @@ usage() {
   brew list
   brew install kubectl
   brew install kubectl mc
+  brew install openjdk-11 maven
+  brew use java 11
   brew install my-tool
   brew versions kubectl
 EOF

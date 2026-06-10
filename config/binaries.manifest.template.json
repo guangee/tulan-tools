@@ -32,6 +32,34 @@
         "linux-arm64": "linux-arm64/mc"
       },
       "sha256": {}
+    },
+    "openjdk-8": {
+      "version": "上游最新",
+      "install_name": "openjdk-8",
+      "upstream_only": true,
+      "description": "Eclipse Temurin JDK 8",
+      "paths": {}
+    },
+    "openjdk-11": {
+      "version": "上游最新",
+      "install_name": "openjdk-11",
+      "upstream_only": true,
+      "description": "Eclipse Temurin JDK 11",
+      "paths": {}
+    },
+    "openjdk-17": {
+      "version": "上游最新",
+      "install_name": "openjdk-17",
+      "upstream_only": true,
+      "description": "Eclipse Temurin JDK 17",
+      "paths": {}
+    },
+    "maven": {
+      "version": "上游最新",
+      "install_name": "mvn",
+      "upstream_only": true,
+      "description": "Apache Maven",
+      "paths": {}
     }
   }
 }

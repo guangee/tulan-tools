@@ -314,10 +314,14 @@ tulan_manifest_platform_key() {
 
 tulan_binary_canonical_name() {
   case "$1" in
-    compose|docker-compose) echo "docker-compose" ;;
-    mc|minio)               echo "mc" ;;
-    kubectl|k8s)            echo "kubectl" ;;
-    docker-compose|mc|kubectl) echo "$1" ;;
+    compose|docker-compose)      echo "docker-compose" ;;
+    mc|minio)                    echo "mc" ;;
+    kubectl|k8s)                 echo "kubectl" ;;
+    maven|mvn)                   echo "maven" ;;
+    openjdk-8|jdk8|java8)        echo "openjdk-8" ;;
+    openjdk-11|jdk11|java11)     echo "openjdk-11" ;;
+    openjdk-17|jdk17|java17)     echo "openjdk-17" ;;
+    docker-compose|mc|kubectl|maven|openjdk-8|openjdk-11|openjdk-17) echo "$1" ;;
     *) echo "" ;;
   esac
 }
@@ -657,6 +661,8 @@ with open(manifest_path) as f:
 registry = json.loads(Path(reg_path).read_text()) if Path(reg_path).exists() else {}
 found = False
 for tool, info in manifest.get("tools", {}).items():
+    if info.get("upstream_only") or tool.startswith("openjdk-") or tool == "maven":
+        continue
     install_name = info.get("install_name", tool)
     index_ver = info.get("version", "") or "待同步"
     reg = registry.get(tool, {})

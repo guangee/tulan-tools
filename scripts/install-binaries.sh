@@ -8,6 +8,8 @@ _SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${_SCRIPT_ROOT}/lib/common.sh"
 # shellcheck source=../lib/binaries.sh
 source "${_SCRIPT_ROOT}/lib/binaries.sh"
+# shellcheck source=../lib/jdk-maven.sh
+source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 
 INSTALL_DIR="$(tulan_get_home)/bin"
 TOOL_ARGS=()
@@ -18,7 +20,7 @@ REQUESTED_VERSION=""
 
 usage() {
   cat <<EOF
-安装二进制工具: kubectl, docker-compose, mc
+安装二进制工具: kubectl, docker-compose, mc, openjdk-8/11/17, maven
 
 用法:
   brew install <工具> [工具...] [选项]
@@ -39,7 +41,9 @@ usage() {
 示例:
   brew install kubectl
   brew install kubectl mc
+  brew install openjdk-11 maven
   brew install kubectl --version v1.32.0 --source upstream
+  brew use java 11
   brew versions kubectl
 EOF
 }
@@ -215,8 +219,24 @@ install_from_github() {
 }
 
 run_tool() {
-  local raw="$1" canonical
+  local raw="$1" canonical major
   canonical="$(tulan_binary_canonical_name "$raw")"
+
+  major="$(tulan_openjdk_major_for_tool "${canonical:-$raw}")"
+  if [[ -n "$major" ]]; then
+    if ! command -v python3 &>/dev/null; then
+      err "安装 OpenJDK 需要 python3"
+      exit 1
+    fi
+    tulan_install_openjdk "$major" "$REQUESTED_VERSION" "$DRY_RUN"
+    return
+  fi
+
+  if tulan_is_maven_tool "$raw" || [[ "$canonical" == maven ]]; then
+    tulan_install_maven "$REQUESTED_VERSION" "$DRY_RUN"
+    return
+  fi
+
   if [[ -z "$canonical" ]]; then
     err "未知工具: ${raw}（运行 brew list 查看）"
     exit 1
