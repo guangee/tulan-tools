@@ -76,7 +76,7 @@ mvn -version
 - bin 归档：`bin` 分支 `linux-*/archives/openjdk-*.tar.gz`、`apache-maven-bin.tar.gz`
 - JDK 目录：`~/.tulan-tools/cellar/openjdk-<8|11|17>/<版本>/`
 - Maven：`~/.tulan-tools/cellar/maven/<版本>/`，命令链接 `~/.tulan-tools/bin/mvn`
-- `JAVA_HOME` 写入 shell 配置中的 `# >>> tulan-java >>>` 标记块
+- `JAVA_HOME` 写入 `~/.tulan-tools/state/env.sh`，`java` 链接到 `~/.tulan-tools/bin/`
 - 强制上游：`brew install openjdk-11 --source upstream`
 
 ## Node.js
@@ -94,7 +94,7 @@ node -v && npm -v
 
 - bin 归档：`bin` 分支 `linux-*/archives/node-*.tar.gz`
 - 目录：`~/.tulan-tools/cellar/node-<16|18|20|22|24>/<版本>/`
-- `NODE_HOME` 写入 shell 配置中的 `# >>> tulan-node >>>` 标记块
+- `NODE_HOME` 写入 `~/.tulan-tools/state/env.sh`，`node`/`npm` 链接到 `~/.tulan-tools/bin/`
 - 强制上游：`brew install node-20 --source upstream`
 
 ## 环境安装

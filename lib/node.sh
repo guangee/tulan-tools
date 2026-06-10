@@ -3,8 +3,8 @@
 
 set -euo pipefail
 
-TULAN_NODE_MARKER="# >>> tulan-node >>>"
-TULAN_NODE_MARKER_END="# <<< tulan-node <<<"
+# shellcheck source=env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/env.sh"
 
 TULAN_NODE_MAJORS=(16 18 20 22 24)
 
@@ -68,31 +68,6 @@ for item in data:
 else:
     sys.exit(1)
 PY
-}
-
-tulan_node_inject_shell() {
-  local node_home="$1"
-  local rc
-
-  for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
-    [[ -f "$rc" ]] || touch "$rc"
-    local tmp
-    tmp="$(mktemp)"
-    awk -v marker="${TULAN_NODE_MARKER}" -v end="${TULAN_NODE_MARKER_END}" '
-      $0 ~ marker { skip=1; next }
-      $0 ~ end { skip=0; next }
-      !skip { print }
-    ' "$rc" > "$tmp"
-    cat >> "$tmp" <<EOF
-${TULAN_NODE_MARKER}
-# tulan-tools Node.js（brew use node <版本> 管理）
-export NODE_HOME="${node_home}"
-export PATH="\${NODE_HOME}/bin:\${PATH}"
-${TULAN_NODE_MARKER_END}
-EOF
-    mv "$tmp" "$rc"
-    tulan_log "已配置 NODE_HOME: ${rc}"
-  done
 }
 
 tulan_node_save_state() {
@@ -182,13 +157,14 @@ PY
     return 1
   fi
 
-  tulan_node_inject_shell "$node_home"
   tulan_node_save_state "$major" "$version" "$node_home"
+  tulan_node_link_bin "$node_home"
+  tulan_runtime_configure
   tulan_log "已切换 Node.js ${major}: ${node_home}"
   echo ""
   echo "  NODE_HOME=${node_home}"
   echo "  验证: node -v && npm -v"
-  echo "  请执行: source ~/.bashrc  或  source ~/.zshrc"
+  tulan_runtime_hint
 }
 
 tulan_node_install_archive() {
@@ -378,19 +354,10 @@ if p.exists():
 PY
 )"
   if [[ "$active_major" == "$major" ]]; then
-    for rc_file in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
-      [[ -f "$rc_file" ]] || continue
-      local tmp
-      tmp="$(mktemp)"
-      awk -v marker="${TULAN_NODE_MARKER}" -v end="${TULAN_NODE_MARKER_END}" '
-        $0 ~ marker { skip=1; next }
-        $0 ~ end { skip=0; next }
-        !skip { print }
-      ' "$rc_file" > "$tmp"
-      mv "$tmp" "$rc_file"
-    done
+    tulan_node_unlink_bin
     rm -f "$(tulan_node_state_path)"
-    tulan_log "已清除 NODE_HOME 配置（曾使用 Node ${major}）"
+    tulan_runtime_configure
+    tulan_log "已清除 Node 环境（曾使用 Node ${major}）"
   fi
 
   tulan_log "已卸载: ${tool}${version:+ ${version}}"

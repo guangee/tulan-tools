@@ -3,8 +3,8 @@
 
 set -euo pipefail
 
-TULAN_JAVA_MARKER="# >>> tulan-java >>>"
-TULAN_JAVA_MARKER_END="# <<< tulan-java <<<"
+# shellcheck source=env.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/env.sh"
 
 tulan_java_state_path() {
   echo "$(tulan_get_home)/state/java.json"
@@ -54,31 +54,6 @@ tulan_openjdk_cellar_root() {
 tulan_maven_cellar_root() {
   local version="$1"
   echo "$(tulan_get_home)/cellar/maven/${version}"
-}
-
-tulan_java_inject_shell() {
-  local java_home="$1"
-  local rc
-
-  for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
-    [[ -f "$rc" ]] || touch "$rc"
-    local tmp
-    tmp="$(mktemp)"
-    awk -v marker="${TULAN_JAVA_MARKER}" -v end="${TULAN_JAVA_MARKER_END}" '
-      $0 ~ marker { skip=1; next }
-      $0 ~ end { skip=0; next }
-      !skip { print }
-    ' "$rc" > "$tmp"
-    cat >> "$tmp" <<EOF
-${TULAN_JAVA_MARKER}
-# tulan-tools OpenJDK（brew use java <版本> 管理）
-export JAVA_HOME="${java_home}"
-export PATH="\${JAVA_HOME}/bin:\${PATH}"
-${TULAN_JAVA_MARKER_END}
-EOF
-    mv "$tmp" "$rc"
-    tulan_log "已配置 JAVA_HOME: ${rc}"
-  done
 }
 
 tulan_java_save_state() {
@@ -143,13 +118,14 @@ PY
     return 1
   fi
 
-  tulan_java_inject_shell "$java_home"
   tulan_java_save_state "$major" "$version" "$java_home"
+  tulan_java_link_bin "$java_home"
+  tulan_runtime_configure
   tulan_log "已切换 Java ${major}: ${java_home}"
   echo ""
   echo "  JAVA_HOME=${java_home}"
   echo "  验证: java -version"
-  echo "  请执行: source ~/.bashrc  或  source ~/.zshrc"
+  tulan_runtime_hint
 }
 
 tulan_openjdk_fetch_asset() {
@@ -547,19 +523,10 @@ if p.exists():
 PY
 )"
   if [[ "$active_major" == "$major" ]]; then
-    for rc_file in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
-      [[ -f "$rc_file" ]] || continue
-      local tmp
-      tmp="$(mktemp)"
-      awk -v marker="${TULAN_JAVA_MARKER}" -v end="${TULAN_JAVA_MARKER_END}" '
-        $0 ~ marker { skip=1; next }
-        $0 ~ end { skip=0; next }
-        !skip { print }
-      ' "$rc_file" > "$tmp"
-      mv "$tmp" "$rc_file"
-    done
+    tulan_java_unlink_bin
     rm -f "$(tulan_java_state_path)"
-    tulan_log "已清除 JAVA_HOME 配置（曾使用 Java ${major}）"
+    tulan_runtime_configure
+    tulan_log "已清除 Java 环境（曾使用 Java ${major}）"
   fi
 
   tulan_log "已卸载: ${tool}${version:+ ${version}}"

@@ -68,8 +68,7 @@ brew install — 安装工具或软件包（类似 brew install）
 
 多版本: ${TULAN_HOME}/cellar/<工具>/<版本>/
 链接:   ${TULAN_HOME}/bin/
-Java:   ~/.bashrc / ~/.zshrc 中的 # >>> tulan-java >>> 块
-Node:   ~/.bashrc / ~/.zshrc 中的 # >>> tulan-node >>> 块
+Java/Node: ~/.tulan-tools/state/env.sh（主配置块自动加载）
 EOF
 }
 

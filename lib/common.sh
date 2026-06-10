@@ -112,6 +112,12 @@ tulan_shell_snippet() {
 ${TULAN_TOOLS_MARKER}
 # tulan-tools - 自动配置，请勿手动修改此区块
 export TULAN_TOOLS_HOME="${home}"
+
+# Java / Node 运行时（~/.tulan-tools/state/env.sh）
+if [[ -f "\${TULAN_TOOLS_HOME}/state/env.sh" ]]; then
+  source "\${TULAN_TOOLS_HOME}/state/env.sh"
+fi
+
 export PATH="\${TULAN_TOOLS_HOME}/bin:\${PATH}"
 
 # 加载自定义函数和别名
