@@ -13,7 +13,7 @@ source "${_SCRIPT_ROOT}/lib/package.sh"
 
 usage() {
   cat <<EOF
-用法: tulan list [选项]
+用法: brew list [选项]
 
 选项:
   --installed   仅显示已安装项
@@ -21,7 +21,7 @@ usage() {
   --pkgs        仅显示私有软件包
   -h, --help    显示帮助
 
-安装前请先 list 查看，再 tulan install <名称>，tulan versions <名称> 查版本。
+安装前请先 list 查看，再 brew install <名称>，brew versions <名称> 查版本。
 EOF
 }
 
@@ -40,7 +40,7 @@ main() {
 
   case "$mode" in
     all)
-      echo "可安装项（默认 tulan install 安装最新版）:"
+      echo "可安装项（默认 brew install 安装最新版）:"
       echo ""
       tulan_binaries_list false
       echo ""

@@ -13,10 +13,10 @@ source "${_SCRIPT_ROOT}/lib/package.sh"
 
 usage() {
   cat <<EOF
-用法: tulan install <名称> [名称...] [选项]
+用法: brew install <名称> [名称...] [选项]
 
 安装二进制工具（kubectl、docker-compose、mc）或私有软件包。
-请先 tulan list 查看可用项，默认安装最新版本。
+请先 brew list 查看可用项，默认安装最新版本。
 
 选项:
   --source SRC      二进制源: github（默认）| upstream
@@ -29,11 +29,11 @@ usage() {
   -h, --help        显示帮助
 
 示例:
-  tulan list
-  tulan install kubectl
-  tulan install kubectl mc
-  tulan install my-tool
-  tulan versions kubectl
+  brew list
+  brew install kubectl
+  brew install kubectl mc
+  brew install my-tool
+  brew versions kubectl
 EOF
 }
 
@@ -81,7 +81,7 @@ main() {
           pkg_targets+=("$1")
         else
           tulan_error "未知安装项: $1"
-          echo "  运行 tulan list 查看可用工具和软件包" >&2
+          echo "  运行 brew list 查看可用工具和软件包" >&2
           exit 1
         fi
         shift
@@ -92,9 +92,9 @@ main() {
   if [[ ${#binary_targets[@]} -eq 0 && ${#pkg_targets[@]} -eq 0 ]]; then
     tulan_error "请指定要安装的名称"
     echo "" >&2
-    echo "  tulan list              # 查看全部" >&2
-    echo "  tulan install kubectl   # 安装工具" >&2
-    echo "  tulan versions kubectl  # 查看版本" >&2
+    echo "  brew list              # 查看全部" >&2
+    echo "  brew install kubectl   # 安装工具" >&2
+    echo "  brew versions kubectl  # 查看版本" >&2
     exit 1
   fi
 

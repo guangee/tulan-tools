@@ -79,12 +79,12 @@ POSTINSTALL
   rm -f "${stage}${INSTALL_PREFIX}/postinstall.sh.bak"
 
   # 全局命令入口
-  cat > "${stage}/usr/local/bin/tulan-tools" <<WRAPPER
+  cat > "${stage}/usr/local/bin/brew-tools" <<WRAPPER
 #!/usr/bin/env bash
 export TULAN_TOOLS_HOME="${INSTALL_PREFIX}"
 exec "\${TULAN_TOOLS_HOME}/install.sh" "\$@"
 WRAPPER
-  chmod +x "${stage}/usr/local/bin/tulan-tools"
+  chmod +x "${stage}/usr/local/bin/brew-tools"
   chmod +x "${stage}${INSTALL_PREFIX}/postinstall.sh"
 
   echo "$stage"
@@ -107,7 +107,7 @@ build_with_fpm() {
     -C "$stage" \
     -p "${BUILD_DIR}/${PKG_NAME}_${VERSION}_${format}.${format}" \
     "${INSTALL_PREFIX}"=/ \
-    usr/local/bin/tulan-tools=/usr/local/bin/tulan-tools
+    usr/local/bin/brew-tools=/usr/local/bin/brew-tools
 
   tulan_log "已生成: ${BUILD_DIR}/${PKG_NAME}_${VERSION}_${format}.${format}"
 }

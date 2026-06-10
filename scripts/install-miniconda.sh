@@ -25,7 +25,7 @@ ACTION="install"
 
 usage() {
   cat <<EOF
-用法: tulan conda [install|configure|fetch] [选项]
+用法: brew conda [install|configure|fetch] [选项]
 
 子命令:
   install       安装 Miniconda 并配置镜像与 shell（默认）
@@ -247,7 +247,7 @@ main() {
   elif [[ -x "${CONDA_PREFIX}/bin/conda" ]]; then
     :
   else
-    tulan_error "未安装 Miniconda，请先运行: tulan conda install"
+    tulan_error "未安装 Miniconda，请先运行: brew conda install"
     exit 1
   fi
 

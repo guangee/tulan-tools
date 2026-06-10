@@ -21,7 +21,7 @@ ACTION="install"
 
 usage() {
   cat <<EOF
-用法: tulan docker [install|configure|fetch] [选项]
+用法: brew docker [install|configure|fetch] [选项]
 
 子命令:
   install       安装 Docker 并配置镜像加速（默认）

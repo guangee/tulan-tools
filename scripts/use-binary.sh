@@ -11,14 +11,14 @@ source "${_SCRIPT_ROOT}/lib/binaries.sh"
 
 usage() {
   cat <<EOF
-用法: tulan use <工具> <版本>
+用法: brew use <工具> <版本>
 
 切换已安装二进制工具的激活版本（更新 bin/ 下的符号链接）。
 
 示例:
-  tulan use kubectl v1.32.0
-  tulan use docker-compose v5.1.4
-  tulan list --binaries --installed   # 查看已装版本
+  brew use kubectl v1.32.0
+  brew use docker-compose v5.1.4
+  brew list --binaries --installed   # 查看已装版本
 EOF
 }
 

@@ -11,7 +11,7 @@ source "${_SCRIPT_ROOT}/lib/package.sh"
 
 usage() {
   cat <<EOF
-用法: tulan install <包名> [选项]
+用法: brew install <包名> [选项]
 
 选项:
   --force     强制重新安装
@@ -19,8 +19,8 @@ usage() {
   -h, --help  显示帮助
 
 示例:
-  tulan install my-tool
-  tulan install my-tool --version 1.2.0
+  brew install my-tool
+  brew install my-tool --version 1.2.0
 EOF
 }
 

@@ -21,7 +21,7 @@ ACTION="install"
 
 usage() {
   cat <<EOF
-用法: tulan vim [install|configure|fetch] [选项]
+用法: brew vim [install|configure|fetch] [选项]
 
 子命令:
   install       安装 vim、vimrc，并配置默认编辑器（默认）
@@ -129,7 +129,7 @@ install_vim_package() {
 vim_editor_snippet() {
   cat <<EOF
 ${VIM_EDITOR_MARKER}
-# tulan vim — 默认文本编辑器
+# brew vim — 默认文本编辑器
 export EDITOR=vim
 export VISUAL=vim
 ${VIM_EDITOR_MARKER_END}

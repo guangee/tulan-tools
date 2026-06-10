@@ -2,7 +2,7 @@
 # tulan-tools 自定义别名和函数
 # 在此文件中添加你的个人配置
 
-alias help='tulan help'
+alias help='brew help'
 
 # 示例别名
 # alias ll='ls -alh'

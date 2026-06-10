@@ -13,7 +13,7 @@ source "${_SCRIPT_ROOT}/lib/package.sh"
 
 usage() {
   cat <<EOF
-用法: tulan uninstall <名称> [选项]
+用法: brew uninstall <名称> [选项]
 
 卸载二进制工具（kubectl / docker-compose / mc）或私有软件包。
 
@@ -22,9 +22,9 @@ usage() {
   -h, --help      显示帮助
 
 示例:
-  tulan uninstall kubectl
-  tulan uninstall kubectl --version v1.31.0
-  tulan uninstall my-tool
+  brew uninstall kubectl
+  brew uninstall kubectl --version v1.31.0
+  brew uninstall my-tool
 EOF
 }
 

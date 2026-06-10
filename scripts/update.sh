@@ -20,7 +20,7 @@ usage() {
 tulan-tools 更新脚本
 
 用法:
-  tulan update [选项]
+  brew update [选项]
   ./scripts/update.sh [选项]
 
 选项:

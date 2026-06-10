@@ -70,7 +70,7 @@ tulan_pkg_show_versions() {
     echo "  已安装:   (无)"
   fi
   echo ""
-  echo "  安装: tulan install ${pkg_name}"
+  echo "  安装: brew install ${pkg_name}"
 }
 
 # 列出可用包
@@ -93,7 +93,7 @@ tulan_pkg_list_available() {
     printf "  %-20s v%-10s %s\n" "$name" "$version" "$desc"
   done
   echo ""
-  echo "  安装: tulan install <包名>    版本: tulan versions <包名>"
+  echo "  安装: brew install <包名>    版本: brew versions <包名>"
 }
 
 # 列出已安装包

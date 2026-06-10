@@ -21,9 +21,9 @@ usage() {
 安装二进制工具: kubectl, docker-compose, mc
 
 用法:
-  tulan install <工具> [工具...] [选项]
+  brew install <工具> [工具...] [选项]
 
-请先 tulan list 查看可用工具，再按需安装（默认安装索引最新版）。
+请先 brew list 查看可用工具，再按需安装（默认安装索引最新版）。
 
 选项:
   --source SRC        源: github（默认，bin 索引最新）| upstream（官方最新）
@@ -37,10 +37,10 @@ usage() {
   -h, --help          显示帮助
 
 示例:
-  tulan install kubectl
-  tulan install kubectl mc
-  tulan install kubectl --version v1.32.0 --source upstream
-  tulan versions kubectl
+  brew install kubectl
+  brew install kubectl mc
+  brew install kubectl --version v1.32.0 --source upstream
+  brew versions kubectl
 EOF
 }
 
@@ -61,7 +61,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) usage; exit 0 ;;
     --force)
-      err "--force 仅用于私有软件包: tulan install <包名> --force"
+      err "--force 仅用于私有软件包: brew install <包名> --force"
       exit 1
       ;;
     --*) err "未知参数: $1"; usage; exit 1 ;;
@@ -75,9 +75,9 @@ done
 if [[ ${#TOOL_ARGS[@]} -eq 0 ]]; then
   err "请指定要安装的工具"
   echo "" >&2
-  echo "  先运行: tulan list" >&2
-  echo "  再安装: tulan install kubectl" >&2
-  echo "  查版本: tulan versions kubectl" >&2
+  echo "  先运行: brew list" >&2
+  echo "  再安装: brew install kubectl" >&2
+  echo "  查版本: brew versions kubectl" >&2
   exit 1
 fi
 
@@ -218,7 +218,7 @@ run_tool() {
   local raw="$1" canonical
   canonical="$(tulan_binary_canonical_name "$raw")"
   if [[ -z "$canonical" ]]; then
-    err "未知工具: ${raw}（运行 tulan list 查看）"
+    err "未知工具: ${raw}（运行 brew list 查看）"
     exit 1
   fi
 

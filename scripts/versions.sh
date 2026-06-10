@@ -13,15 +13,15 @@ source "${_SCRIPT_ROOT}/lib/package.sh"
 
 usage() {
   cat <<EOF
-用法: tulan versions <名称>
+用法: brew versions <名称>
 
 查看二进制工具或私有软件包的版本信息。
 
 示例:
-  tulan versions kubectl
-  tulan versions docker-compose
-  tulan versions my-tool
-  tulan list                 # 查看所有可安装项
+  brew versions kubectl
+  brew versions docker-compose
+  brew versions my-tool
+  brew list                 # 查看所有可安装项
 EOF
 }
 
@@ -46,7 +46,7 @@ main() {
   fi
 
   tulan_error "未知名称: ${name}"
-  echo "  运行 tulan list 查看可用项" >&2
+  echo "  运行 brew list 查看可用项" >&2
   exit 1
 }
 

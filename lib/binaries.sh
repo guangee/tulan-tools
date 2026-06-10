@@ -511,7 +511,7 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
   if [[ -n "${TULAN_BINARY_REQUESTED_VERSION:-}" ]] \
       && [[ "${TULAN_BINARY_REQUESTED_VERSION}" != "$version" ]]; then
     tulan_error "bin 索引版本为 ${version}，指定 ${TULAN_BINARY_REQUESTED_VERSION}"
-    tulan_error "请使用: tulan install ${tool} --version ${TULAN_BINARY_REQUESTED_VERSION} --source upstream"
+    tulan_error "请使用: brew install ${tool} --version ${TULAN_BINARY_REQUESTED_VERSION} --source upstream"
     return 1
   fi
 
@@ -596,7 +596,7 @@ tulan_binary_show_versions() {
 
   echo "二进制工具: ${tool}"
   echo "────────────────────────────────────"
-  echo "  bin 索引版本（tulan install 默认）: ${index_ver}"
+  echo "  bin 索引版本（brew install 默认）: ${index_ver}"
   if [[ -n "$upstream_latest" ]]; then
     echo "  上游最新版本: ${upstream_latest}"
   fi
@@ -629,9 +629,9 @@ PY
   fi
 
   echo ""
-  echo "  安装最新: tulan install ${tool}"
-  echo "  指定版本: tulan install ${tool} --version <VER> --source upstream"
-  echo "  切换版本: tulan use ${tool} <VER>"
+  echo "  安装最新: brew install ${tool}"
+  echo "  指定版本: brew install ${tool} --version <VER> --source upstream"
+  echo "  切换版本: brew use ${tool} <VER>"
 }
 
 tulan_binaries_list() {
@@ -682,6 +682,6 @@ PY
   fi
 
   echo ""
-  echo "  安装: tulan install <工具>    版本: tulan versions <工具>"
-  echo "  * 为当前激活版本              切换: tulan use <工具> <版本>"
+  echo "  安装: brew install <工具>    版本: brew versions <工具>"
+  echo "  * 为当前激活版本              切换: brew use <工具> <版本>"
 }

@@ -1,9 +1,9 @@
 # 构建产物
 dist/
 
-# tulan install 安装的二进制（与 bin/tulan 同目录，不提交）
+# brew install 安装的二进制（与 bin/brew 同目录，不提交）
 bin/*
-!bin/tulan
+!bin/brew
 
 # Cellar 多版本存储
 cellar/

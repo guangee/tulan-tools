@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tulan-tools 统一入口
+# tulan-tools 统一入口（命令名: brew）
 
 set -euo pipefail
 
@@ -7,29 +7,27 @@ TULAN_HOME="${TULAN_TOOLS_HOME:-${HOME}/.tulan-tools}"
 
 usage() {
   cat <<EOF
-tulan — tulan-tools 命令行工具
+brew — 图蓝工具集（tulan-tools）
 
-用法: tulan <命令> [选项]
+用法: brew <命令> [选项]
 
 命令:
   help [主题]         显示帮助
-  update              更新 tulan-tools 仓库
+  update              更新工具集仓库
   list                查看可安装的工具与软件包
   versions <名称>     查看可用/已装版本
-  install <名称>...   安装工具或软件包（默认最新版）
-  use <工具> <版本>   切换二进制激活版本
+  install <名称>...   安装（默认最新版）
+  use <工具> <版本>   切换二进制版本
   uninstall <名称>    卸载
   docker / conda / vim  环境安装
 
 示例:
-  tulan list
-  tulan versions kubectl
-  tulan install kubectl
-  tulan install kubectl mc
-  tulan install my-tool
-  tulan use kubectl v1.32.0
+  brew list
+  brew versions kubectl
+  brew install kubectl
+  brew install kubectl mc
 
-运行 tulan help <主题> 查看详细选项。
+运行 brew help <主题> 查看详细选项。
 EOF
 }
 
