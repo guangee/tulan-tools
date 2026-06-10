@@ -249,9 +249,26 @@ tulan_debug() {
   echo "[tulan-tools:debug] $*" >&2
 }
 
+tulan_verbose_init() {
+  export TULAN_VERBOSE_EPOCH="${TULAN_VERBOSE_EPOCH:-$(date +%s)}"
+  export TULAN_VERBOSE_STEP=0
+}
+
+tulan_verbose_elapsed() {
+  local now="${1:-$(date +%s)}"
+  echo $((now - ${TULAN_VERBOSE_EPOCH:-now}))
+}
+
 tulan_verbose() {
   [[ "${TULAN_VERBOSE:-}" == true ]] || return 0
-  echo "[tulan-tools:verbose] $*" >&2
+  echo "[tulan-tools:verbose] [+$(tulan_verbose_elapsed)s] $*" >&2
+}
+
+tulan_verbose_step() {
+  [[ "${TULAN_VERBOSE:-}" == true ]] || return 0
+  TULAN_VERBOSE_STEP=$((TULAN_VERBOSE_STEP + 1))
+  export TULAN_VERBOSE_STEP
+  echo "[tulan-tools:verbose] [+$(tulan_verbose_elapsed)s] 步骤 ${TULAN_VERBOSE_STEP}: $*" >&2
 }
 
 tulan_error() {

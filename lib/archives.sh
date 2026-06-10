@@ -50,6 +50,7 @@ tulan_manifest_ensure_archive_path() {
     return 0
   fi
 
+  tulan_verbose_step "刷新 bin 索引（缺少 ${tool} 归档路径）"
   tulan_log "索引中无 ${tool} 的 bin 归档路径，尝试刷新 manifest..."
   tulan_manifest_refresh true || return 1
   tulan_manifest_tool_has_platform_path "$tool"
@@ -116,6 +117,7 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
   [[ -n "$version" ]] || version="latest"
   proxy="$(tulan_get_github_proxy "$manifest")"
 
+  tulan_verbose_step "下载归档 ${tool} ${version} (${platform_key})"
   tulan_log "下载归档 ${tool} ${version} (${platform_key})"
   tulan_debug "归档路径: ${path}"
   if [[ "${TULAN_VERBOSE:-}" == true ]]; then
@@ -135,6 +137,7 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
 
   if [[ "$verify" == true ]] && [[ -n "$sha256" ]]; then
     local actual
+    tulan_verbose_step "SHA256 校验"
     if command -v sha256sum &>/dev/null; then
       actual="$(sha256sum "$dest" | awk '{print $1}')"
     else

@@ -26,7 +26,7 @@ usage() {
   --no-verify       跳过 SHA256（仅二进制）
   --no-proxy        禁用代理（仅二进制）
   --debug           调试输出
-  --verbose         详细下载过程（URL、curl 进度、校验）
+  --verbose         详细过程（步骤耗时、curl 进度条、校验）
   -h, --help        显示帮助
 
 示例:

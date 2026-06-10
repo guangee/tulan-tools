@@ -194,12 +194,14 @@ tulan_openjdk_install_archive() {
 
   cellar_root="$(tulan_openjdk_cellar_root "$major" "$version")"
   mkdir -p "$cellar_root"
+  tulan_verbose_step "解压 OpenJDK 归档"
   tar -xzf "$archive" -C "$cellar_root"
 
   java_bin="$(find "$cellar_root" -type f -name java -path '*/bin/java' 2>/dev/null | head -1)"
   [[ -n "$java_bin" ]] || { tulan_error "解压后未找到 java 可执行文件"; return 1; }
   java_home="$(cd "$(dirname "$java_bin")/.." && pwd)"
 
+  tulan_verbose_step "注册并激活 Java ${major}"
   tulan_openjdk_register "$major" "$version" "$java_home" "true" "$source"
   tulan_java_activate "$major"
   tulan_log "  已安装: ${cellar_root}（${source}）"
@@ -215,6 +217,7 @@ tulan_install_openjdk_from_bin() {
   version="$(tulan_manifest_tool_version "$tool")"
   [[ -n "$version" ]] || { tulan_error "bin 索引无 OpenJDK ${major} 版本"; return 1; }
 
+  tulan_verbose_step "从 bin 索引安装 OpenJDK ${major}"
   tulan_log "安装 OpenJDK ${major} ${version}（bin 索引）"
 
   if [[ "$dry_run" == true ]]; then
@@ -259,7 +262,7 @@ tulan_install_openjdk() {
   fi
 
   tmp="$(mktemp)"
-  curl -fSL "$download_url" -o "$tmp"
+  tulan_fetch_url "$download_url" "$tmp"
   tulan_openjdk_install_archive "$major" "$version" "$tmp" "upstream"
   rm -f "$tmp"
 }
@@ -301,6 +304,7 @@ tulan_maven_install_archive() {
 
   cellar_root="$(tulan_maven_cellar_root "$version")"
   mkdir -p "$cellar_root"
+  tulan_verbose_step "解压 Maven 归档"
   tar -xzf "$archive" -C "$cellar_root"
 
   mvn_home="${cellar_root}/apache-maven-${version}"
@@ -374,11 +378,12 @@ tulan_install_maven() {
   fi
 
   tmp="$(mktemp)"
-  if ! curl -fSL "$url" -o "$tmp"; then
+  if ! tulan_fetch_url "$url" "$tmp"; then
     url="https://archive.apache.org/dist/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz"
     tulan_log "尝试镜像: ${url}"
-    curl -fSL "$url" -o "$tmp"
+    tulan_fetch_url "$url" "$tmp"
   fi
+  tulan_verbose_step "安装 Maven ${version}"
   tulan_maven_install_archive "$version" "$tmp" "upstream"
   rm -f "$tmp"
 }

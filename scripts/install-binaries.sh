@@ -39,7 +39,7 @@ usage() {
   --no-proxy          禁用代理
   --refresh-manifest  强制刷新 bin 分支索引
   --debug             显示下载 URL
-  --verbose           显示详细下载过程（URL、curl 进度、校验）
+  --verbose           显示详细过程（步骤耗时、curl 进度条、校验）
   --dry-run           仅显示信息
   -h, --help          显示帮助
 
@@ -227,6 +227,7 @@ install_from_github() {
 
 run_tool() {
   local raw="$1" canonical major
+  tulan_verbose_step "开始安装 ${raw}"
   canonical="$(tulan_binary_canonical_name "$raw")"
 
   major="$(tulan_openjdk_major_for_tool "${canonical:-$raw}")"
@@ -332,6 +333,8 @@ run_tool() {
 main() {
   local tool
 
+  [[ "${TULAN_VERBOSE:-}" == true ]] && tulan_verbose_init
+
   if ! command -v curl &>/dev/null; then
     err "需要 curl"; exit 1
   fi
@@ -349,10 +352,13 @@ main() {
 
   for tool in "${TOOL_ARGS[@]}"; do
     run_tool "$tool"
+    tulan_verbose_step "完成 ${tool}"
     echo "" >&2
   done
 
   if [[ "$DRY_RUN" == false ]]; then
+    [[ "${TULAN_VERBOSE:-}" == true ]] \
+      && tulan_verbose "全部安装完成，总耗时 +$(tulan_verbose_elapsed)s"
     log "完成！命令入口: ${INSTALL_DIR}"
   fi
 }
