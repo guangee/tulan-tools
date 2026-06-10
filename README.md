@@ -31,40 +31,44 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 
 ## 日常使用
 
+所有功能通过统一命令 `tulan` 加子命令使用：
+
 | 命令 | 作用 |
 |------|------|
-| `tulan-help` / `help` | 查看帮助 |
-| `tulan-update` | 拉取仓库最新代码 |
-| `tulan-download-binaries` | 下载 kubectl、docker-compose、mc |
-| `tulan-list-pkgs` | 查看二进制工具和私有软件包 |
-| `tulan-list-pkgs --binaries` | 仅查看 kubectl、docker-compose、mc |
-| `tulan-install-pkg <包名>` | 安装软件包 |
-| `tulan-uninstall-pkg <包名>` | 卸载软件包 |
+| `tulan` / `tulan help` / `help` | 查看帮助 |
+| `tulan update` | 拉取仓库最新代码 |
+| `tulan download` | 下载 kubectl、docker-compose、mc |
+| `tulan list` | 查看二进制工具和私有软件包 |
+| `tulan list --binaries` | 仅查看 kubectl、docker-compose、mc |
+| `tulan install <包名>` | 安装软件包 |
+| `tulan uninstall <包名>` | 卸载软件包 |
 
-打开新终端时会自动检查更新（每天最多一次），也可随时手动执行 `tulan-update`。
+打开新终端时会自动检查更新（每天最多一次），也可随时手动执行 `tulan update`。
+
+> 旧命令 `tulan-update`、`tulan-download-binaries` 等仍可用，内部会转发到 `tulan` 子命令。
 
 ## 下载常用工具
 
 安装完成后，执行：
 
 ```bash
-tulan-download-binaries
-tulan-list-pkgs --binaries    # 确认安装状态
+tulan download
+tulan list --binaries    # 确认安装状态
 ```
 
 工具会安装到 `~/.tulan-tools/bin`，可直接使用 `kubectl`、`docker-compose`、`mc`。
 
 二进制**索引**在 `bin` 分支（`binaries.manifest.json`），使用时自动缓存到 `~/.tulan-tools/state/`：
-- `tulan-update` 后自动刷新索引
+- `tulan update` 后自动刷新索引
 - 超过 24 小时未刷新时，调用下载/列表命令会自动更新
-- 可手动强制刷新：`tulan-download-binaries --refresh-manifest`
-- 排查下载问题：`tulan-download-binaries --debug`（显示 manifest / 二进制直连与代理 URL）
+- 可手动强制刷新：`tulan download --refresh-manifest`
+- 排查下载问题：`tulan download --debug`（显示 manifest / 二进制直连与代理 URL）
 
 默认通过 [gh.coding-space.cn](https://gh.coding-space.cn/) 代理加速，失败时自动回退直连：
 
 ```bash
-tulan-download-binaries --no-proxy          # 禁用代理
-tulan-download-binaries --source upstream   # 跳过索引，从官方源下载
+tulan download --no-proxy          # 禁用代理
+tulan download --source upstream   # 跳过索引，从官方源下载
 ```
 
 ## 管理私有软件包
@@ -80,15 +84,15 @@ cp -r packages/_template packages/my-tool
 **安装与卸载：**
 
 ```bash
-tulan-install-pkg my-tool
-tulan-uninstall-pkg my-tool
+tulan install my-tool
+tulan uninstall my-tool
 ```
 
 **查看状态：**
 
 ```bash
-tulan-list-pkgs              # 全部可用包
-tulan-list-pkgs --installed  # 已安装的包
+tulan list              # 全部可用包
+tulan list --installed  # 已安装的包
 ```
 
 ## 自定义别名

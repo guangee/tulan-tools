@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# 安装 tulan-tools 私有软件包
+
+set -euo pipefail
+
+_SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/common.sh
+source "${_SCRIPT_ROOT}/lib/common.sh"
+# shellcheck source=../lib/package.sh
+source "${_SCRIPT_ROOT}/lib/package.sh"
+
+usage() {
+  cat <<EOF
+用法: tulan install <包名> [选项]
+
+选项:
+  --force     强制重新安装
+  --version V 指定版本
+  -h, --help  显示帮助
+
+示例:
+  tulan install my-tool
+  tulan install my-tool --version 1.2.0
+EOF
+}
+
+main() {
+  local pkg_name=""
+  local force=false
+  local version=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force) force=true; shift ;;
+      --version) version="$2"; shift 2 ;;
+      -h|--help) usage; exit 0 ;;
+      -*) tulan_error "未知参数: $1"; usage; exit 1 ;;
+      *) pkg_name="$1"; shift ;;
+    esac
+  done
+
+  if [[ -z "$pkg_name" ]]; then
+    usage
+    exit 1
+  fi
+
+  tulan_pkg_install "$pkg_name" "$force" "$version"
+}
+
+main "$@"

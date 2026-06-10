@@ -39,7 +39,7 @@ usage() {
 GitHub 模式（默认，无需 git-lfs）:
   从 bin 分支拉取 binaries.manifest.json 到本地缓存（默认 24h 有效），
   再通过 media.githubusercontent.com 下载二进制。
-  tulan-update 后会自动刷新索引。
+  tulan update 后会自动刷新索引。
 
   环境变量:
     TULAN_GITHUB_REPO            仓库地址，如 guangee/tulan-tools

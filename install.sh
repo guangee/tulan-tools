@@ -162,7 +162,7 @@ EOF
   tulan_log "安装完成!"
   echo ""
   echo "  安装目录: ${INSTALL_HOME}"
-  echo "  可用命令: tulan-update, tulan-install-pkg, tulan-list-pkgs"
+  echo "  可用命令: tulan update, tulan download, tulan list, tulan install"
   echo ""
   echo "  请运行以下命令使配置生效:"
   echo "    source ~/.bashrc   # 或 source ~/.zshrc"

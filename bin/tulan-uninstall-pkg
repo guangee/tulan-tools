@@ -1,25 +1,2 @@
 #!/usr/bin/env bash
-# 卸载 tulan-tools 私有软件包
-
-set -euo pipefail
-
-TULAN_HOME="${TULAN_TOOLS_HOME:-${HOME}/.tulan-tools}"
-# shellcheck source=../lib/common.sh
-source "${TULAN_HOME}/lib/common.sh"
-# shellcheck source=../lib/package.sh
-source "${TULAN_HOME}/lib/package.sh"
-
-usage() {
-  echo "用法: tulan-uninstall-pkg <包名>"
-}
-
-main() {
-  if [[ -z "${1:-}" ]] || [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]]; then
-    usage
-    exit 1
-  fi
-
-  tulan_pkg_uninstall "$1"
-}
-
-main "$@"
+exec "$(dirname "${BASH_SOURCE[0]}")/tulan" uninstall "$@"

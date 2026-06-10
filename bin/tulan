@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# tulan-tools 统一入口
+
+set -euo pipefail
+
+_BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TULAN_HOME="${TULAN_TOOLS_HOME:-${HOME}/.tulan-tools}"
+
+usage() {
+  cat <<EOF
+tulan — tulan-tools 命令行工具
+
+用法: tulan <命令> [选项]
+
+命令:
+  help [主题]       显示帮助（update / download / pkg）
+  update            更新 tulan-tools 仓库
+  download          下载 kubectl、docker-compose、mc
+  list              列出二进制工具和私有软件包
+  install <包名>    安装软件包
+  uninstall <包名>  卸载软件包
+
+示例:
+  tulan update
+  tulan download --tool kubectl
+  tulan list --binaries
+  tulan install my-tool
+  tulan help download
+
+运行 tulan help <主题> 查看子命令详细选项。
+EOF
+}
+
+main() {
+  local cmd="${1:-}"
+
+  case "$cmd" in
+    ""|-h|--help|help)
+      shift 2>/dev/null || true
+      exec "${TULAN_HOME}/scripts/help.sh" "$@"
+      ;;
+    update|up)
+      shift
+      exec "${TULAN_HOME}/scripts/update.sh" "$@"
+      ;;
+    download|binaries|dl)
+      shift
+      exec "${TULAN_HOME}/scripts/download-binaries.sh" "$@"
+      ;;
+    list|ls)
+      shift
+      exec "${TULAN_HOME}/scripts/list-pkgs.sh" "$@"
+      ;;
+    install)
+      shift
+      exec "${TULAN_HOME}/scripts/install-pkg.sh" "$@"
+      ;;
+    uninstall|remove)
+      shift
+      exec "${TULAN_HOME}/scripts/uninstall-pkg.sh" "$@"
+      ;;
+    *)
+      echo "未知命令: ${cmd}" >&2
+      echo "" >&2
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

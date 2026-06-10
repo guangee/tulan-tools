@@ -1,3 +1,2 @@
 #!/usr/bin/env bash
-TULAN_HOME="${TULAN_TOOLS_HOME:-${HOME}/.tulan-tools}"
-exec "${TULAN_HOME}/scripts/update.sh" "$@"
+exec "$(dirname "${BASH_SOURCE[0]}")/tulan" update "$@"

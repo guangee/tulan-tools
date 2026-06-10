@@ -339,7 +339,7 @@ tulan_binaries_list() {
   if [[ "$installed_only" == true ]]; then
     echo "已安装二进制工具:"
   else
-    echo "二进制工具（tulan-download-binaries 安装）:"
+    echo "二进制工具（tulan download 安装）:"
   fi
   echo "────────────────────────────────────"
 
@@ -376,6 +376,6 @@ for t in data.get('tools', {}).values():
 
   if [[ "$missing" -gt 0 ]]; then
     echo ""
-    echo "提示: 运行 tulan-download-binaries 安装上述工具"
+    echo "提示: 运行 tulan download 安装上述工具"
   fi
 }
