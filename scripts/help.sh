@@ -27,6 +27,8 @@ tulan-tools — 个人开发工具集
   tulan list --binaries         仅查看 kubectl、docker-compose、mc
   tulan install <包名>          安装软件包
   tulan uninstall <包名>        卸载软件包
+  tulan docker                  安装 Docker（阿里云源）
+  tulan docker configure        仅配置 registry 镜像加速
 
 下载选项:
   tulan download --tool kubectl           仅下载 kubectl
@@ -45,6 +47,7 @@ tulan-tools — 个人开发工具集
 查看子命令详细帮助:
   tulan help update
   tulan help download
+  tulan help docker
   tulan help pkg
 EOF
 }
@@ -76,6 +79,22 @@ tulan download — 下载常用二进制工具
 EOF
 }
 
+help_docker() {
+  cat <<EOF
+tulan docker — 安装 Docker
+
+  tulan docker                      安装 Docker（默认阿里云 CE 源）
+  tulan docker fetch                下载官方脚本到本地缓存
+  tulan docker configure            仅配置 registry 镜像加速
+  tulan docker --refresh-script     重新下载官方安装脚本
+  tulan docker --no-mirror          不使用阿里云软件源
+  tulan docker --registry URL       自定义 registry 镜像（默认 https://hub.coding-space.cn）
+
+官方脚本缓存: ${TULAN_HOME}/state/docker/get-docker.sh
+安装后 registry 写入: /etc/docker/daemon.json
+EOF
+}
+
 help_pkg() {
   cat <<EOF
 tulan list / install / uninstall — 管理工具与软件包
@@ -98,6 +117,7 @@ main() {
     ""|-h|--help) usage ;;
     update)       help_update ;;
     download|binaries) help_download ;;
+    docker) help_docker ;;
     pkg|package|packages|list) help_pkg ;;
     *)
       echo "未知主题: $1"

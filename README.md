@@ -42,10 +42,9 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 | `tulan list --binaries` | 仅查看 kubectl、docker-compose、mc |
 | `tulan install <包名>` | 安装软件包 |
 | `tulan uninstall <包名>` | 卸载软件包 |
+| `tulan docker` | 安装 Docker（阿里云源 + registry 镜像加速） |
 
 打开新终端时会自动检查更新（每天最多一次），也可随时手动执行 `tulan update`。
-
-> 旧命令 `tulan-update`、`tulan-download-binaries` 等仍可用，内部会转发到 `tulan` 子命令。
 
 ## 下载常用工具
 
@@ -69,6 +68,17 @@ tulan list --binaries    # 确认安装状态
 ```bash
 tulan download --no-proxy          # 禁用代理
 tulan download --source upstream   # 跳过索引，从官方源下载
+```
+
+## 安装 Docker
+
+使用官方 `get.docker.com` 脚本，缓存到 `~/.tulan-tools/state/docker/`，默认通过**阿里云**安装 Docker CE，并配置 `https://hub.coding-space.cn` 为 registry 镜像加速：
+
+```bash
+tulan docker                        # 安装并配置
+tulan docker configure              # 仅更新 registry 镜像配置
+tulan docker fetch                  # 仅下载官方脚本
+tulan docker --refresh-script       # 重新下载脚本后安装
 ```
 
 ## 管理私有软件包
