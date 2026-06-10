@@ -36,7 +36,8 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 | `tulan-help` / `help` | 查看帮助 |
 | `tulan-update` | 拉取仓库最新代码 |
 | `tulan-download-binaries` | 下载 kubectl、docker-compose、mc |
-| `tulan-list-pkgs` | 查看可安装的软件包 |
+| `tulan-list-pkgs` | 查看二进制工具和私有软件包 |
+| `tulan-list-pkgs --binaries` | 仅查看 kubectl、docker-compose、mc |
 | `tulan-install-pkg <包名>` | 安装软件包 |
 | `tulan-uninstall-pkg <包名>` | 卸载软件包 |
 
@@ -48,6 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 
 ```bash
 tulan-download-binaries
+tulan-list-pkgs --binaries    # 确认安装状态
 ```
 
 工具会安装到 `~/.tulan-tools/bin`，可直接使用 `kubectl`、`docker-compose`、`mc`。

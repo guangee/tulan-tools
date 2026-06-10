@@ -239,3 +239,43 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
   chmod +x "$dest"
   tulan_log "  已安装: ${dest}"
 }
+
+# 列出可下载的二进制工具及安装状态
+tulan_binaries_list() {
+  local manifest bin_dir installed_only="${1:-false}"
+
+  manifest="$(tulan_resolve_manifest)" || {
+    tulan_error "未找到 binaries.manifest.json"
+    return 1
+  }
+
+  bin_dir="$(tulan_get_home)/bin"
+
+  if [[ "$installed_only" == true ]]; then
+    echo "已安装二进制工具:"
+  else
+    echo "二进制工具（tulan-download-binaries 安装）:"
+  fi
+  echo "────────────────────────────────────"
+
+  python3 -c "
+import json, os, sys
+installed_only = '${installed_only}' == 'true'
+with open('${manifest}') as f:
+    data = json.load(f)
+bin_dir = '${bin_dir}'
+found = False
+for name, tool in data.get('tools', {}).items():
+    install_name = tool.get('install_name', name)
+    version = tool.get('version', '') or '?'
+    path = os.path.join(bin_dir, install_name)
+    installed = os.path.isfile(path) and os.access(path, os.X_OK)
+    if installed_only and not installed:
+        continue
+    found = True
+    status = '已安装' if installed else '未安装'
+    print(f'  {install_name:20s} v{version:<10} {status}')
+if not found:
+    print('  (无)' if installed_only else '  (manifest 中无工具定义)')
+"
+}

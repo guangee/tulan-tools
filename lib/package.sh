@@ -47,6 +47,7 @@ tulan_pkg_list_available() {
     [[ -d "$pkg_dir" ]] || continue
     local name version desc
     name="$(basename "$pkg_dir")"
+    [[ "$name" == _* ]] && continue
     version="$(tulan_pkg_read_manifest "$pkg_dir" "version" 2>/dev/null || echo "?")"
     desc="$(tulan_pkg_read_manifest "$pkg_dir" "description" 2>/dev/null || echo "")"
     printf "  %-20s v%-10s %s\n" "$name" "$version" "$desc"

@@ -18,8 +18,9 @@ tulan-tools — 个人开发工具集
   tulan-update                拉取仓库最新代码
   tulan-update --force        强制更新（忽略 24 小时限制）
   tulan-download-binaries     下载 kubectl、docker-compose、mc
-  tulan-list-pkgs             查看可安装的软件包
-  tulan-list-pkgs --installed 查看已安装的软件包
+  tulan-list-pkgs             查看二进制工具和私有软件包
+  tulan-list-pkgs --installed 查看已安装项
+  tulan-list-pkgs --binaries  仅查看 kubectl、docker-compose、mc
   tulan-install-pkg <包名>    安装软件包
   tulan-uninstall-pkg <包名>  卸载软件包
 
@@ -68,10 +69,12 @@ EOF
 
 help_pkg() {
   cat <<EOF
-tulan-*-pkg — 管理软件包
+tulan-list-pkgs / tulan-*-pkg — 管理工具与软件包
 
-  tulan-list-pkgs                 列出可用包
-  tulan-list-pkgs --installed     列出已安装包
+  tulan-list-pkgs                 列出二进制工具 + 私有包
+  tulan-list-pkgs --binaries      仅列出 kubectl、docker-compose、mc
+  tulan-list-pkgs --pkgs          仅列出私有软件包
+  tulan-list-pkgs --installed     列出已安装项
   tulan-install-pkg <包名>        安装包
   tulan-install-pkg <包名> --force  强制重装
   tulan-uninstall-pkg <包名>        卸载包
