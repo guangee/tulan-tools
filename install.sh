@@ -117,6 +117,8 @@ fi
 source "${SCRIPT_DIR}/lib/common.sh"
 
 main() {
+  tulan_cleanup_legacy_files
+
   tulan_log "开始安装 tulan-tools"
   tulan_log "目标系统: $(tulan_detect_os) / $(tulan_detect_pkg_manager)"
 

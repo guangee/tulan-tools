@@ -92,6 +92,8 @@ do_update() {
 }
 
 main() {
+  tulan_cleanup_legacy_files
+
   if [[ "$CHECK_ON_START" == true ]]; then
     should_check || exit 0
     do_update

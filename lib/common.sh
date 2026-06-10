@@ -98,6 +98,13 @@ tulan_get_home() {
   echo "${TULAN_TOOLS_HOME:-${TULAN_TOOLS_DEFAULT_HOME}}"
 }
 
+# 清理旧版本遗留在仓库根目录的状态文件
+tulan_cleanup_legacy_files() {
+  local home
+  home="$(tulan_get_home)"
+  rm -f "${home}/.install-info" "${home}/.last-update-check"
+}
+
 # 生成 shell 配置片段
 tulan_shell_snippet() {
   local home="$1"
