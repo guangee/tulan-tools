@@ -1,5 +1,7 @@
 # tulan-tools
 
+仓库地址：[github.com/guangee/tulan-tools](https://github.com/guangee/tulan-tools)
+
 个人开发工具集，类似 oh-my-zsh。安装后自动配置 shell 环境，支持从 Git 仓库同步更新，并统一管理常用命令行工具和私有软件包。
 
 适用于 Debian、Ubuntu、CentOS 等 Linux 系统。
@@ -9,7 +11,7 @@
 **本机已有仓库：**
 
 ```bash
-git clone git@github.com:you/tulan-tools.git
+git clone git@github.com:guangee/tulan-tools.git
 cd tulan-tools
 ./install.sh --local
 source ~/.bashrc   # 或 source ~/.zshrc
@@ -18,8 +20,8 @@ source ~/.bashrc   # 或 source ~/.zshrc
 **远程一键安装：**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/you/tulan-tools/main/install.sh | bash -s -- \
-  --repo git@github.com:you/tulan-tools.git
+curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.sh | bash -s -- \
+  --repo git@github.com:guangee/tulan-tools.git
 ```
 
 默认安装到 `~/.tulan-tools`，并自动写入 `~/.bashrc` 和 `~/.zshrc`。
@@ -49,7 +51,7 @@ tulan-download-binaries
 若在其他机器上仅通过安装脚本部署、没有完整仓库，可指定 manifest 地址：
 
 ```bash
-TULAN_MANIFEST_URL=https://raw.githubusercontent.com/you/tulan-tools/main/config/binaries.manifest.json \
+TULAN_MANIFEST_URL=https://raw.githubusercontent.com/guangee/tulan-tools/master/config/binaries.manifest.json \
   tulan-download-binaries
 ```
 

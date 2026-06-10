@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh"
 
 REPO_URL=""
-BRANCH="main"
+BRANCH="master"
 INSTALL_HOME="${TULAN_TOOLS_DEFAULT_HOME}"
 SKIP_DEPS=false
 LOCAL_INSTALL=false
@@ -24,7 +24,7 @@ tulan-tools 安装脚本
 
 选项:
   --repo URL      Git 仓库地址（远程安装时必填）
-  --branch NAME   分支名，默认 main
+  --branch NAME   分支名，默认 master
   --home DIR      安装目录，默认 ~/.tulan-tools
   --local         从当前目录安装（开发模式）
   --skip-deps     跳过系统依赖安装
@@ -32,13 +32,14 @@ tulan-tools 安装脚本
 
 示例:
   # 从 Git 仓库安装
-  ./install.sh --repo git@github.com:you/tulan-tools.git
+  ./install.sh --repo git@github.com:guangee/tulan-tools.git
 
   # 本地开发安装
   ./install.sh --local
 
   # 远程一键安装
-  curl -fsSL https://your-server/install.sh | bash -s -- --repo git@github.com:you/tulan-tools.git
+  curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.sh | bash -s -- \
+    --repo git@github.com:guangee/tulan-tools.git
 EOF
 }
 

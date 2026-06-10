@@ -95,14 +95,14 @@ jobs:
           git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git push -f origin bin
 
-      - name: Update manifest on main
+      - name: Update manifest on master
         run: |
           set -euo pipefail
           STAGING="${RUNNER_TEMP}/binaries"
           REPO="${{ github.repository }}"
 
-          git checkout main
-          git pull origin main
+          git checkout master
+          git pull origin master
 
           VERSIONS=$(cat "${STAGING}/versions.json")
           python3 scripts/sync-binaries-manifest.py \
@@ -113,4 +113,4 @@ jobs:
 
           git add config/binaries.manifest.json
           git diff --cached --quiet || git commit -m "chore: update binaries manifest [skip ci]"
-          git push origin main
+          git push origin master

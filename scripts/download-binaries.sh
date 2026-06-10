@@ -38,13 +38,13 @@ GitHub 模式（默认，无需 git-lfs）:
   通过 media.githubusercontent.com 公开链接直接下载。
 
   环境变量:
-    TULAN_GITHUB_REPO     仓库地址，如 yourname/tulan-tools
+    TULAN_GITHUB_REPO     仓库地址，如 guangee/tulan-tools
     TULAN_MANIFEST_URL    远程 manifest 地址（覆盖本地文件）
 
 示例:
   ./scripts/download-binaries.sh
   ./scripts/download-binaries.sh --tool kubectl
-  TULAN_GITHUB_REPO=yourname/tulan-tools ./scripts/download-binaries.sh
+  TULAN_GITHUB_REPO=guangee/tulan-tools ./scripts/download-binaries.sh
   ./scripts/download-binaries.sh --source upstream
 EOF
 }

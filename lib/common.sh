@@ -180,7 +180,7 @@ tulan_remove_shell_config() {
 tulan_git_sync() {
   local repo_url="$1"
   local target_dir="$2"
-  local branch="${3:-main}"
+  local branch="${3:-master}"
 
   if [[ -d "${target_dir}/.git" ]]; then
     echo "更新仓库: ${target_dir}"

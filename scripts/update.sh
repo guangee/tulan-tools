@@ -67,7 +67,7 @@ do_update() {
   git -C "${TULAN_HOME}" fetch origin --quiet 2>/dev/null || return 0
 
   local branch
-  branch="$(git -C "${TULAN_HOME}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+  branch="$(git -C "${TULAN_HOME}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "master")"
 
   remote_hash="$(git -C "${TULAN_HOME}" rev-parse "origin/${branch}" 2>/dev/null || echo "")"
   local_hash="$(git -C "${TULAN_HOME}" rev-parse HEAD 2>/dev/null || echo "")"

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated_at": "",
-  "repository": "",
+  "repository": "guangee/tulan-tools",
   "branch": "bin",
   "tools": {
     "kubectl": {
