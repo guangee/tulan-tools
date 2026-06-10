@@ -452,6 +452,7 @@ from pathlib import Path
 
 tool, version, reg_path, home = sys.argv[1:5]
 reg = Path(reg_path)
+home = Path(home)
 if not reg.exists():
     sys.exit(2)
 data = json.loads(reg.read_text())

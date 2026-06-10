@@ -492,6 +492,7 @@ from pathlib import Path
 
 tool, version, reg_path, home = sys.argv[1:5]
 reg = Path(reg_path)
+home = Path(home)
 data = json.loads(reg.read_text())
 entry = data.get(tool)
 if not entry:
@@ -550,6 +551,7 @@ from pathlib import Path
 
 version, reg_path, home = sys.argv[1:4]
 reg = Path(reg_path)
+home = Path(home)
 data = json.loads(reg.read_text())
 entry = data.get("maven")
 if not entry:
