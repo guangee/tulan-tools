@@ -93,19 +93,9 @@ tulan_install_system_deps() {
   esac
 }
 
-# 获取 tulan-tools 根目录
+# 获取 tulan-tools 根目录（固定为 ~/.tulan-tools）
 tulan_get_home() {
-  if [[ -n "${TULAN_TOOLS_HOME:-}" ]] && [[ -d "${TULAN_TOOLS_HOME}" ]]; then
-    echo "${TULAN_TOOLS_HOME}"
-  elif [[ -d "${TULAN_TOOLS_DEFAULT_HOME}" ]]; then
-    echo "${TULAN_TOOLS_DEFAULT_HOME}"
-  elif [[ -n "${BASH_SOURCE[1]:-}" ]]; then
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[1]}")" && pwd)"
-    echo "$(cd "${script_dir}/.." && pwd)"
-  else
-    echo "${TULAN_TOOLS_DEFAULT_HOME}"
-  fi
+  echo "${TULAN_TOOLS_HOME:-${TULAN_TOOLS_DEFAULT_HOME}}"
 }
 
 # 生成 shell 配置片段

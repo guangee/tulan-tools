@@ -8,11 +8,11 @@
 
 ## 安装
 
-**本机已有仓库：**
+**手动克隆安装（项目固定在 `~/.tulan-tools`）：**
 
 ```bash
-git clone git@github.com:guangee/tulan-tools.git
-cd tulan-tools
+git clone git@github.com:guangee/tulan-tools.git ~/.tulan-tools
+cd ~/.tulan-tools
 ./install.sh --local
 source ~/.bashrc   # 或 source ~/.zshrc
 ```
@@ -20,10 +20,14 @@ source ~/.bashrc   # 或 source ~/.zshrc
 **远程一键安装：**
 
 ```bash
+# 国内推荐（GitHub 代理加速）
+curl -fsSL https://gh.coding-space.cn/https://raw.githubusercontent.com/guangee/tulan-tools/master/install.sh | bash
+
+# 直连 GitHub
 curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.sh | bash
 ```
 
-默认安装到 `~/.tulan-tools`，并自动写入 `~/.bashrc` 和 `~/.zshrc`。
+项目始终安装在 `~/.tulan-tools`，并自动写入 `~/.bashrc` 和 `~/.zshrc`。
 
 ## 日常使用
 

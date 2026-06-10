@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
-TULAN_HOME="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
+TULAN_HOME="${TULAN_TOOLS_HOME:-${HOME}/.tulan-tools}"
 exec "${TULAN_HOME}/scripts/download-binaries.sh" "$@"

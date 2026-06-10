@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-TULAN_PKG_DIR="${TULAN_TOOLS_HOME:-$(tulan_get_home)}/packages"
+TULAN_PKG_DIR="$(tulan_get_home)/packages"
 TULAN_PKG_STATE_DIR="${HOME}/.tulan-tools/state/packages"
 
 # 读取 manifest.json 字段
@@ -126,12 +126,12 @@ tulan_pkg_install() {
   # 链接 bin 文件
   local bin_dir="${pkg_dir}/bin"
   if [[ -d "$bin_dir" ]]; then
-    mkdir -p "${TULAN_TOOLS_HOME}/bin"
+    mkdir -p "$(tulan_get_home)/bin"
     for bin_file in "${bin_dir}"/*; do
       [[ -f "$bin_file" ]] || continue
       local link_name
       link_name="$(basename "$bin_file")"
-      ln -sf "$bin_file" "${TULAN_TOOLS_HOME}/bin/${link_name}"
+      ln -sf "$bin_file" "$(tulan_get_home)/bin/${link_name}"
       tulan_log "  链接命令: ${link_name}"
     done
   fi
@@ -175,7 +175,7 @@ tulan_pkg_uninstall() {
       [[ -f "$bin_file" ]] || continue
       local link_name
       link_name="$(basename "$bin_file")"
-      rm -f "${TULAN_TOOLS_HOME}/bin/${link_name}"
+      rm -f "$(tulan_get_home)/bin/${link_name}"
     done
   fi
 

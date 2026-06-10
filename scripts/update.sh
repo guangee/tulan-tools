@@ -3,10 +3,11 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TULAN_HOME="$(cd "${SCRIPT_DIR}/.." && pwd)"
+_SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
-source "${TULAN_HOME}/lib/common.sh"
+source "${_SCRIPT_ROOT}/lib/common.sh"
+
+TULAN_HOME="$(tulan_get_home)"
 
 CHECK_ON_START=false
 FORCE=false

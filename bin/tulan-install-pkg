@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-TULAN_HOME="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
+TULAN_HOME="${TULAN_TOOLS_HOME:-${HOME}/.tulan-tools}"
 # shellcheck source=../lib/common.sh
 source "${TULAN_HOME}/lib/common.sh"
 # shellcheck source=../lib/package.sh

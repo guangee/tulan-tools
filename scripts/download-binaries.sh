@@ -5,14 +5,13 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TULAN_HOME="$(cd "${SCRIPT_DIR}/.." && pwd)"
+_SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
-source "${TULAN_HOME}/lib/common.sh"
+source "${_SCRIPT_ROOT}/lib/common.sh"
 # shellcheck source=../lib/binaries.sh
-source "${TULAN_HOME}/lib/binaries.sh"
+source "${_SCRIPT_ROOT}/lib/binaries.sh"
 
-INSTALL_DIR="${TULAN_TOOLS_HOME:-${TULAN_HOME}}/bin"
+INSTALL_DIR="$(tulan_get_home)/bin"
 TOOLS="all"
 SOURCE="github"
 DRY_RUN=false
@@ -27,7 +26,7 @@ usage() {
 
 选项:
   --source SRC        下载源: github（默认）| upstream
-  --install-dir DIR   安装目录，默认 \${TULAN_TOOLS_HOME}/bin
+  --install-dir DIR   安装目录，默认 ~/.tulan-tools/bin
   --tool NAME         仅下载: compose | mc | kubectl | all
   --no-verify         跳过 SHA256 校验
   --proxy URL         GitHub 加速代理前缀（默认读取 manifest）
