@@ -235,7 +235,7 @@ tulan_git_sync() {
 
 # 日志
 tulan_log() {
-  echo "[tulan-tools] $*"
+  echo "[tulan-tools] $*" >&2
 }
 
 tulan_debug() {

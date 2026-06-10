@@ -57,7 +57,7 @@ GitHub 模式（默认，无需 git-lfs）:
 EOF
 }
 
-log()  { echo "[download] $*"; }
+log()  { echo "[download] $*" >&2; }
 err()  { echo "[download] 错误: $*" >&2; }
 
 while [[ $# -gt 0 ]]; do
