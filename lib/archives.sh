@@ -118,6 +118,13 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
 
   tulan_log "下载归档 ${tool} ${version} (${platform_key})"
   tulan_debug "归档路径: ${path}"
+  if [[ "${TULAN_VERBOSE:-}" == true ]]; then
+    tulan_verbose "仓库: ${repo}  分支: ${branch}"
+    tulan_verbose "归档路径: ${path}"
+    tulan_verbose "索引版本: ${version}"
+    [[ -n "$sha256" ]] && tulan_verbose "期望 SHA256: ${sha256}"
+    tulan_archive_log_download_urls "$tool" 2>/dev/null || true
+  fi
 
   if ! tulan_download_binary_file "$repo" "$branch" "$path" "$dest" "$proxy"; then
     tulan_error "下载失败: ${tool}"
@@ -139,5 +146,8 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
       return 1
     fi
     tulan_log "  SHA256 校验通过"
+    tulan_verbose "SHA256 校验通过: ${actual}"
+  elif [[ "${TULAN_VERBOSE:-}" == true ]] && [[ -z "$sha256" ]]; then
+    tulan_verbose "跳过 SHA256 校验（索引未记录）"
   fi
 }

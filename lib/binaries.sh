@@ -153,20 +153,26 @@ tulan_download_binary_file() {
 
   if [[ -n "$proxy" ]]; then
     tulan_debug "blob 代理: $(tulan_proxy_url "$blob" "$proxy")"
+    tulan_verbose "尝试 blob 代理: $(tulan_proxy_url "$blob" "$proxy")"
     if tulan_curl_download "$blob" "$dest" "$proxy"; then
+      tulan_verbose "blob 代理下载成功"
       return 0
     fi
     tulan_debug "blob 代理未成功，尝试 media 直连"
+    tulan_verbose "blob 代理失败，改试 media 直连"
   fi
 
   tulan_debug "media 直连: ${media}"
+  tulan_verbose "尝试 media 直连: ${media}"
   if tulan_curl_download "$media" "$dest" ""; then
+    tulan_verbose "media 直连下载成功"
     return 0
   fi
 
   tulan_log "media 失败，尝试 GitHub API..."
   api="$(tulan_binary_api_url "$repo" "$branch" "$path")" || return 1
   tulan_debug "API 直连: ${api}"
+  tulan_verbose "尝试 GitHub API: ${api}"
   tulan_curl_download "$api" "$dest" ""
 }
 
@@ -236,12 +242,20 @@ tulan_curl_download() {
   _tulan_curl_try() {
     local target="$1"
     local label="$2"
+    local curl_args=(-fSL)
+
     tulan_debug "${label}: ${target}"
-    if curl -fsSL "$target" -o "$dest" 2>"$err_file"; then
+    tulan_verbose "curl ${label}: ${target}"
+    [[ "${TULAN_VERBOSE:-}" != true ]] && curl_args=(-fsSL)
+
+    if curl "${curl_args[@]}" "$target" -o "$dest" 2>"$err_file"; then
+      [[ "${TULAN_VERBOSE:-}" == true ]] && [[ -f "$dest" ]] \
+        && tulan_verbose "写入 ${dest} ($(wc -c < "$dest" | tr -d ' ') bytes)"
       return 0
     fi
     curl_err="$(tr '\n' ' ' < "$err_file" 2>/dev/null | sed 's/  */ /g')"
     tulan_debug "${label} 失败: ${curl_err}"
+    tulan_verbose "${label} 失败: ${curl_err}"
     return 1
   }
 

@@ -39,6 +39,7 @@ usage() {
   --no-proxy          禁用代理
   --refresh-manifest  强制刷新 bin 分支索引
   --debug             显示下载 URL
+  --verbose           显示详细下载过程（URL、curl 进度、校验）
   --dry-run           仅显示信息
   -h, --help          显示帮助
 
@@ -67,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     --no-proxy) export TULAN_GITHUB_PROXY_DISABLED=true; shift ;;
     --refresh-manifest) export TULAN_MANIFEST_FORCE_REFRESH=true; shift ;;
     --debug) export TULAN_DEBUG=true; shift ;;
+    --verbose) export TULAN_VERBOSE=true; export TULAN_DEBUG=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) usage; exit 0 ;;
     --force)

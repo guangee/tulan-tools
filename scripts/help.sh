@@ -64,6 +64,7 @@ brew install — 安装工具或软件包（类似 brew install）
   brew install node-16 node-18 node-20 node-22 node-24
   brew use node 20                  切换 NODE_HOME
   brew install node-20 --source upstream       # 强制上游
+  brew install openjdk-17 --verbose            # 详细下载日志
 
 多版本: ${TULAN_HOME}/cellar/<工具>/<版本>/
 链接:   ${TULAN_HOME}/bin/

@@ -243,6 +243,11 @@ tulan_debug() {
   echo "[tulan-tools:debug] $*" >&2
 }
 
+tulan_verbose() {
+  [[ "${TULAN_VERBOSE:-}" == true ]] || return 0
+  echo "[tulan-tools:verbose] $*" >&2
+}
+
 tulan_error() {
   echo "[tulan-tools] 错误: $*" >&2
 }
