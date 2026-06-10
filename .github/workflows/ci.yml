@@ -17,12 +17,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck --version
+
       - name: Run Shellcheck
-        uses: koalaman/shellcheck-action@v0.9
-        with:
-          scandir: '.'
-          severity: warning
-          exclude: 'SC1091'
+        run: |
+          set -euo pipefail
+          mapfile -t scripts < <(
+            {
+              find lib scripts packages -type f -name '*.sh' 2>/dev/null || true
+              find bin -type f 2>/dev/null || true
+              find . -maxdepth 1 -type f -name '*.sh' 2>/dev/null || true
+            } | sort -u
+          )
+          if [[ ${#scripts[@]} -eq 0 ]]; then
+            echo "未找到 shell 脚本"
+            exit 0
+          fi
+          shellcheck --external-sources --severity=warning "${scripts[@]}"
 
   script-syntax:
     name: Bash Syntax Check
