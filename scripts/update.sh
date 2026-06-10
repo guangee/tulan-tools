@@ -11,7 +11,7 @@ TULAN_HOME="$(tulan_get_home)"
 
 CHECK_ON_START=false
 FORCE=false
-LAST_CHECK_FILE="${TULAN_HOME}/.last-update-check"
+LAST_CHECK_FILE="${TULAN_HOME}/state/last-update-check"
 
 usage() {
   cat <<EOF
@@ -62,6 +62,7 @@ do_update() {
     return 0
   fi
 
+  mkdir -p "${TULAN_HOME}/state"
   date +%s > "$LAST_CHECK_FILE"
 
   local remote_hash local_hash

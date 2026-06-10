@@ -147,7 +147,9 @@ main() {
   tulan_inject_shell_config "${HOME}/.bashrc" "${INSTALL_HOME}"
   tulan_inject_shell_config "${HOME}/.zshrc" "${INSTALL_HOME}"
 
-  cat > "${INSTALL_HOME}/.install-info" <<EOF
+  mkdir -p "${INSTALL_HOME}/state"
+  rm -f "${INSTALL_HOME}/.install-info"
+  cat > "${INSTALL_HOME}/state/install-info" <<EOF
 INSTALL_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 INSTALL_HOME=${INSTALL_HOME}
 REPO_URL=${REPO_URL:-local}

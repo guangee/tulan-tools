@@ -1,9 +1,8 @@
 # 构建产物
 dist/
 
-# 本地安装状态
-.install-info
-.last-update-check
+# 本地运行时状态（安装信息、更新记录、软件包状态等）
+state/
 
 # IDE
 .idea/
