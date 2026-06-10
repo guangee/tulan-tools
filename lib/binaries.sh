@@ -4,11 +4,89 @@
 set -euo pipefail
 
 TULAN_MANIFEST_PATH="${TULAN_MANIFEST_PATH:-}"
+TULAN_MANIFEST_TTL="${TULAN_MANIFEST_TTL:-86400}"
+TULAN_MANIFEST_DEFAULT_REPO="${TULAN_GITHUB_REPO:-guangee/tulan-tools}"
+TULAN_MANIFEST_DEFAULT_BRANCH="bin"
+TULAN_MANIFEST_DEFAULT_FILE="binaries.manifest.json"
+TULAN_MANIFEST_DEFAULT_PROXY="${TULAN_GITHUB_PROXY:-https://gh.coding-space.cn/}"
 
-tulan_manifest_default_path() {
-  local home
+tulan_manifest_cache_path() {
+  echo "$(tulan_get_home)/state/binaries.manifest.json"
+}
+
+tulan_manifest_cache_ts_path() {
+  echo "$(tulan_get_home)/state/manifest-fetched-at"
+}
+
+# 推断默认仓库地址
+tulan_manifest_default_repo() {
+  local home remote
+  if [[ -n "${TULAN_GITHUB_REPO:-}" ]]; then
+    echo "${TULAN_GITHUB_REPO}"
+    return 0
+  fi
   home="$(tulan_get_home)"
-  echo "${home}/config/binaries.manifest.json"
+  if git -C "$home" remote get-url origin &>/dev/null; then
+    remote="$(git -C "$home" remote get-url origin)"
+    remote="${remote%.git}"
+    remote="${remote#git@github.com:}"
+    remote="${remote#https://github.com/}"
+    if [[ "$remote" == */* ]]; then
+      echo "$remote"
+      return 0
+    fi
+  fi
+  echo "${TULAN_MANIFEST_DEFAULT_REPO}"
+}
+
+# 构建 manifest 远程 raw URL
+tulan_manifest_remote_url() {
+  local repo="${1:-$(tulan_manifest_default_repo)}"
+  local branch="${2:-${TULAN_MANIFEST_DEFAULT_BRANCH}}"
+  local file="${3:-${TULAN_MANIFEST_DEFAULT_FILE}}"
+  echo "https://raw.githubusercontent.com/${repo}/${branch}/${file}"
+}
+
+tulan_manifest_cache_expired() {
+  local ts_file now last
+  ts_file="$(tulan_manifest_cache_ts_path)"
+  [[ -f "$ts_file" ]] || return 0
+  last="$(cat "$ts_file")"
+  now="$(date +%s)"
+  (( now - last >= TULAN_MANIFEST_TTL ))
+}
+
+# 从 bin 分支拉取 manifest 到本地缓存
+tulan_manifest_refresh() {
+  local force="${1:-false}"
+  local cache proxy url repo
+
+  cache="$(tulan_manifest_cache_path)"
+  repo="$(tulan_manifest_default_repo)"
+
+  if [[ "$force" != true ]] && [[ -f "$cache" ]] && ! tulan_manifest_cache_expired; then
+    return 0
+  fi
+
+  if [[ -n "${TULAN_MANIFEST_URL:-}" ]]; then
+    url="${TULAN_MANIFEST_URL}"
+  else
+    url="$(tulan_manifest_remote_url "$repo")"
+  fi
+
+  proxy="$(tulan_get_github_proxy "")"
+  mkdir -p "$(dirname "$cache")"
+
+  tulan_log "刷新二进制索引: ${url}"
+  if ! tulan_curl_download "$url" "${cache}.tmp" "$proxy"; then
+    [[ -f "$cache" ]] && { tulan_log "使用本地缓存 manifest"; return 0; }
+    tulan_error "无法获取 binaries.manifest.json"
+    return 1
+  fi
+
+  mv "${cache}.tmp" "$cache"
+  date +%s > "$(tulan_manifest_cache_ts_path)"
+  tulan_log "索引已缓存: ${cache}"
 }
 
 # 解析 JSON 字段（依赖 python3）
@@ -25,39 +103,19 @@ ${expr}
 tulan_manifest_get_repo() {
   local manifest="$1"
   local repo
-  repo="$(tulan_manifest_read "$manifest" "print(data.get('repository', '') or '')")"
+  repo="$(tulan_manifest_read "$manifest" "print(data.get('repository', '') or '')" 2>/dev/null || true)"
   if [[ -n "$repo" ]]; then
     echo "$repo"
-    return 0
+  else
+    tulan_manifest_default_repo
   fi
-  if [[ -n "${TULAN_GITHUB_REPO:-}" ]]; then
-    echo "${TULAN_GITHUB_REPO}"
-    return 0
-  fi
-  # 从 git remote 自动推断
-  local home remote
-  home="$(tulan_get_home)"
-  if git -C "$home" remote get-url origin &>/dev/null; then
-    remote="$(git -C "$home" remote get-url origin)"
-    remote="${remote%.git}"
-    remote="${remote#git@github.com:}"
-    remote="${remote#https://github.com/}"
-    if [[ "$remote" == */* ]]; then
-      echo "$remote"
-      return 0
-    fi
-  fi
-  return 1
 }
 
-# 构建 GitHub LFS 公开下载 URL（无需 git-lfs 客户端）
-# 格式: https://media.githubusercontent.com/media/{owner}/{repo}/{ref}/{path}
 tulan_binary_media_url() {
   local repo="$1" branch="$2" path="$3"
   echo "https://media.githubusercontent.com/media/${repo}/${branch}/${path}"
 }
 
-# 获取 GitHub 加速代理前缀（manifest / 环境变量）
 tulan_get_github_proxy() {
   local manifest="${1:-}"
 
@@ -71,12 +129,17 @@ tulan_get_github_proxy() {
   fi
 
   if [[ -n "$manifest" ]] && [[ -f "$manifest" ]]; then
-    tulan_manifest_read "$manifest" "print(data.get('github_proxy', '') or '')" 2>/dev/null || true
+    local from_manifest
+    from_manifest="$(tulan_manifest_read "$manifest" "print(data.get('github_proxy', '') or '')" 2>/dev/null || true)"
+    if [[ -n "$from_manifest" ]]; then
+      echo "$from_manifest"
+      return 0
+    fi
   fi
+
+  echo "${TULAN_MANIFEST_DEFAULT_PROXY}"
 }
 
-# 为 GitHub URL 套上代理前缀
-# 示例: https://gh.coding-space.cn/https://media.githubusercontent.com/...
 tulan_proxy_url() {
   local url="$1"
   local proxy="${2:-}"
@@ -87,13 +150,12 @@ tulan_proxy_url() {
   fi
 }
 
-# 下载 URL，代理失败时自动回退直连
 tulan_curl_download() {
   local url="$1"
   local dest="$2"
   local proxy="${3:-}"
-
   local proxied
+
   proxied="$(tulan_proxy_url "$url" "$proxy")"
 
   if [[ -n "$proxy" ]] && [[ "$proxied" != "$url" ]]; then
@@ -106,7 +168,6 @@ tulan_curl_download() {
   curl -fsSL "$url" -o "$dest"
 }
 
-# 备用：通过 GitHub API 获取 download_url
 tulan_binary_api_url() {
   local repo="$1" branch="$2" path="$3"
   python3 -c "
@@ -120,7 +181,7 @@ print(data.get('download_url', ''))
 }
 
 tulan_resolve_manifest() {
-  local manifest=""
+  local force="${TULAN_MANIFEST_FORCE_REFRESH:-false}"
 
   if [[ -n "${TULAN_MANIFEST_URL:-}" ]]; then
     local tmp proxy
@@ -136,14 +197,8 @@ tulan_resolve_manifest() {
     return 0
   fi
 
-  local default
-  default="$(tulan_manifest_default_path)"
-  if [[ -f "$default" ]]; then
-    echo "$default"
-    return 0
-  fi
-
-  return 1
+  tulan_manifest_refresh "$force" || return 1
+  echo "$(tulan_manifest_cache_path)"
 }
 
 tulan_manifest_platform_key() {
@@ -166,18 +221,11 @@ tulan_download_from_github() {
   local install_dir="$2"
   local verify="${3:-true}"
 
-  local manifest repo branch platform_key path version install_name sha256 dest url
+  local manifest repo branch platform_key path version install_name sha256 dest url proxy
 
-  manifest="$(tulan_resolve_manifest)" || {
-    tulan_error "未找到 binaries.manifest.json，请设置 TULAN_MANIFEST_URL 或先运行 sync workflow"
-    return 1
-  }
+  manifest="$(tulan_resolve_manifest)" || return 1
 
-  repo="$(tulan_manifest_get_repo "$manifest")" || {
-    tulan_error "无法确定 GitHub 仓库，请设置 manifest.repository 或 TULAN_GITHUB_REPO"
-    return 1
-  }
-
+  repo="$(tulan_manifest_get_repo "$manifest")"
   branch="$(tulan_manifest_read "$manifest" "print(data.get('branch', 'bin'))")"
   platform_key="$(tulan_manifest_platform_key)"
 
@@ -202,7 +250,6 @@ print(tool['paths'].get('${platform_key}', ''))
 print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
 " 2>/dev/null || echo "")"
 
-  local proxy
   dest="${install_dir}/${install_name}"
   url="$(tulan_binary_media_url "$repo" "$branch" "$path")"
   proxy="$(tulan_get_github_proxy "$manifest")"
@@ -240,16 +287,11 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
   tulan_log "  已安装: ${dest}"
 }
 
-# 列出可下载的二进制工具及安装状态
 tulan_binaries_list() {
   local manifest bin_dir installed_only="${1:-false}"
-  local updated_at missing
+  local missing
 
-  manifest="$(tulan_resolve_manifest)" || {
-    tulan_error "未找到 binaries.manifest.json"
-    return 1
-  }
-
+  manifest="$(tulan_resolve_manifest)" || return 1
   bin_dir="$(tulan_get_home)/bin"
 
   if [[ "$installed_only" == true ]]; then
@@ -284,8 +326,7 @@ if not found:
 
   missing=0
   while IFS= read -r name; do
-    [[ -z "$name" ]] && continue
-    [[ -x "${bin_dir}/${name}" ]] || missing=$((missing + 1))
+    [[ -z "$name" ]] || [[ -x "${bin_dir}/${name}" ]] || missing=$((missing + 1))
   done < <(tulan_manifest_read "$manifest" "
 for t in data.get('tools', {}).values():
     print(t.get('install_name', ''))
@@ -294,10 +335,5 @@ for t in data.get('tools', {}).values():
   if [[ "$missing" -gt 0 ]]; then
     echo ""
     echo "提示: 运行 tulan-download-binaries 安装上述工具"
-    updated_at="$(tulan_manifest_read "$manifest" "print(data.get('updated_at', '') or '')")"
-    if [[ -z "$updated_at" ]]; then
-      echo "      manifest 版本待同步，也可先用: tulan-download-binaries --source upstream"
-      echo "      维护者请在 GitHub Actions 手动运行 Sync Binaries"
-    fi
   fi
 }

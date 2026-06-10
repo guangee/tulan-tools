@@ -31,17 +31,19 @@ usage() {
   --no-verify         跳过 SHA256 校验
   --proxy URL         GitHub 加速代理前缀（默认读取 manifest）
   --no-proxy          禁用代理，直连 GitHub
+  --refresh-manifest  强制从 bin 分支刷新本地索引缓存
   --dry-run           仅显示信息
   -h, --help          显示帮助
 
 GitHub 模式（默认，无需 git-lfs）:
-  读取 config/binaries.manifest.json 中的文件路径，
-  通过 media.githubusercontent.com 公开链接直接下载。
-  默认使用 gh.coding-space.cn 代理加速，失败时自动回退直连。
+  从 bin 分支拉取 binaries.manifest.json 到本地缓存（默认 24h 有效），
+  再通过 media.githubusercontent.com 下载二进制。
+  tulan-update 后会自动刷新索引。
 
   环境变量:
     TULAN_GITHUB_REPO            仓库地址，如 guangee/tulan-tools
-    TULAN_MANIFEST_URL           远程 manifest 地址（覆盖本地文件）
+    TULAN_MANIFEST_URL           远程 manifest 地址（覆盖默认）
+    TULAN_MANIFEST_TTL           索引缓存有效期（秒），默认 86400
     TULAN_GITHUB_PROXY           代理前缀，如 https://gh.coding-space.cn/
     TULAN_GITHUB_PROXY_DISABLED  设为 true 禁用代理
 
@@ -64,6 +66,7 @@ while [[ $# -gt 0 ]]; do
     --no-verify) VERIFY_CHECKSUM=false; shift ;;
     --proxy) export TULAN_GITHUB_PROXY="$2"; shift 2 ;;
     --no-proxy) export TULAN_GITHUB_PROXY_DISABLED=true; shift ;;
+    --refresh-manifest) export TULAN_MANIFEST_FORCE_REFRESH=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) err "未知参数: $1"; usage; exit 1 ;;

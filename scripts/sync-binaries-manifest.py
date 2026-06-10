@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""更新 config/binaries.manifest.json 中的版本号和 SHA256"""
+"""更新 binaries.manifest.json 中的版本号和 SHA256（CI 写入 bin 分支）"""
 
 import hashlib
 import json

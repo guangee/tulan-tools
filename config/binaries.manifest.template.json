@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "updated_at": "",
+  "repository": "guangee/tulan-tools",
+  "branch": "bin",
+  "manifest_file": "binaries.manifest.json",
+  "github_proxy": "https://gh.coding-space.cn/",
+  "tools": {
+    "kubectl": {
+      "version": "",
+      "install_name": "kubectl",
+      "paths": {
+        "linux-amd64": "linux-amd64/kubectl",
+        "linux-arm64": "linux-arm64/kubectl"
+      },
+      "sha256": {}
+    },
+    "docker-compose": {
+      "version": "",
+      "install_name": "docker-compose",
+      "paths": {
+        "linux-amd64": "linux-amd64/docker-compose",
+        "linux-arm64": "linux-arm64/docker-compose"
+      },
+      "sha256": {}
+    },
+    "mc": {
+      "version": "",
+      "install_name": "mc",
+      "paths": {
+        "linux-amd64": "linux-amd64/mc",
+        "linux-arm64": "linux-arm64/mc"
+      },
+      "sha256": {}
+    }
+  }
+}

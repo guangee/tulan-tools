@@ -27,17 +27,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci-download-binaries.sh "${RUNNER_TEMP}/binaries"
 
-      - name: Push to bin branch (LFS)
+      - name: Push to bin branch (LFS + manifest)
         run: |
           set -euo pipefail
           STAGING="${RUNNER_TEMP}/binaries"
           BIN_REPO="${RUNNER_TEMP}/bin-repo"
+          REPO="${{ github.repository }}"
 
           rm -rf "${BIN_REPO}"
           mkdir -p "${BIN_REPO}/linux-amd64" "${BIN_REPO}/linux-arm64"
           cp -f "${STAGING}/linux-amd64/"{kubectl,docker-compose,mc} "${BIN_REPO}/linux-amd64/"
           cp -f "${STAGING}/linux-arm64/"{kubectl,docker-compose,mc} "${BIN_REPO}/linux-arm64/"
           cp .gitattributes "${BIN_REPO}/"
+
+          cp config/binaries.manifest.template.json "${BIN_REPO}/binaries.manifest.json"
+          VERSIONS=$(cat "${STAGING}/versions.json")
+          python3 scripts/sync-binaries-manifest.py \
+            "${BIN_REPO}/binaries.manifest.json" \
+            "${STAGING}" \
+            "${REPO}" \
+            "${VERSIONS}"
 
           cd "${BIN_REPO}"
           git init
@@ -49,26 +58,3 @@ jobs:
           git branch -M bin
           git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git push -f origin bin
-
-      - name: Update manifest on master
-        run: |
-          set -euo pipefail
-          STAGING="${RUNNER_TEMP}/binaries"
-          REPO="${{ github.repository }}"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git checkout master
-          git pull origin master
-
-          VERSIONS=$(cat "${STAGING}/versions.json")
-          python3 scripts/sync-binaries-manifest.py \
-            config/binaries.manifest.json \
-            "${STAGING}" \
-            "${REPO}" \
-            "${VERSIONS}"
-
-          git add config/binaries.manifest.json
-          git diff --cached --quiet || git commit -m "chore: update binaries manifest [skip ci]"
-          git push origin master

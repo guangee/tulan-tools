@@ -26,8 +26,9 @@ tulan-tools — 个人开发工具集
 
 下载工具选项:
   tulan-download-binaries --tool kubectl     仅下载 kubectl
-  tulan-download-binaries --no-proxy       禁用 GitHub 代理
-  tulan-download-binaries --source upstream  从官方源下载
+  tulan-download-binaries --refresh-manifest  强制刷新 bin 分支索引缓存
+  tulan-download-binaries --no-proxy          禁用 GitHub 代理
+  tulan-download-binaries --source upstream     从官方源下载
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -58,12 +59,14 @@ help_download() {
   cat <<EOF
 tulan-download-binaries — 下载常用二进制工具
 
-  tulan-download-binaries                    下载全部（kubectl、docker-compose、mc）
-  tulan-download-binaries --tool kubectl     仅下载指定工具
-  tulan-download-binaries --no-proxy         直连 GitHub，不用代理
-  tulan-download-binaries --source upstream    从官方源下载最新版
+  tulan-download-binaries                      下载全部（kubectl、docker-compose、mc）
+  tulan-download-binaries --tool kubectl       仅下载指定工具
+  tulan-download-binaries --refresh-manifest   从 bin 分支刷新索引缓存
+  tulan-download-binaries --no-proxy           直连 GitHub
+  tulan-download-binaries --source upstream      从官方源下载
 
-工具安装到: ${TULAN_HOME}/bin
+索引缓存: ${TULAN_HOME}/state/binaries.manifest.json（默认 24h 有效）
+工具安装: ${TULAN_HOME}/bin
 EOF
 }
 

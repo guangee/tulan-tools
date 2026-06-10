@@ -52,25 +52,18 @@ tulan-download-binaries
 tulan-list-pkgs --binaries    # 确认安装状态
 ```
 
-若版本显示「待同步」，说明尚未运行 GitHub Actions 的 **Sync Binaries**，可先执行：
-
-```bash
-tulan-download-binaries --source upstream   # 从官方源直接下载
-```
-
 工具会安装到 `~/.tulan-tools/bin`，可直接使用 `kubectl`、`docker-compose`、`mc`。
 
-默认通过 [gh.coding-space.cn](https://gh.coding-space.cn/) 代理加速 GitHub 下载，代理失败时自动回退直连。如需禁用代理：
+二进制**索引**在 `bin` 分支（`binaries.manifest.json`），使用时自动缓存到 `~/.tulan-tools/state/`：
+- `tulan-update` 后自动刷新索引
+- 超过 24 小时未刷新时，调用下载/列表命令会自动更新
+- 可手动强制刷新：`tulan-download-binaries --refresh-manifest`
+
+默认通过 [gh.coding-space.cn](https://gh.coding-space.cn/) 代理加速，失败时自动回退直连：
 
 ```bash
-tulan-download-binaries --no-proxy
-```
-
-若在其他机器上仅通过安装脚本部署、没有完整仓库，可指定 manifest 地址（同样走代理加速）：
-
-```bash
-TULAN_MANIFEST_URL=https://raw.githubusercontent.com/guangee/tulan-tools/master/config/binaries.manifest.json \
-  tulan-download-binaries
+tulan-download-binaries --no-proxy          # 禁用代理
+tulan-download-binaries --source upstream   # 跳过索引，从官方源下载
 ```
 
 ## 管理私有软件包

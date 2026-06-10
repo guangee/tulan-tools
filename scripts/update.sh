@@ -6,6 +6,8 @@ set -euo pipefail
 _SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "${_SCRIPT_ROOT}/lib/common.sh"
+# shellcheck source=../lib/binaries.sh
+source "${_SCRIPT_ROOT}/lib/binaries.sh"
 
 TULAN_HOME="$(tulan_get_home)"
 
@@ -76,6 +78,7 @@ do_update() {
 
   if [[ -z "$remote_hash" ]] || [[ "$remote_hash" == "$local_hash" ]]; then
     [[ "$CHECK_ON_START" == false ]] && tulan_log "已是最新版本"
+    tulan_manifest_refresh false 2>/dev/null || true
     return 0
   fi
 
@@ -87,6 +90,8 @@ do_update() {
 
   chmod +x "${TULAN_HOME}/bin/"* 2>/dev/null || true
   chmod +x "${TULAN_HOME}/scripts/"* 2>/dev/null || true
+
+  tulan_manifest_refresh true 2>/dev/null || tulan_log "二进制索引刷新失败，将使用本地缓存"
 
   tulan_log "更新完成: ${local_hash:0:7} -> ${remote_hash:0:7}"
 }
