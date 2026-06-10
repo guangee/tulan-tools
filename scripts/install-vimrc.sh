@@ -7,7 +7,6 @@ _SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "${_SCRIPT_ROOT}/lib/common.sh"
 
-TULAN_HOME="$(tulan_get_home)"
 VIMRC_REPO="${TULAN_VIMRC_REPO:-https://git.tulan.wang/github/vimrc.git}"
 VIM_RUNTIME="${TULAN_VIM_RUNTIME:-${HOME}/.vim_runtime}"
 VIM_EDITOR_MARKER="# >>> tulan-vim-editor >>>"

@@ -326,7 +326,6 @@ tulan_binary_canonical_name() {
     node-20|node20|n20)           echo "node-20" ;;
     node-22|node22|n22)           echo "node-22" ;;
     node-24|node24|n24)           echo "node-24" ;;
-    docker-compose|mc|kubectl|maven|openjdk-8|openjdk-11|openjdk-17|node-16|node-18|node-20|node-22|node-24) echo "$1" ;;
     *) echo "" ;;
   esac
 }
@@ -423,7 +422,7 @@ tulan_binary_finish_install() {
 
 tulan_binary_uninstall() {
   local tool="$1" version="${2:-}"
-  local home reg install_name link_path versions_to_remove
+  local home reg
 
   home="$(tulan_get_home)"
   reg="$(tulan_binary_registry_path)"
@@ -595,7 +594,7 @@ tulan_binary_upstream_recent() {
 
 tulan_binary_show_versions() {
   local tool="$1"
-  local manifest index_ver upstream_latest recent installed active versions
+  local manifest index_ver upstream_latest recent installed
 
   manifest="$(tulan_resolve_manifest)" || return 1
 
