@@ -30,21 +30,26 @@ usage() {
   --install-dir DIR   安装目录，默认 \${TULAN_TOOLS_HOME}/bin
   --tool NAME         仅下载: compose | mc | kubectl | all
   --no-verify         跳过 SHA256 校验
+  --proxy URL         GitHub 加速代理前缀（默认读取 manifest）
+  --no-proxy          禁用代理，直连 GitHub
   --dry-run           仅显示信息
   -h, --help          显示帮助
 
 GitHub 模式（默认，无需 git-lfs）:
   读取 config/binaries.manifest.json 中的文件路径，
   通过 media.githubusercontent.com 公开链接直接下载。
+  默认使用 gh.coding-space.cn 代理加速，失败时自动回退直连。
 
   环境变量:
-    TULAN_GITHUB_REPO     仓库地址，如 guangee/tulan-tools
-    TULAN_MANIFEST_URL    远程 manifest 地址（覆盖本地文件）
+    TULAN_GITHUB_REPO            仓库地址，如 guangee/tulan-tools
+    TULAN_MANIFEST_URL           远程 manifest 地址（覆盖本地文件）
+    TULAN_GITHUB_PROXY           代理前缀，如 https://gh.coding-space.cn/
+    TULAN_GITHUB_PROXY_DISABLED  设为 true 禁用代理
 
 示例:
   ./scripts/download-binaries.sh
   ./scripts/download-binaries.sh --tool kubectl
-  TULAN_GITHUB_REPO=guangee/tulan-tools ./scripts/download-binaries.sh
+  ./scripts/download-binaries.sh --no-proxy
   ./scripts/download-binaries.sh --source upstream
 EOF
 }
@@ -58,6 +63,8 @@ while [[ $# -gt 0 ]]; do
     --install-dir) INSTALL_DIR="$2"; shift 2 ;;
     --tool) TOOLS="$2"; shift 2 ;;
     --no-verify) VERIFY_CHECKSUM=false; shift ;;
+    --proxy) export TULAN_GITHUB_PROXY="$2"; shift 2 ;;
+    --no-proxy) export TULAN_GITHUB_PROXY_DISABLED=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) err "未知参数: $1"; usage; exit 1 ;;
@@ -169,14 +176,19 @@ download_from_github() {
   [[ "$VERIFY_CHECKSUM" == false ]] && verify="false"
 
   if [[ "$DRY_RUN" == true ]]; then
-    local manifest repo branch platform_key path url
+    local manifest repo branch platform_key path url proxy install_name
     manifest="$(tulan_resolve_manifest)"
     repo="$(tulan_manifest_get_repo "$manifest")"
     branch="$(tulan_manifest_read "$manifest" "print(data.get('branch', 'bin'))")"
     platform_key="$(tulan_manifest_platform_key)"
     path="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}']['paths']['${platform_key}'])")"
     url="$(tulan_binary_media_url "$repo" "$branch" "$path")"
-    log "[dry-run] $url -> ${INSTALL_DIR}/$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('install_name','${tool}'))")"
+    proxy="$(tulan_get_github_proxy "$manifest")"
+    install_name="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('install_name','${tool}'))")"
+    if [[ -n "$proxy" ]]; then
+      log "[dry-run] $(tulan_proxy_url "$url" "$proxy")"
+    fi
+    log "[dry-run] $url -> ${INSTALL_DIR}/${install_name}"
     return 0
   fi
 

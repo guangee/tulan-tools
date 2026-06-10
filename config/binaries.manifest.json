@@ -3,6 +3,7 @@
   "updated_at": "",
   "repository": "guangee/tulan-tools",
   "branch": "bin",
+  "github_proxy": "https://gh.coding-space.cn/",
   "tools": {
     "kubectl": {
       "version": "",

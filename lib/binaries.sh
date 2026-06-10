@@ -57,6 +57,55 @@ tulan_binary_media_url() {
   echo "https://media.githubusercontent.com/media/${repo}/${branch}/${path}"
 }
 
+# 获取 GitHub 加速代理前缀（manifest / 环境变量）
+tulan_get_github_proxy() {
+  local manifest="${1:-}"
+
+  if [[ "${TULAN_GITHUB_PROXY_DISABLED:-}" == "true" ]]; then
+    return 0
+  fi
+
+  if [[ -n "${TULAN_GITHUB_PROXY:-}" ]]; then
+    echo "${TULAN_GITHUB_PROXY}"
+    return 0
+  fi
+
+  if [[ -n "$manifest" ]] && [[ -f "$manifest" ]]; then
+    tulan_manifest_read "$manifest" "print(data.get('github_proxy', '') or '')" 2>/dev/null || true
+  fi
+}
+
+# 为 GitHub URL 套上代理前缀
+# 示例: https://gh.coding-space.cn/https://media.githubusercontent.com/...
+tulan_proxy_url() {
+  local url="$1"
+  local proxy="${2:-}"
+  if [[ -z "$proxy" ]]; then
+    echo "$url"
+  else
+    echo "${proxy%/}/${url}"
+  fi
+}
+
+# 下载 URL，代理失败时自动回退直连
+tulan_curl_download() {
+  local url="$1"
+  local dest="$2"
+  local proxy="${3:-}"
+
+  local proxied
+  proxied="$(tulan_proxy_url "$url" "$proxy")"
+
+  if [[ -n "$proxy" ]] && [[ "$proxied" != "$url" ]]; then
+    if curl -fsSL "$proxied" -o "$dest"; then
+      return 0
+    fi
+    tulan_log "代理下载失败，尝试直连..."
+  fi
+
+  curl -fsSL "$url" -o "$dest"
+}
+
 # 备用：通过 GitHub API 获取 download_url
 tulan_binary_api_url() {
   local repo="$1" branch="$2" path="$3"
@@ -74,9 +123,10 @@ tulan_resolve_manifest() {
   local manifest=""
 
   if [[ -n "${TULAN_MANIFEST_URL:-}" ]]; then
-    local tmp
+    local tmp proxy
     tmp="$(mktemp)"
-    curl -fsSL "${TULAN_MANIFEST_URL}" -o "$tmp"
+    proxy="$(tulan_get_github_proxy "")"
+    tulan_curl_download "${TULAN_MANIFEST_URL}" "$tmp" "$proxy"
     echo "$tmp"
     return 0
   fi
@@ -152,17 +202,22 @@ print(tool['paths'].get('${platform_key}', ''))
 print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
 " 2>/dev/null || echo "")"
 
+  local proxy
   dest="${install_dir}/${install_name}"
   url="$(tulan_binary_media_url "$repo" "$branch" "$path")"
+  proxy="$(tulan_get_github_proxy "$manifest")"
 
   tulan_log "下载 ${tool} ${version} (${platform_key})"
+  if [[ -n "$proxy" ]]; then
+    tulan_log "  代理: ${proxy}"
+  fi
   tulan_log "  来源: ${url}"
 
   mkdir -p "$install_dir"
-  if ! curl -fsSL "$url" -o "${dest}.tmp"; then
+  if ! tulan_curl_download "$url" "${dest}.tmp" "$proxy"; then
     tulan_log "media URL 失败，尝试 GitHub API..."
     url="$(tulan_binary_api_url "$repo" "$branch" "$path")"
-    curl -fsSL "$url" -o "${dest}.tmp"
+    tulan_curl_download "$url" "${dest}.tmp" "$proxy"
   fi
 
   if [[ "$verify" == true ]] && [[ -n "$sha256" ]]; then

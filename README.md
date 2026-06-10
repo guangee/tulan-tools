@@ -47,7 +47,13 @@ tulan-download-binaries
 
 工具会安装到 `~/.tulan-tools/bin`，可直接使用 `kubectl`、`docker-compose`、`mc`。
 
-若在其他机器上仅通过安装脚本部署、没有完整仓库，可指定 manifest 地址：
+默认通过 [gh.coding-space.cn](https://gh.coding-space.cn/) 代理加速 GitHub 下载，代理失败时自动回退直连。如需禁用代理：
+
+```bash
+tulan-download-binaries --no-proxy
+```
+
+若在其他机器上仅通过安装脚本部署、没有完整仓库，可指定 manifest 地址（同样走代理加速）：
 
 ```bash
 TULAN_MANIFEST_URL=https://raw.githubusercontent.com/guangee/tulan-tools/master/config/binaries.manifest.json \
