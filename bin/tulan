@@ -14,17 +14,19 @@ tulan — tulan-tools 命令行工具
 命令:
   help [主题]       显示帮助（update / download / docker / conda / vim / pkg）
   update            更新 tulan-tools 仓库
-  download          下载 kubectl、docker-compose、mc
+  download [工具...]  按需安装 kubectl、docker-compose、mc
+  use <工具> <版本>   切换已装二进制版本
   list              列出二进制工具和私有软件包
   install <包名>    安装软件包
-  uninstall <包名>  卸载软件包
+  uninstall <名称>  卸载二进制或软件包
   docker            安装 Docker（阿里云源 + registry 镜像加速）
   conda             安装 Miniconda（阿里云 conda/pip 源）
   vim               安装 vimrc，配置 vim 为默认编辑器
 
 示例:
   tulan update
-  tulan download --tool kubectl
+  tulan download kubectl mc
+  tulan use kubectl v1.32.0
   tulan docker
   tulan conda
   tulan vim
@@ -61,7 +63,11 @@ main() {
       ;;
     uninstall|remove)
       shift
-      exec "${TULAN_HOME}/scripts/uninstall-pkg.sh" "$@"
+      exec "${TULAN_HOME}/scripts/uninstall.sh" "$@"
+      ;;
+    use|switch)
+      shift
+      exec "${TULAN_HOME}/scripts/use-binary.sh" "$@"
       ;;
     docker)
       shift

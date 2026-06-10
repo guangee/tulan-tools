@@ -310,12 +310,176 @@ tulan_manifest_platform_key() {
   esac
 }
 
+# ── Cellar 多版本管理（类似 Homebrew）────────────────────────
+
+tulan_binary_canonical_name() {
+  case "$1" in
+    compose|docker-compose) echo "docker-compose" ;;
+    mc|minio)               echo "mc" ;;
+    kubectl|k8s)            echo "kubectl" ;;
+    docker-compose|mc|kubectl) echo "$1" ;;
+    *) echo "" ;;
+  esac
+}
+
+tulan_binary_registry_path() {
+  echo "$(tulan_get_home)/state/binaries/registry.json"
+}
+
+tulan_binary_cellar_file() {
+  local tool="$1" version="$2" install_name="$3"
+  echo "$(tulan_get_home)/cellar/${tool}/${version}/${install_name}"
+}
+
+tulan_binary_bin_link() {
+  local install_name="$1"
+  echo "$(tulan_get_home)/bin/${install_name}"
+}
+
+tulan_binary_register() {
+  local tool="$1" version="$2" install_name="$3" source="$4" activate="${5:-true}"
+  python3 - "$tool" "$version" "$install_name" "$source" "$activate" "$(tulan_binary_registry_path)" <<'PY'
+import json, sys, time
+from pathlib import Path
+
+tool, version, install_name, source, activate, reg_path = sys.argv[1:7]
+reg = Path(reg_path)
+reg.parent.mkdir(parents=True, exist_ok=True)
+data = json.loads(reg.read_text()) if reg.exists() else {}
+entry = data.setdefault(tool, {"install_name": install_name, "active": "", "versions": {}})
+entry["install_name"] = install_name
+entry["versions"][version] = {
+    "source": source,
+    "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "cellar": f"cellar/{tool}/{version}/{install_name}",
+}
+if activate == "true":
+    entry["active"] = version
+reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+PY
+}
+
+tulan_binary_activate() {
+  local tool="$1" version="$2"
+  local install_name cellar_file link_path rel target home
+  home="$(tulan_get_home)"
+
+  install_name="$(python3 - "$tool" "$(tulan_binary_registry_path)" <<'PY'
+import json, sys
+from pathlib import Path
+data = json.loads(Path(sys.argv[2]).read_text()) if Path(sys.argv[2]).exists() else {}
+print(data.get(sys.argv[1], {}).get("install_name", sys.argv[1]))
+PY
+)"
+  cellar_file="$(tulan_binary_cellar_file "$tool" "$version" "$install_name")"
+  if [[ ! -f "$cellar_file" ]]; then
+    tulan_error "版本未安装: ${tool} ${version}"
+    tulan_error "  路径: ${cellar_file}"
+    return 1
+  fi
+
+  link_path="$(tulan_binary_bin_link "$install_name")"
+  rel="../cellar/${tool}/${version}/${install_name}"
+  mkdir -p "$(dirname "$link_path")"
+  ln -sf "$rel" "$link_path"
+
+  python3 - "$tool" "$version" "$(tulan_binary_registry_path)" <<'PY'
+import json, sys
+from pathlib import Path
+tool, version, reg_path = sys.argv[1:4]
+reg = Path(reg_path)
+data = json.loads(reg.read_text()) if reg.exists() else {}
+if tool not in data or version not in data[tool].get("versions", {}):
+    sys.exit(1)
+data[tool]["active"] = version
+reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+PY
+
+  tulan_log "已切换 ${install_name} -> ${version}"
+}
+
+tulan_binary_finish_install() {
+  local tool="$1" version="$2" install_name="$3" source="$4" tmp_file="$5"
+  local cellar_file
+
+  cellar_file="$(tulan_binary_cellar_file "$tool" "$version" "$install_name")"
+  mkdir -p "$(dirname "$cellar_file")"
+  mv "$tmp_file" "$cellar_file"
+  chmod +x "$cellar_file"
+  tulan_binary_register "$tool" "$version" "$install_name" "$source" "true"
+  tulan_binary_activate "$tool" "$version"
+  tulan_log "  已安装: ${cellar_file}"
+  tulan_log "  已链接: $(tulan_binary_bin_link "$install_name")"
+}
+
+tulan_binary_uninstall() {
+  local tool="$1" version="${2:-}"
+  local home reg install_name link_path versions_to_remove
+
+  home="$(tulan_get_home)"
+  reg="$(tulan_binary_registry_path)"
+
+  if [[ ! -f "$reg" ]]; then
+    tulan_error "未安装二进制: ${tool}"
+    return 1
+  fi
+
+  python3 - "$tool" "$version" "$reg" "$home" <<'PY'
+import json, shutil, sys
+from pathlib import Path
+
+tool, version, reg_path, home = sys.argv[1:5]
+reg = Path(reg_path)
+if not reg.exists():
+    sys.exit(2)
+data = json.loads(reg.read_text())
+entry = data.get(tool)
+if not entry:
+    sys.exit(2)
+install_name = entry.get("install_name", tool)
+versions = list(entry.get("versions", {}).keys())
+remove = [version] if version else versions
+for ver in remove:
+    cellar = home / "cellar" / tool / ver
+    if cellar.exists():
+        shutil.rmtree(cellar)
+    entry.get("versions", {}).pop(ver, None)
+remaining = list(entry.get("versions", {}).keys())
+link = home / "bin" / install_name
+if version and version != entry.get("active"):
+    pass
+elif remaining:
+    entry["active"] = sorted(remaining)[-1]
+    ver = entry["active"]
+    rel = f"../cellar/{tool}/{ver}/{install_name}"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if link.exists() or link.is_symlink():
+        link.unlink()
+    link.symlink_to(rel)
+else:
+    entry["active"] = ""
+    if link.exists() or link.is_symlink():
+        link.unlink()
+    if not entry.get("versions"):
+        data.pop(tool, None)
+if not remaining and not version:
+    data.pop(tool, None)
+reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+print(install_name)
+PY
+  local rc=$?
+  if [[ $rc -eq 2 ]]; then
+    tulan_error "未安装: ${tool}"
+    return 1
+  fi
+  tulan_log "已卸载: ${tool}${version:+ ${version}}"
+}
+
 tulan_download_from_github() {
   local tool="$1"
-  local install_dir="$2"
-  local verify="${3:-true}"
+  local verify="${2:-true}"
 
-  local manifest repo branch platform_key path version install_name sha256 dest url proxy
+  local manifest repo branch platform_key path version install_name sha256 cellar_tmp proxy
 
   manifest="$(tulan_resolve_manifest)" || return 1
 
@@ -344,14 +508,21 @@ print(tool['paths'].get('${platform_key}', ''))
 print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
 " 2>/dev/null || echo "")"
 
-  dest="${install_dir}/${install_name}"
+  if [[ -n "${TULAN_BINARY_REQUESTED_VERSION:-}" ]] \
+      && [[ "${TULAN_BINARY_REQUESTED_VERSION}" != "$version" ]]; then
+    tulan_error "bin 索引版本为 ${version}，指定 ${TULAN_BINARY_REQUESTED_VERSION}"
+    tulan_error "请使用: tulan download ${tool} --version ${TULAN_BINARY_REQUESTED_VERSION} --source upstream"
+    return 1
+  fi
+
+  [[ -n "$version" ]] || version="latest"
   proxy="$(tulan_get_github_proxy "$manifest")"
+  cellar_tmp="$(tulan_binary_cellar_file "$tool" "$version" "$install_name").tmp"
 
   tulan_log "下载 ${tool} ${version} (${platform_key})"
   tulan_debug "二进制路径: ${path}"
 
-  mkdir -p "$install_dir"
-  if ! tulan_download_binary_file "$repo" "$branch" "$path" "${dest}.tmp" "$proxy"; then
+  if ! tulan_download_binary_file "$repo" "$branch" "$path" "$cellar_tmp" "$proxy"; then
     tulan_error "下载失败: ${tool}"
     tulan_error "  blob: $(tulan_binary_blob_url "$repo" "$branch" "$path")"
     tulan_error "  media: $(tulan_binary_media_url "$repo" "$branch" "$path")"
@@ -361,70 +532,69 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
   if [[ "$verify" == true ]] && [[ -n "$sha256" ]]; then
     local actual
     if command -v sha256sum &>/dev/null; then
-      actual="$(sha256sum "${dest}.tmp" | awk '{print $1}')"
+      actual="$(sha256sum "$cellar_tmp" | awk '{print $1}')"
     else
-      actual="$(shasum -a 256 "${dest}.tmp" | awk '{print $1}')"
+      actual="$(shasum -a 256 "$cellar_tmp" | awk '{print $1}')"
     fi
     if [[ "$sha256" != "$actual" ]]; then
-      rm -f "${dest}.tmp"
+      rm -f "$cellar_tmp"
       tulan_error "SHA256 校验失败: ${tool}"
       return 1
     fi
     tulan_log "  SHA256 校验通过"
   fi
 
-  mv "${dest}.tmp" "$dest"
-  chmod +x "$dest"
-  tulan_log "  已安装: ${dest}"
+  tulan_binary_finish_install "$tool" "$version" "$install_name" "github" "$cellar_tmp"
 }
 
 tulan_binaries_list() {
-  local manifest bin_dir installed_only="${1:-false}"
-  local missing
+  local manifest installed_only="${1:-false}"
 
   manifest="$(tulan_resolve_manifest)" || return 1
-  bin_dir="$(tulan_get_home)/bin"
 
   if [[ "$installed_only" == true ]]; then
     echo "已安装二进制工具:"
   else
-    echo "二进制工具（tulan download 安装）:"
+    echo "二进制工具（tulan download <工具> 按需安装）:"
   fi
   echo "────────────────────────────────────"
 
-  python3 -c "
-import json, os
-installed_only = '${installed_only}' == 'true'
-with open('${manifest}') as f:
-    data = json.load(f)
-bin_dir = '${bin_dir}'
+  python3 - "$manifest" "$(tulan_binary_registry_path)" "$(tulan_get_home)/bin" "$installed_only" <<'PY'
+import json, os, sys
+from pathlib import Path
+
+manifest_path, reg_path, bin_dir, installed_only = sys.argv[1:5]
+installed_only = installed_only == "true"
+with open(manifest_path) as f:
+    manifest = json.load(f)
+registry = json.loads(Path(reg_path).read_text()) if Path(reg_path).exists() else {}
 found = False
-for name, tool in data.get('tools', {}).items():
-    install_name = tool.get('install_name', name)
-    version = tool.get('version', '') or '待同步'
-    path = os.path.join(bin_dir, install_name)
-    installed = os.path.isfile(path) and os.access(path, os.X_OK)
-    if installed_only and not installed:
+for tool, info in manifest.get("tools", {}).items():
+    install_name = info.get("install_name", tool)
+    index_ver = info.get("version", "") or "待同步"
+    reg = registry.get(tool, {})
+    active = reg.get("active", "")
+    versions = sorted(reg.get("versions", {}).keys())
+    linked = os.path.join(bin_dir, install_name)
+    is_linked = os.path.islink(linked) or (os.path.isfile(linked) and os.access(linked, os.X_OK))
+    if installed_only and not versions and not is_linked:
         continue
     found = True
-    status = '已安装' if installed else '未安装'
-    print(f'  {install_name:20s} {version:<12} {status}')
+    if versions:
+        ver_text = ", ".join(f"{v}{'*' if v == active else ''}" for v in versions)
+        print(f"  {install_name:18s} 索引:{index_ver:<10} 已装:[{ver_text}]")
+    else:
+        status = "已链接" if is_linked else "未安装"
+        print(f"  {install_name:18s} 索引:{index_ver:<10} {status}")
 if not found:
-    print('  (无)' if installed_only else '  (manifest 中无工具定义)')
-"
+    print("  (无)" if installed_only else "  (manifest 中无工具定义)")
+PY
 
-  [[ "$installed_only" == true ]] && return 0
-
-  missing=0
-  while IFS= read -r name; do
-    [[ -z "$name" ]] || [[ -x "${bin_dir}/${name}" ]] || missing=$((missing + 1))
-  done < <(tulan_manifest_read "$manifest" "
-for t in data.get('tools', {}).values():
-    print(t.get('install_name', ''))
-")
-
-  if [[ "$missing" -gt 0 ]]; then
-    echo ""
-    echo "提示: 运行 tulan download 安装上述工具"
+  if [[ "$installed_only" == true ]]; then
+    return 0
   fi
+
+  echo ""
+  echo "  * 为当前激活版本    安装: tulan download kubectl"
+  echo "                      切换: tulan use kubectl <版本>"
 }

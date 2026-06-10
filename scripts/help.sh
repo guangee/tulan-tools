@@ -71,17 +71,19 @@ EOF
 
 help_download() {
   cat <<EOF
-tulan download — 下载常用二进制工具
+tulan download — 按需安装二进制（类似 brew install）
 
-  tulan download                      下载全部（kubectl、docker-compose、mc）
-  tulan download --tool kubectl       仅下载指定工具
-  tulan download --refresh-manifest   从 bin 分支刷新索引缓存
-  tulan download --debug              显示实际下载 URL
-  tulan download --no-proxy           直连 GitHub
-  tulan download --source upstream      从官方源下载
+  tulan download                      安装全部
+  tulan download kubectl              仅安装 kubectl
+  tulan download kubectl mc           安装多个
+  tulan download kubectl --version v1.32.0 --source upstream
+  tulan use kubectl v1.32.0           切换激活版本
+  tulan uninstall kubectl --version v1.31.0
+  tulan list --binaries --installed   查看已装版本（* 为当前）
 
-索引缓存: ${TULAN_HOME}/state/binaries.manifest.json（默认 24h 有效）
-工具安装: ${TULAN_HOME}/bin
+多版本目录: ${TULAN_HOME}/cellar/<工具>/<版本>/
+命令链接:   ${TULAN_HOME}/bin/<命令>
+索引缓存:   ${TULAN_HOME}/state/binaries.manifest.json
 EOF
 }
 

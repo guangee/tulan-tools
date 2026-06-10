@@ -37,7 +37,8 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 |------|------|
 | `tulan` / `tulan help` / `help` | 查看帮助 |
 | `tulan update` | 拉取仓库最新代码 |
-| `tulan download` | 下载 kubectl、docker-compose、mc |
+| `tulan download [工具...]` | 按需安装 kubectl、docker-compose、mc |
+| `tulan use <工具> <版本>` | 切换已装二进制版本 |
 | `tulan list` | 查看二进制工具和私有软件包 |
 | `tulan list --binaries` | 仅查看 kubectl、docker-compose、mc |
 | `tulan install <包名>` | 安装软件包 |
@@ -48,16 +49,24 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 
 打开新终端时会自动检查更新（每天最多一次），也可随时手动执行 `tulan update`。
 
-## 下载常用工具
+## 下载常用工具（类似 Homebrew）
 
-安装完成后，执行：
+按需安装，支持多版本并存（Cellar + 符号链接）：
 
 ```bash
-tulan download
-tulan list --binaries    # 确认安装状态
+tulan download kubectl              # 只装 kubectl
+tulan download kubectl mc           # 装多个
+tulan list --binaries --installed   # 查看已装版本（* 为当前）
+
+# 指定版本（官方源）
+tulan download kubectl --version v1.32.0 --source upstream
+tulan use kubectl v1.32.0           # 切换激活版本
+tulan uninstall kubectl --version v1.31.0
 ```
 
-工具会安装到 `~/.tulan-tools/bin`，可直接使用 `kubectl`、`docker-compose`、`mc`。
+- 实体文件：`~/.tulan-tools/cellar/<工具>/<版本>/`
+- 命令入口：`~/.tulan-tools/bin/`（符号链接）
+- 无参数 `tulan download` 仍安装全部三个工具
 
 二进制**索引**在 `bin` 分支（`binaries.manifest.json`），使用时自动缓存到 `~/.tulan-tools/state/`。刷新索引默认经 [gh.coding-space.cn](https://gh.coding-space.cn/) 代理，失败时回退直连：
 - `tulan update` 后自动刷新索引
