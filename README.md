@@ -33,6 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 
 | 命令 | 作用 |
 |------|------|
+| `tulan-help` / `help` | 查看帮助 |
 | `tulan-update` | 拉取仓库最新代码 |
 | `tulan-download-binaries` | 下载 kubectl、docker-compose、mc |
 | `tulan-list-pkgs` | 查看可安装的软件包 |
