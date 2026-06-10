@@ -2,6 +2,7 @@
 dist/
 
 # 本地安装状态
+.install-info
 .last-update-check
 
 # IDE
