@@ -289,9 +289,29 @@ tulan_install_openjdk() {
 }
 
 tulan_maven_latest_version() {
-  curl -fsSL --connect-timeout 15 --max-time 30 \
-    https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml 2>/dev/null \
-    | sed -n 's:.*<latest>\([^<]*\)</latest>.*:\1:p' | head -1
+  python3 - <<'PY'
+import re, sys, urllib.request
+
+url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml"
+req = urllib.request.Request(url, headers={"User-Agent": "tulan-tools"})
+with urllib.request.urlopen(req, timeout=30) as resp:
+    text = resp.read().decode()
+
+def is_stable(v):
+    return not re.search(r"(alpha|beta|rc|snapshot)", v, re.I)
+
+m = re.search(r"<release>([^<]+)</release>", text)
+if m and is_stable(m.group(1)) and m.group(1).startswith("3."):
+    print(m.group(1))
+    sys.exit(0)
+
+versions = re.findall(r"<version>([^<]+)</version>", text)
+stable = [v for v in versions if re.match(r"^3\.\d+\.\d+$", v)]
+if stable:
+    print(stable[-1])
+    sys.exit(0)
+sys.exit(1)
+PY
 }
 
 tulan_maven_install_archive() {

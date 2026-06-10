@@ -67,17 +67,29 @@ def node_latest(major: int) -> str:
     raise RuntimeError(f"无法获取 Node.js {major} 最新版本")
 
 
+def _maven_is_stable(version: str) -> bool:
+    return not re.search(r"(alpha|beta|rc|snapshot)", version, re.I)
+
+
 def maven_latest() -> str:
+    """取 Maven 3.x 稳定版；metadata 的 <latest> 可能指向 RC，改用 <release>。"""
     req = urllib.request.Request(
         "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml",
         headers={"User-Agent": "tulan-tools-ci"},
     )
     with urllib.request.urlopen(req, timeout=60) as resp:
         text = resp.read().decode()
-    m = re.search(r"<latest>([^<]+)</latest>", text)
-    if not m:
-        raise RuntimeError("无法获取 Maven 最新版本")
-    return m.group(1)
+
+    m = re.search(r"<release>([^<]+)</release>", text)
+    if m and _maven_is_stable(m.group(1)) and m.group(1).startswith("3."):
+        return m.group(1)
+
+    versions = re.findall(r"<version>([^<]+)</version>", text)
+    stable = [v for v in versions if re.match(r"^3\.\d+\.\d+$", v)]
+    if stable:
+        return stable[-1]
+
+    raise RuntimeError("无法获取 Maven 3.x 稳定版本")
 
 
 def main() -> int:
