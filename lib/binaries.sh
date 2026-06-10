@@ -243,6 +243,7 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
 # 列出可下载的二进制工具及安装状态
 tulan_binaries_list() {
   local manifest bin_dir installed_only="${1:-false}"
+  local updated_at missing
 
   manifest="$(tulan_resolve_manifest)" || {
     tulan_error "未找到 binaries.manifest.json"
@@ -259,7 +260,7 @@ tulan_binaries_list() {
   echo "────────────────────────────────────"
 
   python3 -c "
-import json, os, sys
+import json, os
 installed_only = '${installed_only}' == 'true'
 with open('${manifest}') as f:
     data = json.load(f)
@@ -267,15 +268,36 @@ bin_dir = '${bin_dir}'
 found = False
 for name, tool in data.get('tools', {}).items():
     install_name = tool.get('install_name', name)
-    version = tool.get('version', '') or '?'
+    version = tool.get('version', '') or '待同步'
     path = os.path.join(bin_dir, install_name)
     installed = os.path.isfile(path) and os.access(path, os.X_OK)
     if installed_only and not installed:
         continue
     found = True
     status = '已安装' if installed else '未安装'
-    print(f'  {install_name:20s} v{version:<10} {status}')
+    print(f'  {install_name:20s} {version:<12} {status}')
 if not found:
     print('  (无)' if installed_only else '  (manifest 中无工具定义)')
 "
+
+  [[ "$installed_only" == true ]] && return 0
+
+  missing=0
+  while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    [[ -x "${bin_dir}/${name}" ]] || missing=$((missing + 1))
+  done < <(tulan_manifest_read "$manifest" "
+for t in data.get('tools', {}).values():
+    print(t.get('install_name', ''))
+")
+
+  if [[ "$missing" -gt 0 ]]; then
+    echo ""
+    echo "提示: 运行 tulan-download-binaries 安装上述工具"
+    updated_at="$(tulan_manifest_read "$manifest" "print(data.get('updated_at', '') or '')")"
+    if [[ -z "$updated_at" ]]; then
+      echo "      manifest 版本待同步，也可先用: tulan-download-binaries --source upstream"
+      echo "      维护者请在 GitHub Actions 手动运行 Sync Binaries"
+    fi
+  fi
 }

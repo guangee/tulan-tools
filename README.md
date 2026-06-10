@@ -52,6 +52,12 @@ tulan-download-binaries
 tulan-list-pkgs --binaries    # 确认安装状态
 ```
 
+若版本显示「待同步」，说明尚未运行 GitHub Actions 的 **Sync Binaries**，可先执行：
+
+```bash
+tulan-download-binaries --source upstream   # 从官方源直接下载
+```
+
 工具会安装到 `~/.tulan-tools/bin`，可直接使用 `kubectl`、`docker-compose`、`mc`。
 
 默认通过 [gh.coding-space.cn](https://gh.coding-space.cn/) 代理加速 GitHub 下载，代理失败时自动回退直连。如需禁用代理：
@@ -105,7 +111,7 @@ cd ~/.tulan-tools
 
 ## 仓库维护者
 
-推送代码到 GitHub 后，建议在 Actions 中手动运行一次 **Sync Binaries**，同步 kubectl、docker-compose、mc 到 `bin` 分支，供用户下载。
+推送代码到 `master` 后，CI 会自动运行 **Sync Binaries**，同步 kubectl、docker-compose、mc 到 `bin` 分支并更新 manifest。也可在 Actions 中手动触发。
 
 发布版本：
 

@@ -13,6 +13,7 @@ concurrency:
 jobs:
   shellcheck:
     name: Shellcheck
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +42,7 @@ jobs:
 
   script-syntax:
     name: Bash Syntax Check
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,3 +71,11 @@ jobs:
             bash -n "$f" || failed=1
           done
           exit $failed
+
+  sync-binaries:
+    name: Sync Binaries
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')
+    needs: [shellcheck, script-syntax]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/sync-binaries.yml

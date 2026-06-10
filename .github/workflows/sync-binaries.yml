@@ -1,6 +1,7 @@
 name: Sync Binaries
 
 on:
+  workflow_call:
   schedule:
     - cron: '0 6 * * 1'
   workflow_dispatch:
@@ -16,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Git LFS
         run: git lfs install
@@ -24,9 +26,8 @@ jobs:
         run: |
           set -euo pipefail
           STAGING="${RUNNER_TEMP}/binaries"
-          mkdir -p "${STAGING}/linux-amd64" "${STAGING}/linux-arm64"
+          mkdir -p "${STAGING}/linux-amd64" "${STAGING}/linux-arm64}"
 
-          # kubectl
           KUBE_VER=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
           for arch in amd64 arm64; do
             dir="linux-${arch}"
@@ -36,7 +37,6 @@ jobs:
             chmod +x "${STAGING}/${dir}/kubectl"
           done
 
-          # docker-compose
           COMPOSE_VER=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest \
             | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)
           curl -fsSL \
@@ -47,7 +47,6 @@ jobs:
             -o "${STAGING}/linux-arm64/docker-compose"
           chmod +x "${STAGING}/linux-amd64/docker-compose" "${STAGING}/linux-arm64/docker-compose"
 
-          # minio client (mc)
           MC_VER=$(curl -fsSL https://api.github.com/repos/minio/mc/releases/latest \
             | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)
           curl -fsSL \
@@ -58,13 +57,8 @@ jobs:
             -o "${STAGING}/linux-arm64/mc"
           chmod +x "${STAGING}/linux-amd64/mc" "${STAGING}/linux-arm64/mc"
 
-          # 记录版本号
           cat > "${STAGING}/versions.json" <<EOF
-          {
-            "kubectl": "${KUBE_VER}",
-            "docker-compose": "${COMPOSE_VER}",
-            "mc": "${MC_VER}"
-          }
+          {"kubectl":"${KUBE_VER}","docker-compose":"${COMPOSE_VER}","mc":"${MC_VER}"}
           EOF
 
           echo "STAGING=${STAGING}" >> "$GITHUB_ENV"
