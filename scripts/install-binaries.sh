@@ -235,10 +235,12 @@ run_tool() {
     fi
     case "$SOURCE" in
       github)
-        if tulan_manifest_tool_has_platform_path "$(tulan_openjdk_tool_name "$major")"; then
+        if tulan_manifest_ensure_archive_path "$(tulan_openjdk_tool_name "$major")"; then
           tulan_install_openjdk_from_bin "$major" "$DRY_RUN" "$VERIFY_CHECKSUM"
         else
-          log "bin 分支无当前平台归档，改从上游安装 OpenJDK ${major}"
+          log "bin 索引无 openjdk-${major} 归档（本地 manifest 可能过期）"
+          log "  可先试: brew install openjdk-${major} --refresh-manifest"
+          log "  现改从上游安装 OpenJDK ${major}"
           tulan_install_openjdk "$major" "$REQUESTED_VERSION" "$DRY_RUN"
         fi
         ;;
@@ -255,10 +257,14 @@ run_tool() {
   if tulan_is_maven_tool "$raw" || [[ "$canonical" == maven ]]; then
     case "$SOURCE" in
       github)
-        if tulan_manifest_tool_has_platform_path "maven"; then
+        if tulan_manifest_ensure_archive_path "maven"; then
+          tulan_archive_log_download_urls "maven"
           tulan_install_maven_from_bin "$DRY_RUN" "$VERIFY_CHECKSUM"
         else
-          log "bin 分支无当前平台归档，改从上游安装 Maven"
+          log "bin 索引无 maven 归档（本地 manifest 可能过期，bin 分支已同步时请 --refresh-manifest）"
+          tulan_archive_log_download_urls "maven" 2>/dev/null || true
+          log "  可先试: brew install maven --refresh-manifest"
+          log "  现改从上游安装 Maven"
           tulan_install_maven "$REQUESTED_VERSION" "$DRY_RUN"
         fi
         ;;
@@ -280,10 +286,12 @@ run_tool() {
     fi
     case "$SOURCE" in
       github)
-        if tulan_manifest_tool_has_platform_path "$(tulan_node_tool_name "$major")"; then
+        if tulan_manifest_ensure_archive_path "$(tulan_node_tool_name "$major")"; then
           tulan_install_node_from_bin "$major" "$DRY_RUN" "$VERIFY_CHECKSUM"
         else
-          log "bin 分支无当前平台归档，改从上游安装 Node.js ${major}"
+          log "bin 索引无 node-${major} 归档（本地 manifest 可能过期）"
+          log "  可先试: brew install node-${major} --refresh-manifest"
+          log "  现改从上游安装 Node.js ${major}"
           tulan_install_node "$major" "$REQUESTED_VERSION" "$DRY_RUN"
         fi
         ;;

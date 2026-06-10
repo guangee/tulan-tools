@@ -10,7 +10,7 @@ tulan_manifest_tool_version() {
   tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('version', ''))"
 }
 
-tulan_manifest_tool_has_platform_path() {
+tulan_manifest_tool_platform_path() {
   local tool="$1"
   local manifest platform_key path
 
@@ -20,7 +20,59 @@ tulan_manifest_tool_has_platform_path() {
 tool = data['tools'].get('${tool}', {})
 print(tool.get('paths', {}).get('${platform_key}', ''))
 " 2>/dev/null || echo "")"
+  echo "$path"
+}
+
+tulan_manifest_tool_has_platform_path() {
+  local path
+  path="$(tulan_manifest_tool_platform_path "$1")"
   [[ -n "$path" ]]
+}
+
+tulan_manifest_index_version_display() {
+  local tool="$1"
+  local version path
+
+  version="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "")"
+  path="$(tulan_manifest_tool_platform_path "$tool" 2>/dev/null || echo "")"
+
+  if [[ -z "$path" ]] || [[ "$version" == "上游最新" ]] || [[ -z "$version" ]]; then
+    echo "待同步"
+    return 0
+  fi
+  echo "$version"
+}
+
+tulan_manifest_ensure_archive_path() {
+  local tool="$1"
+
+  if tulan_manifest_tool_has_platform_path "$tool"; then
+    return 0
+  fi
+
+  tulan_log "索引中无 ${tool} 的 bin 归档路径，尝试刷新 manifest..."
+  tulan_manifest_refresh true || return 1
+  tulan_manifest_tool_has_platform_path "$tool"
+}
+
+tulan_archive_log_download_urls() {
+  local tool="$1"
+  local manifest repo branch platform_key path proxy
+
+  path="$(tulan_manifest_tool_platform_path "$tool" 2>/dev/null || echo "")"
+  [[ -n "$path" ]] || return 0
+
+  manifest="$(tulan_resolve_manifest)" || return 0
+  repo="$(tulan_manifest_get_repo "$manifest")"
+  branch="$(tulan_manifest_read "$manifest" "print(data.get('branch', 'bin'))")"
+  platform_key="$(tulan_manifest_platform_key)"
+  proxy="$(tulan_get_github_proxy "$manifest")"
+
+  tulan_log "bin 归档路径: ${path} (${platform_key})"
+  if [[ -n "$proxy" ]]; then
+    tulan_log "  blob 代理: $(tulan_proxy_url "$(tulan_binary_blob_url "$repo" "$branch" "$path")" "$proxy")"
+  fi
+  tulan_log "  media 直连: $(tulan_binary_media_url "$repo" "$branch" "$path")"
 }
 
 tulan_download_archive_from_github() {

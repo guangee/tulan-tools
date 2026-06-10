@@ -281,13 +281,11 @@ tulan_node_show_versions() {
   tool="$(tulan_node_tool_name "$major")"
 
   local index_ver
-  index_ver="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "")"
+  index_ver="$(tulan_manifest_index_version_display "$tool" 2>/dev/null || echo "待同步")"
 
   echo "Node.js ${major}"
   echo "────────────────────────────────────"
-  if [[ -n "$index_ver" ]]; then
-    echo "  bin 索引版本（brew install 默认）: ${index_ver}"
-  fi
+  echo "  bin 索引版本（brew install 默认）: ${index_ver}"
 
   upstream="$(tulan_node_latest_version "$major" 2>/dev/null || echo "")"
   if [[ -n "$upstream" ]]; then
@@ -410,7 +408,7 @@ tulan_node_list() {
   for major in "${TULAN_NODE_MAJORS[@]}"; do
     local index_ver
     tool="$(tulan_node_tool_name "$major")"
-    index_ver="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "待同步")"
+    index_ver="$(tulan_manifest_index_version_display "$tool" 2>/dev/null || echo "待同步")"
     ver_text=""
     if [[ -f "$reg" ]]; then
       ver_text="$(python3 - "$tool" "$reg" <<'PY'

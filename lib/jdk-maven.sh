@@ -413,13 +413,11 @@ tulan_openjdk_show_versions() {
   tool="$(tulan_openjdk_tool_name "$major")"
 
   local index_ver
-  index_ver="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "")"
+  index_ver="$(tulan_manifest_index_version_display "$tool" 2>/dev/null || echo "待同步")"
 
   echo "OpenJDK ${major}（Eclipse Temurin）"
   echo "────────────────────────────────────"
-  if [[ -n "$index_ver" ]]; then
-    echo "  bin 索引版本（brew install 默认）: ${index_ver}"
-  fi
+  echo "  bin 索引版本（brew install 默认）: ${index_ver}"
 
   upstream="$(tulan_openjdk_fetch_asset "$major" 2>/dev/null | sed -n '1p' || echo "")"
   if [[ -n "$upstream" ]]; then
@@ -463,11 +461,20 @@ tulan_maven_show_versions() {
   latest="$(tulan_maven_latest_version 2>/dev/null || echo "")"
 
   local index_ver
-  index_ver="$(tulan_manifest_tool_version "maven" 2>/dev/null || echo "")"
+  index_ver="$(tulan_manifest_index_version_display "maven" 2>/dev/null || echo "待同步")"
 
   echo "Maven"
   echo "────────────────────────────────────"
-  [[ -n "$index_ver" ]] && echo "  bin 索引版本（brew install 默认）: ${index_ver}"
+  echo "  bin 索引版本（brew install 默认）: ${index_ver}"
+  if tulan_manifest_tool_has_platform_path "maven" 2>/dev/null; then
+    echo "  bin 下载地址:"
+    tulan_archive_log_download_urls "maven" 2>&1 | sed 's/^\[tulan-tools\] /    /'
+  elif [[ "$index_ver" == "待同步" ]]; then
+    echo "  提示: brew install maven --refresh-manifest  刷新 bin 索引"
+    echo "  bin 归档（已同步时）: linux-amd64/archives/apache-maven-bin.tar.gz"
+    echo "  media: https://media.githubusercontent.com/media/guangee/tulan-tools/bin/linux-amd64/archives/apache-maven-bin.tar.gz"
+    echo "  代理: https://gh.coding-space.cn/https://media.githubusercontent.com/media/guangee/tulan-tools/bin/linux-amd64/archives/apache-maven-bin.tar.gz"
+  fi
   [[ -n "$latest" ]] && echo "  上游最新: ${latest}"
 
   if [[ -f "$(tulan_binary_registry_path)" ]]; then
@@ -622,7 +629,7 @@ tulan_jdk_maven_list() {
   for major in 8 11 17; do
     local tool index_ver ver_text
     tool="$(tulan_openjdk_tool_name "$major")"
-    index_ver="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "待同步")"
+    index_ver="$(tulan_manifest_index_version_display "$tool" 2>/dev/null || echo "待同步")"
     if [[ -f "$reg" ]]; then
       ver_text="$(python3 - "$tool" "$reg" <<'PY'
 import json, sys
@@ -674,13 +681,13 @@ if versions:
 PY
 )"
     local mvn_index
-    mvn_index="$(tulan_manifest_tool_version "maven" 2>/dev/null || echo "待同步")"
+    mvn_index="$(tulan_manifest_index_version_display "maven" 2>/dev/null || echo "待同步")"
     if [[ -n "${mvn_text:-}" ]]; then
       printf "  %-18s 最新:%-16s 已装:[%s]\n" "maven" "$mvn_index" "$mvn_text"
     else
       printf "  %-18s 最新:%-16s 未安装\n" "maven" "$mvn_index"
     fi
   else
-    printf "  %-18s 最新:%-16s 未安装\n" "maven" "$(tulan_manifest_tool_version "maven" 2>/dev/null || echo "待同步")"
+    printf "  %-18s 最新:%-16s 未安装\n" "maven" "$(tulan_manifest_index_version_display "maven" 2>/dev/null || echo "待同步")"
   fi
 }
