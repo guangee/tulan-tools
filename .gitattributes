@@ -1,0 +1,4 @@
+# bin 分支上的二进制文件走 LFS（仅 CI 推送时需要，客户端无需安装 git-lfs）
+linux-*/kubectl filter=lfs diff=lfs merge=lfs -text
+linux-*/docker-compose filter=lfs diff=lfs merge=lfs -text
+linux-*/mc filter=lfs diff=lfs merge=lfs -text

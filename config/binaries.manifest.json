@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "updated_at": "",
+  "repository": "",
+  "branch": "bin",
+  "tools": {
+    "kubectl": {
+      "version": "",
+      "install_name": "kubectl",
+      "paths": {
+        "linux-amd64": "linux-amd64/kubectl",
+        "linux-arm64": "linux-arm64/kubectl"
+      },
+      "sha256": {}
+    },
+    "docker-compose": {
+      "version": "",
+      "install_name": "docker-compose",
+      "paths": {
+        "linux-amd64": "linux-amd64/docker-compose",
+        "linux-arm64": "linux-arm64/docker-compose"
+      },
+      "sha256": {}
+    },
+    "mc": {
+      "version": "",
+      "install_name": "mc",
+      "paths": {
+        "linux-amd64": "linux-amd64/mc",
+        "linux-arm64": "linux-arm64/mc"
+      },
+      "sha256": {}
+    }
+  }
+}

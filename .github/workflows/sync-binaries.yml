@@ -1,0 +1,116 @@
+name: Sync Binaries
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync binaries to bin branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Git LFS
+        run: git lfs install
+
+      - name: Download binaries (linux amd64 + arm64)
+        run: |
+          set -euo pipefail
+          STAGING="${RUNNER_TEMP}/binaries"
+          mkdir -p "${STAGING}/linux-amd64" "${STAGING}/linux-arm64"
+
+          # kubectl
+          KUBE_VER=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
+          for arch in amd64 arm64; do
+            dir="linux-${arch}"
+            base="https://dl.k8s.io/release/${KUBE_VER}/bin/linux/${arch}"
+            curl -fsSL "${base}/kubectl" -o "${STAGING}/${dir}/kubectl"
+            curl -fsSL "${base}/kubectl.sha256" | awk '{print $1}' > "${STAGING}/${dir}/kubectl.sha256"
+            chmod +x "${STAGING}/${dir}/kubectl"
+          done
+
+          # docker-compose
+          COMPOSE_VER=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest \
+            | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)
+          curl -fsSL \
+            "https://github.com/docker/compose/releases/download/${COMPOSE_VER}/docker-compose-linux-x86_64" \
+            -o "${STAGING}/linux-amd64/docker-compose"
+          curl -fsSL \
+            "https://github.com/docker/compose/releases/download/${COMPOSE_VER}/docker-compose-linux-aarch64" \
+            -o "${STAGING}/linux-arm64/docker-compose"
+          chmod +x "${STAGING}/linux-amd64/docker-compose" "${STAGING}/linux-arm64/docker-compose"
+
+          # minio client (mc)
+          MC_VER=$(curl -fsSL https://api.github.com/repos/minio/mc/releases/latest \
+            | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)
+          curl -fsSL \
+            "https://github.com/minio/mc/releases/download/${MC_VER}/mc.linux-amd64.${MC_VER}" \
+            -o "${STAGING}/linux-amd64/mc"
+          curl -fsSL \
+            "https://github.com/minio/mc/releases/download/${MC_VER}/mc.linux-arm64.${MC_VER}" \
+            -o "${STAGING}/linux-arm64/mc"
+          chmod +x "${STAGING}/linux-amd64/mc" "${STAGING}/linux-arm64/mc"
+
+          # 记录版本号
+          cat > "${STAGING}/versions.json" <<EOF
+          {
+            "kubectl": "${KUBE_VER}",
+            "docker-compose": "${COMPOSE_VER}",
+            "mc": "${MC_VER}"
+          }
+          EOF
+
+          echo "STAGING=${STAGING}" >> "$GITHUB_ENV"
+          echo "KUBE_VER=${KUBE_VER}" >> "$GITHUB_ENV"
+          echo "COMPOSE_VER=${COMPOSE_VER}" >> "$GITHUB_ENV"
+          echo "MC_VER=${MC_VER}" >> "$GITHUB_ENV"
+
+      - name: Push to bin branch (LFS)
+        run: |
+          set -euo pipefail
+          STAGING="${RUNNER_TEMP}/binaries"
+          BIN_REPO="${RUNNER_TEMP}/bin-repo"
+
+          rm -rf "${BIN_REPO}"
+          mkdir -p "${BIN_REPO}/linux-amd64" "${BIN_REPO}/linux-arm64"
+          cp -f "${STAGING}/linux-amd64/"{kubectl,docker-compose,mc} "${BIN_REPO}/linux-amd64/"
+          cp -f "${STAGING}/linux-arm64/"{kubectl,docker-compose,mc} "${BIN_REPO}/linux-arm64/"
+          cp .gitattributes "${BIN_REPO}/"
+
+          cd "${BIN_REPO}"
+          git init
+          git lfs install
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "sync: kubectl=${KUBE_VER} compose=${COMPOSE_VER} mc=${MC_VER}"
+          git branch -M bin
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push -f origin bin
+
+      - name: Update manifest on main
+        run: |
+          set -euo pipefail
+          STAGING="${RUNNER_TEMP}/binaries"
+          REPO="${{ github.repository }}"
+
+          git checkout main
+          git pull origin main
+
+          VERSIONS=$(cat "${STAGING}/versions.json")
+          python3 scripts/sync-binaries-manifest.py \
+            config/binaries.manifest.json \
+            "${STAGING}" \
+            "${REPO}" \
+            "${VERSIONS}"
+
+          git add config/binaries.manifest.json
+          git diff --cached --quiet || git commit -m "chore: update binaries manifest [skip ci]"
+          git push origin main

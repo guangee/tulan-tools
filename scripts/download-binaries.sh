@@ -1,34 +1,51 @@
 #!/usr/bin/env bash
-# 自动下载最新版 docker-compose、minio client (mc)、kubectl 二进制文件
+# 下载二进制工具
+# 默认从 GitHub bin 分支公开链接下载（无需 git-lfs）
+# 也可从上游官方源直接下载（--source upstream）
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TULAN_HOME="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=../lib/common.sh
+source "${TULAN_HOME}/lib/common.sh"
+# shellcheck source=../lib/binaries.sh
+source "${TULAN_HOME}/lib/binaries.sh"
 
 INSTALL_DIR="${TULAN_TOOLS_HOME:-${TULAN_HOME}}/bin"
 TOOLS="all"
+SOURCE="github"
 DRY_RUN=false
 VERIFY_CHECKSUM=true
 
 usage() {
   cat <<EOF
-自动下载最新二进制: docker-compose, minio client (mc), kubectl
+下载二进制: docker-compose, minio client (mc), kubectl
 
 用法:
   ./scripts/download-binaries.sh [选项]
 
 选项:
+  --source SRC        下载源: github（默认）| upstream
   --install-dir DIR   安装目录，默认 \${TULAN_TOOLS_HOME}/bin
-  --tool NAME         仅下载指定工具: compose | mc | kubectl | all
+  --tool NAME         仅下载: compose | mc | kubectl | all
   --no-verify         跳过 SHA256 校验
-  --dry-run           仅显示下载信息，不实际下载
+  --dry-run           仅显示信息
   -h, --help          显示帮助
+
+GitHub 模式（默认，无需 git-lfs）:
+  读取 config/binaries.manifest.json 中的文件路径，
+  通过 media.githubusercontent.com 公开链接直接下载。
+
+  环境变量:
+    TULAN_GITHUB_REPO     仓库地址，如 yourname/tulan-tools
+    TULAN_MANIFEST_URL    远程 manifest 地址（覆盖本地文件）
 
 示例:
   ./scripts/download-binaries.sh
-  ./scripts/download-binaries.sh --tool kubectl --install-dir ~/.local/bin
-  ./scripts/download-binaries.sh --tool mc
+  ./scripts/download-binaries.sh --tool kubectl
+  TULAN_GITHUB_REPO=yourname/tulan-tools ./scripts/download-binaries.sh
+  ./scripts/download-binaries.sh --source upstream
 EOF
 }
 
@@ -37,6 +54,7 @@ err()  { echo "[download] 错误: $*" >&2; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --source) SOURCE="$2"; shift 2 ;;
     --install-dir) INSTALL_DIR="$2"; shift 2 ;;
     --tool) TOOLS="$2"; shift 2 ;;
     --no-verify) VERIFY_CHECKSUM=false; shift ;;
@@ -46,40 +64,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# 检测操作系统: linux | darwin
 detect_platform() {
-  local os
-  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-  case "$os" in
-    linux) echo "linux" ;;
-    darwin) echo "darwin" ;;
-    *) err "不支持的操作系统: $os"; exit 1 ;;
-  esac
+  uname -s | tr '[:upper:]' '[:lower:]'
 }
 
-# 检测架构: amd64 | arm64
 detect_arch() {
-  local arch
-  arch="$(uname -m)"
-  case "$arch" in
+  case "$(uname -m)" in
     x86_64|amd64) echo "amd64" ;;
     aarch64|arm64) echo "arm64" ;;
-    *) err "不支持的架构: $arch"; exit 1 ;;
+    *) err "不支持的架构: $(uname -m)"; exit 1 ;;
   esac
 }
 
-# 从 GitHub releases/latest 获取版本号
 github_latest_version() {
-  local repo="$1"
-  curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" \
+  curl -fsSL "https://api.github.com/repos/$1/releases/latest" \
     | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4
 }
 
-# 下载文件，可选校验 SHA256
 download_file() {
-  local url="$1"
-  local dest="$2"
-  local checksum_url="${3:-}"
+  local url="$1" dest="$2" checksum_url="${3:-}"
 
   if [[ "$DRY_RUN" == true ]]; then
     log "[dry-run] $url -> $dest"
@@ -90,24 +93,16 @@ download_file() {
   curl -fsSL "$url" -o "${dest}.tmp"
 
   if [[ "$VERIFY_CHECKSUM" == true ]] && [[ -n "$checksum_url" ]]; then
-    local expected actual checksum_content
-    checksum_content="$(curl -fsSL "$checksum_url")"
-    # 兼容 "hash  filename" 和纯 hash 两种格式
-    expected="$(echo "$checksum_content" | awk '{print $1}')"
+    local expected actual
+    expected="$(curl -fsSL "$checksum_url" | awk '{print $1}')"
     if command -v sha256sum &>/dev/null; then
       actual="$(sha256sum "${dest}.tmp" | awk '{print $1}')"
-    elif command -v shasum &>/dev/null; then
-      actual="$(shasum -a 256 "${dest}.tmp" | awk '{print $1}')"
     else
-      log "警告: 未找到 sha256sum/shasum，跳过校验"
-      expected=""
+      actual="$(shasum -a 256 "${dest}.tmp" | awk '{print $1}')"
     fi
     if [[ -n "$expected" ]] && [[ "$expected" != "$actual" ]]; then
       rm -f "${dest}.tmp"
-      err "SHA256 校验失败: $dest"
-      err "  期望: $expected"
-      err "  实际: $actual"
-      exit 1
+      err "SHA256 校验失败: $dest"; exit 1
     fi
     log "SHA256 校验通过"
   fi
@@ -117,125 +112,125 @@ download_file() {
   log "已安装: $dest"
 }
 
-# docker-compose 平台后缀映射
-compose_platform_suffix() {
-  local platform="$1" arch="$2"
-  case "${platform}-${arch}" in
-    linux-amd64)   echo "linux-x86_64" ;;
-    linux-arm64)   echo "linux-aarch64" ;;
-    darwin-amd64)  echo "darwin-x86_64" ;;
-    darwin-arm64)  echo "darwin-aarch64" ;;
-    *) err "docker-compose 不支持: ${platform}/${arch}"; exit 1 ;;
-  esac
-}
+# ── 上游官方源下载 ──────────────────────────────────────────
 
-download_compose() {
+download_compose_upstream() {
   local platform arch suffix version url checksum_url
   platform="$(detect_platform)"
   arch="$(detect_arch)"
-  suffix="$(compose_platform_suffix "$platform" "$arch")"
-
-  log "获取 docker-compose 最新版本..."
-  version="$(github_latest_version "docker/compose")"
-  [[ -n "$version" ]] || { err "无法获取 docker-compose 版本"; exit 1; }
-
+  case "${platform}-${arch}" in
+    linux-amd64)   suffix="linux-x86_64" ;;
+    linux-arm64)   suffix="linux-aarch64" ;;
+    darwin-amd64)  suffix="darwin-x86_64" ;;
+    darwin-arm64)  suffix="darwin-aarch64" ;;
+    *) err "docker-compose 不支持: ${platform}/${arch}"; exit 1 ;;
+  esac
+  version="$(github_latest_version docker/compose)"
   url="https://github.com/docker/compose/releases/download/${version}/docker-compose-${suffix}"
   checksum_url="https://github.com/docker/compose/releases/download/${version}/docker-compose-${suffix}.sha256"
   log "docker-compose ${version} (${platform}/${arch})"
-
   download_file "$url" "${INSTALL_DIR}/docker-compose" "$checksum_url"
 }
 
-# mc 平台后缀映射
-mc_platform_suffix() {
-  local platform="$1" arch="$2"
-  case "${platform}-${arch}" in
-    linux-amd64)   echo "linux-amd64" ;;
-    linux-arm64)   echo "linux-arm64" ;;
-    darwin-amd64)  echo "darwin-amd64" ;;
-    darwin-arm64)  echo "darwin-arm64" ;;
-    *) err "minio client 不支持: ${platform}/${arch}"; exit 1 ;;
-  esac
-}
-
-download_mc() {
-  local platform arch suffix version asset_name url checksum_url
+download_mc_upstream() {
+  local platform arch suffix version asset url checksum_url
   platform="$(detect_platform)"
   arch="$(detect_arch)"
-  suffix="$(mc_platform_suffix "$platform" "$arch")"
-
-  log "获取 minio client (mc) 最新版本..."
-  version="$(github_latest_version "minio/mc")"
-  [[ -n "$version" ]] || { err "无法获取 mc 版本"; exit 1; }
-
-  # 新版命名: mc.linux-amd64.RELEASE.2025-08-13T08-35-41Z
-  asset_name="mc.${suffix}.${version}"
-  url="https://github.com/minio/mc/releases/download/${version}/${asset_name}"
-  checksum_url="https://github.com/minio/mc/releases/download/${version}/${asset_name}.sha256sum"
+  case "${platform}-${arch}" in
+    linux-amd64)   suffix="linux-amd64" ;;
+    linux-arm64)   suffix="linux-arm64" ;;
+    darwin-amd64)  suffix="darwin-amd64" ;;
+    darwin-arm64)  suffix="darwin-arm64" ;;
+    *) err "mc 不支持: ${platform}/${arch}"; exit 1 ;;
+  esac
+  version="$(github_latest_version minio/mc)"
+  asset="mc.${suffix}.${version}"
+  url="https://github.com/minio/mc/releases/download/${version}/${asset}"
+  checksum_url="https://github.com/minio/mc/releases/download/${version}/${asset}.sha256sum"
   log "mc ${version} (${platform}/${arch})"
-
   download_file "$url" "${INSTALL_DIR}/mc" "$checksum_url"
 }
 
-download_kubectl() {
-  local platform arch version base_url url checksum_url
+download_kubectl_upstream() {
+  local platform arch version base_url
   platform="$(detect_platform)"
   arch="$(detect_arch)"
-
-  log "获取 kubectl 最新版本..."
-  version="$(curl -fsSL "https://dl.k8s.io/release/stable.txt")"
-  [[ -n "$version" ]] || { err "无法获取 kubectl 版本"; exit 1; }
-
+  version="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
   base_url="https://dl.k8s.io/release/${version}/bin/${platform}/${arch}"
-  url="${base_url}/kubectl"
-  checksum_url="${base_url}/kubectl.sha256"
-
   log "kubectl ${version} (${platform}/${arch})"
+  download_file "${base_url}/kubectl" "${INSTALL_DIR}/kubectl" "${base_url}/kubectl.sha256"
+}
 
-  download_file "$url" "${INSTALL_DIR}/kubectl" "$checksum_url"
+# ── GitHub bin 分支下载 ─────────────────────────────────────
+
+download_from_github() {
+  local tool="$1"
+  local verify="true"
+  [[ "$VERIFY_CHECKSUM" == false ]] && verify="false"
+
+  if [[ "$DRY_RUN" == true ]]; then
+    local manifest repo branch platform_key path url
+    manifest="$(tulan_resolve_manifest)"
+    repo="$(tulan_manifest_get_repo "$manifest")"
+    branch="$(tulan_manifest_read "$manifest" "print(data.get('branch', 'bin'))")"
+    platform_key="$(tulan_manifest_platform_key)"
+    path="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}']['paths']['${platform_key}'])")"
+    url="$(tulan_binary_media_url "$repo" "$branch" "$path")"
+    log "[dry-run] $url -> ${INSTALL_DIR}/$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('install_name','${tool}'))")"
+    return 0
+  fi
+
+  tulan_download_from_github "$tool" "$INSTALL_DIR" "$verify"
+}
+
+run_tool() {
+  local tool="$1"
+  case "$SOURCE" in
+    github)
+      case "$tool" in
+        compose|docker-compose) download_from_github "docker-compose" ;;
+        mc|minio)               download_from_github "mc" ;;
+        kubectl|k8s)            download_from_github "kubectl" ;;
+      esac
+      ;;
+    upstream)
+      case "$tool" in
+        compose|docker-compose) download_compose_upstream ;;
+        mc|minio)               download_mc_upstream ;;
+        kubectl|k8s)            download_kubectl_upstream ;;
+      esac
+      ;;
+    *)
+      err "未知下载源: $SOURCE（可选: github, upstream）"; exit 1
+      ;;
+  esac
 }
 
 main() {
   if ! command -v curl &>/dev/null; then
-    err "需要 curl，请先安装"
-    exit 1
+    err "需要 curl"; exit 1
   fi
 
-  local platform arch
-  platform="$(detect_platform)"
-  arch="$(detect_arch)"
-
-  log "平台: ${platform}/${arch}"
+  log "下载源: ${SOURCE}"
+  log "平台: $(detect_platform)/$(detect_arch)"
   log "安装目录: ${INSTALL_DIR}"
   echo ""
 
   case "$TOOLS" in
-    compose|docker-compose)
-      download_compose
-      ;;
-    mc|minio)
-      download_mc
-      ;;
-    kubectl|k8s)
-      download_kubectl
-      ;;
+    compose|docker-compose) run_tool compose ;;
+    mc|minio)               run_tool mc ;;
+    kubectl|k8s)            run_tool kubectl ;;
     all)
-      download_compose
-      echo ""
-      download_mc
-      echo ""
-      download_kubectl
+      run_tool compose; echo ""
+      run_tool mc; echo ""
+      run_tool kubectl
       ;;
-    *)
-      err "未知工具: ${TOOLS}（可选: compose, mc, kubectl, all）"
-      exit 1
-      ;;
+    *) err "未知工具: $TOOLS"; exit 1 ;;
   esac
 
   echo ""
   if [[ "$DRY_RUN" == false ]]; then
-    log "全部完成！确保 ${INSTALL_DIR} 在 PATH 中:"
-    echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    log "完成！确保 ${INSTALL_DIR} 在 PATH 中"
   fi
 }
 

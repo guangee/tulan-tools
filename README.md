@@ -246,14 +246,58 @@ sudo gem install fpm
 |------|------|--------|
 | `TULAN_TOOLS_HOME` | 安装目录 | `~/.tulan-tools` |
 | `TULAN_TOOLS_DEFAULT_REPO` | 默认 Git 仓库地址 | — |
+| `TULAN_GITHUB_REPO` | 二进制仓库，如 `yourname/tulan-tools` | manifest 中配置 |
+| `TULAN_MANIFEST_URL` | 远程 manifest 地址 | 本地 manifest 文件 |
+
+## 二进制分发（无需客户端 git-lfs）
+
+主仓库 `main` 分支**只记录文件路径**，实际二进制存在 `bin` 分支（GitHub LFS，仅 CI 使用）。
+
+客户端通过公开 HTTP 链接直接下载，**不需要安装 git-lfs**：
+
+```
+main 分支                          bin 分支（LFS，仅 CI 维护）
+config/binaries.manifest.json  →   linux-amd64/kubectl
+  ├─ 文件路径                       linux-amd64/docker-compose
+  ├─ 版本号                         linux-amd64/mc
+  └─ SHA256                         linux-arm64/...
+         │
+         ▼
+curl https://media.githubusercontent.com/media/{owner}/{repo}/bin/linux-amd64/kubectl
+```
+
+### 客户端下载
+
+```bash
+# 默认从 GitHub bin 分支下载（读取本地 manifest）
+./scripts/download-binaries.sh
+
+# 指定仓库（manifest 中 repository 为空时）
+TULAN_GITHUB_REPO=yourname/tulan-tools ./scripts/download-binaries.sh
+
+# 远程安装场景：直接指定 manifest 地址
+TULAN_MANIFEST_URL=https://raw.githubusercontent.com/yourname/tulan-tools/main/config/binaries.manifest.json \
+  ./scripts/download-binaries.sh
+
+# 回退到上游官方源
+./scripts/download-binaries.sh --source upstream
+```
+
+### CI 自动同步
+
+`Sync Binaries` 工作流（每周一自动 / 可手动触发）：
+1. 从上游下载最新 kubectl、docker-compose、mc（linux amd64/arm64）
+2. 推送到 `bin` 分支（LFS 存储）
+3. 更新 `main` 分支的 `config/binaries.manifest.json`（路径 + 版本 + SHA256）
 
 ## GitHub Actions
 
-推送到 GitHub 后，仓库内置三个自动化工作流：
+推送到 GitHub 后，仓库内置四个自动化工作流：
 
 | 工作流 | 文件 | 触发条件 | 作用 |
 |--------|------|----------|------|
 | CI | `.github/workflows/ci.yml` | PR / push 到 main | Shellcheck、语法检查、Docker 构建测试 |
+| Sync Binaries | `.github/workflows/sync-binaries.yml` | 每周一 / 手动触发 | 同步二进制到 `bin` 分支，更新 manifest |
 | Docker Publish | `.github/workflows/docker-publish.yml` | push main（docker 目录变更）、打 tag、手动触发 | 多平台构建并推送 Docker Hub |
 | Release | `.github/workflows/release.yml` | 推送 `v*` tag | 自动创建 GitHub Release |
 
