@@ -37,7 +37,6 @@ jobs:
           for f in \
             lib/*.sh \
             scripts/*.sh \
-            docker/*.sh \
             packages/*/*.sh \
             install.sh uninstall.sh; do
             [[ -f "$f" ]] || continue
@@ -55,29 +54,3 @@ jobs:
             bash -n "$f" || failed=1
           done
           exit $failed
-
-  docker-build:
-    name: Docker Build Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build image (amd64 only)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: docker/Dockerfile
-          platforms: linux/amd64
-          push: false
-          tags: tulan-binaries:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Verify tools in image
-        run: |
-          docker run --rm --platform linux/amd64 tulan-binaries:ci kubectl version --client
-          docker run --rm --platform linux/amd64 tulan-binaries:ci docker-compose version
-          docker run --rm --platform linux/amd64 tulan-binaries:ci mc --version

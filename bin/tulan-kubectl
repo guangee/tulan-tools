@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-TULAN_HOME="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
-exec "${TULAN_HOME}/bin/tulan-exec" kubectl "$@"
