@@ -33,9 +33,49 @@ print(data.get('${field}', ''))
   fi
 }
 
+# 判断私有包是否存在
+tulan_pkg_exists() {
+  local pkg_name="$1"
+  [[ -n "$pkg_name" ]] || return 1
+  [[ "$pkg_name" == _* ]] && return 1
+  [[ -d "${TULAN_PKG_DIR}/${pkg_name}" ]] && [[ -f "${TULAN_PKG_DIR}/${pkg_name}/manifest.json" ]]
+}
+
+tulan_pkg_show_versions() {
+  local pkg_name="$1"
+  local pkg_dir version desc installed_ver
+
+  if ! tulan_pkg_exists "$pkg_name"; then
+    tulan_error "未知软件包: ${pkg_name}"
+    return 1
+  fi
+
+  pkg_dir="${TULAN_PKG_DIR}/${pkg_name}"
+  version="$(tulan_pkg_read_manifest "$pkg_dir" "version" 2>/dev/null || echo "?")"
+  desc="$(tulan_pkg_read_manifest "$pkg_dir" "description" 2>/dev/null || echo "")"
+  installed_ver=""
+  if tulan_pkg_is_installed "$pkg_name"; then
+    # shellcheck source=/dev/null
+    source "${TULAN_PKG_STATE_DIR}/${pkg_name}.installed"
+    installed_ver="${VERSION:-?}"
+  fi
+
+  echo "软件包: ${pkg_name}"
+  [[ -n "$desc" ]] && echo "说明: ${desc}"
+  echo "────────────────────────────────────"
+  echo "  可用版本: v${version}"
+  if [[ -n "$installed_ver" ]]; then
+    echo "  已安装:   v${installed_ver}"
+  else
+    echo "  已安装:   (无)"
+  fi
+  echo ""
+  echo "  安装: tulan install ${pkg_name}"
+}
+
 # 列出可用包
 tulan_pkg_list_available() {
-  echo "可用软件包:"
+  echo "私有软件包:"
   echo "────────────────────────────────────"
 
   if [[ ! -d "$TULAN_PKG_DIR" ]]; then
@@ -52,6 +92,8 @@ tulan_pkg_list_available() {
     desc="$(tulan_pkg_read_manifest "$pkg_dir" "description" 2>/dev/null || echo "")"
     printf "  %-20s v%-10s %s\n" "$name" "$version" "$desc"
   done
+  echo ""
+  echo "  安装: tulan install <包名>    版本: tulan versions <包名>"
 }
 
 # 列出已安装包

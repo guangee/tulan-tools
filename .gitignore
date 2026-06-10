@@ -1,7 +1,7 @@
 # 构建产物
 dist/
 
-# tulan download 安装的二进制（与 bin/tulan 同目录，不提交）
+# tulan install 安装的二进制（与 bin/tulan 同目录，不提交）
 bin/*
 !bin/tulan
 

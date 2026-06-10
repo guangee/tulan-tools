@@ -17,9 +17,11 @@ usage() {
 
 选项:
   --installed   仅显示已安装项
-  --binaries    仅显示二进制工具（kubectl、docker-compose、mc）
+  --binaries    仅显示二进制工具
   --pkgs        仅显示私有软件包
   -h, --help    显示帮助
+
+安装前请先 list 查看，再 tulan install <名称>，tulan versions <名称> 查版本。
 EOF
 }
 
@@ -38,6 +40,8 @@ main() {
 
   case "$mode" in
     all)
+      echo "可安装项（默认 tulan install 安装最新版）:"
+      echo ""
       tulan_binaries_list false
       echo ""
       tulan_pkg_list_available

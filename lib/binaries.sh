@@ -511,7 +511,7 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
   if [[ -n "${TULAN_BINARY_REQUESTED_VERSION:-}" ]] \
       && [[ "${TULAN_BINARY_REQUESTED_VERSION}" != "$version" ]]; then
     tulan_error "bin 索引版本为 ${version}，指定 ${TULAN_BINARY_REQUESTED_VERSION}"
-    tulan_error "请使用: tulan download ${tool} --version ${TULAN_BINARY_REQUESTED_VERSION} --source upstream"
+    tulan_error "请使用: tulan install ${tool} --version ${TULAN_BINARY_REQUESTED_VERSION} --source upstream"
     return 1
   fi
 
@@ -547,6 +547,93 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
   tulan_binary_finish_install "$tool" "$version" "$install_name" "github" "$cellar_tmp"
 }
 
+tulan_binary_upstream_latest() {
+  local tool="$1"
+  case "$tool" in
+    kubectl)
+      curl -fsSL --connect-timeout 10 --max-time 20 https://dl.k8s.io/release/stable.txt 2>/dev/null || echo ""
+      ;;
+    docker-compose)
+      curl -fsSL --connect-timeout 10 --max-time 20 "https://api.github.com/repos/docker/compose/releases/latest" 2>/dev/null \
+        | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4 || echo ""
+      ;;
+    mc)
+      curl -fsSL --connect-timeout 10 --max-time 20 "https://api.github.com/repos/minio/mc/releases/latest" 2>/dev/null \
+        | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4 || echo ""
+      ;;
+    *) echo "" ;;
+  esac
+}
+
+tulan_binary_upstream_recent() {
+  local tool="$1"
+  case "$tool" in
+    kubectl)
+      curl -fsSL --connect-timeout 10 --max-time 20 "https://dl.k8s.io/release?mode=text" 2>/dev/null \
+        | grep -E '^v[0-9]' | tail -8 | tr '\n' ' '
+      ;;
+    docker-compose)
+      curl -fsSL --connect-timeout 10 --max-time 20 "https://api.github.com/repos/docker/compose/releases?per_page=8" 2>/dev/null \
+        | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4 | tr '\n' ' '
+      ;;
+    mc)
+      curl -fsSL --connect-timeout 10 --max-time 20 "https://api.github.com/repos/minio/mc/releases?per_page=8" 2>/dev/null \
+        | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4 | tr '\n' ' '
+      ;;
+    *) echo "" ;;
+  esac
+}
+
+tulan_binary_show_versions() {
+  local tool="$1"
+  local manifest index_ver upstream_latest recent installed active versions
+
+  manifest="$(tulan_resolve_manifest)" || return 1
+
+  index_ver="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('version', '') or '待同步')" 2>/dev/null || echo "待同步")"
+  upstream_latest="$(tulan_binary_upstream_latest "$tool")"
+  recent="$(tulan_binary_upstream_recent "$tool")"
+
+  echo "二进制工具: ${tool}"
+  echo "────────────────────────────────────"
+  echo "  bin 索引版本（tulan install 默认）: ${index_ver}"
+  if [[ -n "$upstream_latest" ]]; then
+    echo "  上游最新版本: ${upstream_latest}"
+  fi
+  if [[ -n "$recent" ]]; then
+    echo "  上游近期版本: ${recent}"
+  fi
+
+  if [[ -f "$(tulan_binary_registry_path)" ]]; then
+    installed="$(python3 - "$tool" "$(tulan_binary_registry_path)" <<'PY'
+import json, sys
+from pathlib import Path
+tool, reg_path = sys.argv[1:3]
+data = json.loads(Path(reg_path).read_text())
+entry = data.get(tool, {})
+active = entry.get("active", "")
+versions = sorted(entry.get("versions", {}).keys())
+if versions:
+    print(", ".join(f"{v}{'*' if v == active else ''}" for v in versions))
+else:
+    print("")
+PY
+)"
+    if [[ -n "$installed" ]]; then
+      echo "  本地已装（* 当前）: ${installed}"
+    else
+      echo "  本地已装: (无)"
+    fi
+  else
+    echo "  本地已装: (无)"
+  fi
+
+  echo ""
+  echo "  安装最新: tulan install ${tool}"
+  echo "  指定版本: tulan install ${tool} --version <VER> --source upstream"
+  echo "  切换版本: tulan use ${tool} <VER>"
+}
+
 tulan_binaries_list() {
   local manifest installed_only="${1:-false}"
 
@@ -555,7 +642,7 @@ tulan_binaries_list() {
   if [[ "$installed_only" == true ]]; then
     echo "已安装二进制工具:"
   else
-    echo "二进制工具（tulan download <工具> 按需安装）:"
+    echo "二进制工具:"
   fi
   echo "────────────────────────────────────"
 
@@ -582,10 +669,10 @@ for tool, info in manifest.get("tools", {}).items():
     found = True
     if versions:
         ver_text = ", ".join(f"{v}{'*' if v == active else ''}" for v in versions)
-        print(f"  {install_name:18s} 索引:{index_ver:<10} 已装:[{ver_text}]")
+        print(f"  {install_name:18s} 最新:{index_ver:<12} 已装:[{ver_text}]")
     else:
-        status = "已链接" if is_linked else "未安装"
-        print(f"  {install_name:18s} 索引:{index_ver:<10} {status}")
+        status = "已安装" if is_linked else "未安装"
+        print(f"  {install_name:18s} 最新:{index_ver:<12} {status}")
 if not found:
     print("  (无)" if installed_only else "  (manifest 中无工具定义)")
 PY
@@ -595,6 +682,6 @@ PY
   fi
 
   echo ""
-  echo "  * 为当前激活版本    安装: tulan download kubectl"
-  echo "                      切换: tulan use kubectl <版本>"
+  echo "  安装: tulan install <工具>    版本: tulan versions <工具>"
+  echo "  * 为当前激活版本              切换: tulan use <工具> <版本>"
 }

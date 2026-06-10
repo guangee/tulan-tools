@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 下载二进制工具（Cellar 多版本，类似 Homebrew）
+# 安装二进制工具（Cellar 多版本，类似 Homebrew）
 
 set -euo pipefail
 
@@ -11,7 +11,6 @@ source "${_SCRIPT_ROOT}/lib/binaries.sh"
 
 INSTALL_DIR="$(tulan_get_home)/bin"
 TOOL_ARGS=()
-INSTALL_ALL=false
 SOURCE="github"
 DRY_RUN=false
 VERIFY_CHECKSUM=true
@@ -19,42 +18,34 @@ REQUESTED_VERSION=""
 
 usage() {
   cat <<EOF
-下载二进制: docker-compose, minio client (mc), kubectl
+安装二进制工具: kubectl, docker-compose, mc
 
 用法:
-  tulan download [工具...] [选项]
-  tulan download [选项]              # 无参数时安装全部
+  tulan install <工具> [工具...] [选项]
 
-工具（可多个，按需安装）:
-  kubectl, docker-compose, mc
+请先 tulan list 查看可用工具，再按需安装（默认安装索引最新版）。
 
 选项:
-  --source SRC        下载源: github（默认）| upstream
-  --version VER       指定版本（需配合 --source upstream，或匹配 bin 索引）
-  --tool NAME         同位置参数（兼容旧用法）
+  --source SRC        源: github（默认，bin 索引最新）| upstream（官方最新）
+  --version VER       指定版本（通常需 --source upstream）
   --no-verify         跳过 SHA256 校验
-  --proxy URL         GitHub 加速代理前缀
+  --proxy URL         GitHub 代理前缀
   --no-proxy          禁用代理
   --refresh-manifest  强制刷新 bin 分支索引
   --debug             显示下载 URL
   --dry-run           仅显示信息
   -h, --help          显示帮助
 
-多版本（类似 Homebrew）:
-  安装到 ~/.tulan-tools/cellar/<工具>/<版本>/
-  bin/ 下为符号链接，tulan use <工具> <版本> 切换
-
 示例:
-  tulan download kubectl
-  tulan download kubectl mc
-  tulan download kubectl --version v1.32.0 --source upstream
-  tulan use kubectl v1.32.0
-  tulan list --binaries --installed
+  tulan install kubectl
+  tulan install kubectl mc
+  tulan install kubectl --version v1.32.0 --source upstream
+  tulan versions kubectl
 EOF
 }
 
-log()  { echo "[download] $*" >&2; }
-err()  { echo "[download] 错误: $*" >&2; }
+log()  { echo "[install] $*" >&2; }
+err()  { echo "[install] 错误: $*" >&2; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -69,6 +60,10 @@ while [[ $# -gt 0 ]]; do
     --debug) export TULAN_DEBUG=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) usage; exit 0 ;;
+    --force)
+      err "--force 仅用于私有软件包: tulan install <包名> --force"
+      exit 1
+      ;;
     --*) err "未知参数: $1"; usage; exit 1 ;;
     *)
       TOOL_ARGS+=("$1")
@@ -78,7 +73,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ${#TOOL_ARGS[@]} -eq 0 ]]; then
-  INSTALL_ALL=true
+  err "请指定要安装的工具"
+  echo "" >&2
+  echo "  先运行: tulan list" >&2
+  echo "  再安装: tulan install kubectl" >&2
+  echo "  查版本: tulan versions kubectl" >&2
+  exit 1
 fi
 
 detect_platform() {
@@ -123,8 +123,6 @@ download_to_tmp() {
     log "SHA256 校验通过"
   fi
 }
-
-# ── 上游官方源 ──────────────────────────────────────────────
 
 install_compose_upstream() {
   local platform arch suffix version url checksum_url tool install_name tmp
@@ -188,9 +186,7 @@ install_kubectl_upstream() {
   tulan_binary_finish_install "$tool" "$version" "$install_name" "upstream" "$tmp"
 }
 
-# ── GitHub bin 分支 ─────────────────────────────────────────
-
-download_from_github() {
+install_from_github() {
   local tool="$1"
   local verify="true"
   [[ "$VERIFY_CHECKSUM" == false ]] && verify="false"
@@ -222,16 +218,13 @@ run_tool() {
   local raw="$1" canonical
   canonical="$(tulan_binary_canonical_name "$raw")"
   if [[ -z "$canonical" ]]; then
-    err "未知工具: ${raw}（可选: kubectl, docker-compose, mc）"
+    err "未知工具: ${raw}（运行 tulan list 查看）"
     exit 1
   fi
 
   case "$SOURCE" in
     github)
-      if [[ -n "$REQUESTED_VERSION" ]]; then
-        log "指定版本 ${REQUESTED_VERSION}，尝试 github 索引..."
-      fi
-      download_from_github "$canonical"
+      install_from_github "$canonical"
       ;;
     upstream)
       case "$canonical" in
@@ -241,7 +234,7 @@ run_tool() {
       esac
       ;;
     *)
-      err "未知下载源: $SOURCE"; exit 1
+      err "未知源: $SOURCE"; exit 1
       ;;
   esac
 }
@@ -253,9 +246,8 @@ main() {
     err "需要 curl"; exit 1
   fi
 
-  log "下载源: ${SOURCE}"
+  log "安装源: ${SOURCE}（默认安装最新版）"
   log "平台: $(detect_platform)/$(detect_arch)"
-  log "安装: cellar/ → bin/ 链接"
 
   if [[ "${TULAN_MANIFEST_FORCE_REFRESH:-}" == true ]] && [[ "$SOURCE" == "github" ]]; then
     tulan_manifest_refresh true || exit 1
@@ -265,19 +257,13 @@ main() {
 
   echo "" >&2
 
-  if [[ "$INSTALL_ALL" == true ]]; then
-    run_tool docker-compose; echo "" >&2
-    run_tool mc; echo "" >&2
-    run_tool kubectl
-  else
-    for tool in "${TOOL_ARGS[@]}"; do
-      run_tool "$tool"
-      echo "" >&2
-    done
-  fi
+  for tool in "${TOOL_ARGS[@]}"; do
+    run_tool "$tool"
+    echo "" >&2
+  done
 
   if [[ "$DRY_RUN" == false ]]; then
-    log "完成！工具在 ${INSTALL_DIR}（符号链接）"
+    log "完成！命令入口: ${INSTALL_DIR}"
   fi
 }
 

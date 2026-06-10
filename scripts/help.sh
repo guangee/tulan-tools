@@ -18,43 +18,23 @@ tulan-tools — 个人开发工具集
 用法: tulan help [主题]
 
 命令:
-  tulan                         显示本帮助
-  tulan update                  拉取仓库最新代码
-  tulan update --force          强制更新（忽略 24 小时限制）
-  tulan download                下载 kubectl、docker-compose、mc
-  tulan list                    查看二进制工具和私有软件包
-  tulan list --installed        查看已安装项
-  tulan list --binaries         仅查看 kubectl、docker-compose、mc
-  tulan install <包名>          安装软件包
-  tulan uninstall <包名>        卸载软件包
-  tulan docker                  安装 Docker（阿里云源）
-  tulan docker configure        仅配置 registry 镜像加速
-  tulan conda                   安装 Miniconda（阿里云源）
-  tulan conda configure         仅配置 conda/pip 源与 shell
-  tulan vim                     安装 vimrc，配置 vim 为默认编辑器
-  tulan vim configure           仅配置 EDITOR / git editor
-
-下载选项:
-  tulan download --tool kubectl           仅下载 kubectl
-  tulan download --refresh-manifest       强制刷新 bin 分支索引缓存
-  tulan download --debug                  显示实际下载 URL
-  tulan download --no-proxy             禁用 GitHub 代理
-  tulan download --source upstream        从官方源下载
+  tulan list                    查看可安装的工具与软件包
+  tulan versions <名称>         查看版本信息
+  tulan install <名称>...       安装（默认最新版，需指定名称）
+  tulan use <工具> <版本>       切换二进制版本
+  tulan uninstall <名称>        卸载
+  tulan update                  更新 tulan-tools
+  tulan docker / conda / vim    环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
 
-卸载:
-  ${TULAN_HOME}/uninstall.sh
-  ${TULAN_HOME}/uninstall.sh --remove-dir
-
 查看子命令详细帮助:
-  tulan help update
-  tulan help download
+  tulan help install
+  tulan help list
   tulan help docker
   tulan help conda
   tulan help vim
-  tulan help pkg
 EOF
 }
 
@@ -64,26 +44,36 @@ tulan update — 更新 tulan-tools
 
   tulan update           从 Git 拉取最新代码
   tulan update --force   立即更新，不等待每日限制
-
-打开终端时会自动静默检查更新（每天最多一次）。
 EOF
 }
 
-help_download() {
+help_install() {
   cat <<EOF
-tulan download — 按需安装二进制（类似 brew install）
+tulan install — 安装工具或软件包（类似 brew install）
 
-  tulan download                      安装全部
-  tulan download kubectl              仅安装 kubectl
-  tulan download kubectl mc           安装多个
-  tulan download kubectl --version v1.32.0 --source upstream
-  tulan use kubectl v1.32.0           切换激活版本
-  tulan uninstall kubectl --version v1.31.0
-  tulan list --binaries --installed   查看已装版本（* 为当前）
+  tulan list                         先查看可安装项
+  tulan versions kubectl             查看版本
+  tulan install kubectl              安装最新版（bin 索引）
+  tulan install kubectl mc           安装多个
+  tulan install my-tool              安装私有包
+  tulan install kubectl --version v1.32.0 --source upstream
+  tulan use kubectl v1.32.0          切换激活版本
 
-多版本目录: ${TULAN_HOME}/cellar/<工具>/<版本>/
-命令链接:   ${TULAN_HOME}/bin/<命令>
-索引缓存:   ${TULAN_HOME}/state/binaries.manifest.json
+多版本: ${TULAN_HOME}/cellar/<工具>/<版本>/
+链接:   ${TULAN_HOME}/bin/
+EOF
+}
+
+help_list() {
+  cat <<EOF
+tulan list — 查看可安装项
+
+  tulan list                 全部（二进制 + 私有包）
+  tulan list --binaries      仅二进制工具
+  tulan list --pkgs          仅私有软件包
+  tulan list --installed     仅已安装项
+
+安装前请先 list，再 tulan install <名称>
 EOF
 }
 
@@ -94,12 +84,6 @@ tulan docker — 安装 Docker
   tulan docker                      安装 Docker（默认阿里云 CE 源）
   tulan docker fetch                下载官方脚本到本地缓存
   tulan docker configure            仅配置 registry 镜像加速
-  tulan docker --refresh-script     重新下载官方安装脚本
-  tulan docker --no-mirror          不使用阿里云软件源
-  tulan docker --registry URL       自定义 registry 镜像（默认 https://hub.coding-space.cn）
-
-官方脚本缓存: ${TULAN_HOME}/state/docker/get-docker.sh
-安装后 registry 写入: /etc/docker/daemon.json
 EOF
 }
 
@@ -108,17 +92,7 @@ help_conda() {
 tulan conda — 安装 Miniconda
 
   tulan conda                         安装并配置（默认 ~/miniconda3）
-  tulan conda fetch                   下载安装包到本地缓存
   tulan conda configure               仅配置阿里云源与 shell
-  tulan conda --prefix PATH           自定义安装目录
-  tulan conda --refresh-installer     重新下载安装包
-  tulan conda --force                 强制重装
-  tulan conda --no-mirror             从官方源下载安装包
-
-安装包缓存: ${TULAN_HOME}/state/miniconda/
-conda 配置: ~/.condarc
-pip 配置: ~/.pip/pip.conf
-shell: conda init → ~/.bashrc、~/.zshrc
 EOF
 }
 
@@ -126,49 +100,23 @@ help_vim() {
   cat <<EOF
 tulan vim — 安装 vimrc 与默认编辑器
 
-  tulan vim                           安装 vim、vimrc，配置默认编辑器
-  tulan vim fetch                     克隆/更新 vimrc 仓库
-  tulan vim configure                 仅配置 EDITOR/VISUAL 与 git editor
-  tulan vim --refresh                 强制重新克隆 ~/.vim_runtime
-  tulan vim --skip-vimrc              仅安装 vim 与编辑器配置
-  tulan vim --skip-editor             仅安装 vimrc，不改默认编辑器
-
-vimrc 仓库: https://git.tulan.wang/github/vimrc.git
-运行时目录: ~/.vim_runtime
-shell: EDITOR/VISUAL=vim → ~/.bashrc、~/.zshrc
-git: core.editor=vim
-EOF
-}
-
-help_pkg() {
-  cat <<EOF
-tulan list / install / uninstall — 管理工具与软件包
-
-  tulan list                 列出二进制工具 + 私有包
-  tulan list --binaries      仅列出 kubectl、docker-compose、mc
-  tulan list --pkgs          仅列出私有软件包
-  tulan list --installed     列出已安装项
-  tulan install <包名>       安装包
-  tulan install <包名> --force  强制重装
-  tulan uninstall <包名>     卸载包
-
-软件包目录: ${TULAN_HOME}/packages/
-新增包模板: ${TULAN_HOME}/packages/_template/
+  tulan vim                           完整安装
+  tulan vim configure                 仅配置编辑器
 EOF
 }
 
 main() {
   case "${1:-}" in
     ""|-h|--help) usage ;;
-    update)       help_update ;;
-    download|binaries) help_download ;;
+    update) help_update ;;
+    install|download|binaries) help_install ;;
+    list|versions|pkg|package) help_list ;;
     docker) help_docker ;;
     conda|miniconda) help_conda ;;
     vim|vimrc) help_vim ;;
-    pkg|package|packages|list) help_pkg ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: update, download, docker, conda, vim, pkg"
+      echo "可用主题: install, list, update, docker, conda, vim"
       exit 1
       ;;
   esac
