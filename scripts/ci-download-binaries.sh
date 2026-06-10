@@ -3,6 +3,7 @@
 
 set -euo pipefail
 
+_SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STAGING="${1:-${RUNNER_TEMP}/binaries}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
 
@@ -104,6 +105,9 @@ main() {
 
   printf '{"kubectl":"%s","docker-compose":"%s","mc":"%s"}' \
     "$kube_ver" "$compose_ver" "$mc_ver" > "${STAGING}/versions.json"
+
+  log "下载 JDK / Maven / Node 归档..."
+  python3 "${_SCRIPT_ROOT}/ci-download-archives.py" "${STAGING}"
 
   if [[ -n "${GITHUB_ENV:-}" ]]; then
     {

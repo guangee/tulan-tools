@@ -182,21 +182,21 @@ PY
 }
 
 tulan_openjdk_register() {
-  local major="$1" version="$2" java_home="$3" activate="${4:-true}"
+  local major="$1" version="$2" java_home="$3" activate="${4:-true}" source="${5:-adoptium}"
   local tool
   tool="$(tulan_openjdk_tool_name "$major")"
-  python3 - "$tool" "$version" "$java_home" "$activate" "$(tulan_binary_registry_path)" <<'PY'
+  python3 - "$tool" "$version" "$java_home" "$activate" "$source" "$(tulan_binary_registry_path)" <<'PY'
 import json, sys, time
 from pathlib import Path
 
-tool, version, java_home, activate, reg_path = sys.argv[1:6]
+tool, version, java_home, activate, source, reg_path = sys.argv[1:7]
 reg = Path(reg_path)
 reg.parent.mkdir(parents=True, exist_ok=True)
 data = json.loads(reg.read_text()) if reg.exists() else {}
 entry = data.setdefault(tool, {"install_name": tool, "active": "", "versions": {}})
 entry["install_name"] = tool
 entry["versions"][version] = {
-    "source": "adoptium",
+    "source": source,
     "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     "java_home": java_home,
     "major": tool.replace("openjdk-", ""),
@@ -207,18 +207,66 @@ reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 PY
 }
 
-tulan_install_openjdk() {
-  local major="$1"
-  local _requested_version="${2:-}"
-  local dry_run="${3:-false}"
-  local asset_info version download_url cellar_root tmp java_bin java_home
+tulan_openjdk_install_archive() {
+  local major="$1" version="$2" archive="$3" source="${4:-upstream}"
+  local cellar_root java_bin java_home
 
   if ! command -v tar &>/dev/null; then
     tulan_error "安装 OpenJDK 需要 tar"
     return 1
   fi
 
-  tulan_log "安装 OpenJDK ${major}（Eclipse Temurin / Adoptium）"
+  cellar_root="$(tulan_openjdk_cellar_root "$major" "$version")"
+  mkdir -p "$cellar_root"
+  tar -xzf "$archive" -C "$cellar_root"
+
+  java_bin="$(find "$cellar_root" -type f -name java -path '*/bin/java' 2>/dev/null | head -1)"
+  [[ -n "$java_bin" ]] || { tulan_error "解压后未找到 java 可执行文件"; return 1; }
+  java_home="$(cd "$(dirname "$java_bin")/.." && pwd)"
+
+  tulan_openjdk_register "$major" "$version" "$java_home" "true" "$source"
+  tulan_java_activate "$major"
+  tulan_log "  已安装: ${cellar_root}（${source}）"
+}
+
+tulan_install_openjdk_from_bin() {
+  local major="$1"
+  local dry_run="${2:-false}"
+  local verify="${3:-true}"
+  local tool version tmp
+
+  tool="$(tulan_openjdk_tool_name "$major")"
+  version="$(tulan_manifest_tool_version "$tool")"
+  [[ -n "$version" ]] || { tulan_error "bin 索引无 OpenJDK ${major} 版本"; return 1; }
+
+  tulan_log "安装 OpenJDK ${major} ${version}（bin 索引）"
+
+  if [[ "$dry_run" == true ]]; then
+    tulan_log "[dry-run] ${tool} ${version}"
+    return 0
+  fi
+
+  tmp="$(mktemp)"
+  if ! tulan_download_archive_from_github "$tool" "$tmp" "$verify"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  tulan_openjdk_install_archive "$major" "$version" "$tmp" "github"
+  rm -f "$tmp"
+}
+
+tulan_install_openjdk() {
+  local major="$1"
+  local _requested_version="${2:-}"
+  local dry_run="${3:-false}"
+  local asset_info version download_url tmp
+
+  if ! command -v tar &>/dev/null; then
+    tulan_error "安装 OpenJDK 需要 tar"
+    return 1
+  fi
+
+  tulan_log "安装 OpenJDK ${major}（Eclipse Temurin / Adoptium 上游）"
   asset_info="$(tulan_openjdk_fetch_asset "$major")" || {
     tulan_error "无法获取 OpenJDK ${major} 下载信息"
     return 1
@@ -234,20 +282,10 @@ tulan_install_openjdk() {
     return 0
   fi
 
-  cellar_root="$(tulan_openjdk_cellar_root "$major" "$version")"
-  mkdir -p "$cellar_root"
   tmp="$(mktemp)"
   curl -fSL "$download_url" -o "$tmp"
-  tar -xzf "$tmp" -C "$cellar_root"
+  tulan_openjdk_install_archive "$major" "$version" "$tmp" "upstream"
   rm -f "$tmp"
-
-  java_bin="$(find "$cellar_root" -type f -name java -path '*/bin/java' 2>/dev/null | head -1)"
-  [[ -n "$java_bin" ]] || { tulan_error "解压后未找到 java 可执行文件"; return 1; }
-  java_home="$(cd "$(dirname "$java_bin")/.." && pwd)"
-
-  tulan_openjdk_register "$major" "$version" "$java_home" "true"
-  tulan_java_activate "$major"
-  tulan_log "  已安装: ${cellar_root}"
 }
 
 tulan_maven_latest_version() {
@@ -256,38 +294,18 @@ tulan_maven_latest_version() {
     | sed -n 's:.*<latest>\([^<]*\)</latest>.*:\1:p' | head -1
 }
 
-tulan_install_maven() {
-  local requested_version="${1:-}"
-  local dry_run="${2:-false}"
-  local version url tmp cellar_root mvn_home
+tulan_maven_install_archive() {
+  local version="$1" archive="$2" source="${3:-upstream}"
+  local cellar_root mvn_home
 
   if ! command -v tar &>/dev/null; then
     tulan_error "安装 Maven 需要 tar"
     return 1
   fi
 
-  version="${requested_version:-$(tulan_maven_latest_version)}"
-  [[ -n "$version" ]] || { tulan_error "无法获取 Maven 最新版本"; return 1; }
-
-  url="https://dlcdn.apache.org/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz"
-  tulan_log "安装 Maven ${version}"
-  tulan_debug "URL: ${url}"
-
-  if [[ "$dry_run" == true ]]; then
-    tulan_log "[dry-run] maven ${version}"
-    return 0
-  fi
-
   cellar_root="$(tulan_maven_cellar_root "$version")"
   mkdir -p "$cellar_root"
-  tmp="$(mktemp)"
-  if ! curl -fSL "$url" -o "$tmp"; then
-    url="https://archive.apache.org/dist/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz"
-    tulan_log "尝试镜像: ${url}"
-    curl -fSL "$url" -o "$tmp"
-  fi
-  tar -xzf "$tmp" -C "$cellar_root"
-  rm -f "$tmp"
+  tar -xzf "$archive" -C "$cellar_root"
 
   mvn_home="${cellar_root}/apache-maven-${version}"
   [[ -x "${mvn_home}/bin/mvn" ]] || { tulan_error "Maven 解压异常: ${mvn_home}"; return 1; }
@@ -295,18 +313,18 @@ tulan_install_maven() {
   mkdir -p "$(tulan_get_home)/bin"
   ln -sf "../cellar/maven/${version}/apache-maven-${version}/bin/mvn" "$(tulan_get_home)/bin/mvn"
 
-  python3 - "$version" "$mvn_home" "$(tulan_binary_registry_path)" <<'PY'
+  python3 - "$version" "$mvn_home" "$source" "$(tulan_binary_registry_path)" <<'PY'
 import json, sys, time
 from pathlib import Path
 
-version, mvn_home, reg_path = sys.argv[1:4]
+version, mvn_home, source, reg_path = sys.argv[1:5]
 reg = Path(reg_path)
 reg.parent.mkdir(parents=True, exist_ok=True)
 data = json.loads(reg.read_text()) if reg.exists() else {}
 entry = data.setdefault("maven", {"install_name": "mvn", "active": "", "versions": {}})
 entry["install_name"] = "mvn"
 entry["versions"][version] = {
-    "source": "apache",
+    "source": source,
     "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     "maven_home": mvn_home,
 }
@@ -314,8 +332,59 @@ entry["active"] = version
 reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 PY
 
-  tulan_log "  已安装: ${mvn_home}"
+  tulan_log "  已安装: ${mvn_home}（${source}）"
   tulan_log "  已链接: $(tulan_get_home)/bin/mvn"
+}
+
+tulan_install_maven_from_bin() {
+  local dry_run="${1:-false}"
+  local verify="${2:-true}"
+  local version tmp
+
+  version="$(tulan_manifest_tool_version "maven")"
+  [[ -n "$version" ]] || { tulan_error "bin 索引无 Maven 版本"; return 1; }
+
+  tulan_log "安装 Maven ${version}（bin 索引）"
+
+  if [[ "$dry_run" == true ]]; then
+    tulan_log "[dry-run] maven ${version}"
+    return 0
+  fi
+
+  tmp="$(mktemp)"
+  if ! tulan_download_archive_from_github "maven" "$tmp" "$verify"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  tulan_maven_install_archive "$version" "$tmp" "github"
+  rm -f "$tmp"
+}
+
+tulan_install_maven() {
+  local requested_version="${1:-}"
+  local dry_run="${2:-false}"
+  local version url tmp
+
+  version="${requested_version:-$(tulan_maven_latest_version)}"
+  [[ -n "$version" ]] || { tulan_error "无法获取 Maven 最新版本"; return 1; }
+
+  url="https://dlcdn.apache.org/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz"
+  tulan_log "安装 Maven ${version}（Apache 上游）"
+  tulan_debug "URL: ${url}"
+
+  if [[ "$dry_run" == true ]]; then
+    tulan_log "[dry-run] maven ${version}"
+    return 0
+  fi
+
+  tmp="$(mktemp)"
+  if ! curl -fSL "$url" -o "$tmp"; then
+    url="https://archive.apache.org/dist/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz"
+    tulan_log "尝试镜像: ${url}"
+    curl -fSL "$url" -o "$tmp"
+  fi
+  tulan_maven_install_archive "$version" "$tmp" "upstream"
+  rm -f "$tmp"
 }
 
 tulan_openjdk_show_versions() {
@@ -323,8 +392,14 @@ tulan_openjdk_show_versions() {
   local tool upstream
   tool="$(tulan_openjdk_tool_name "$major")"
 
+  local index_ver
+  index_ver="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "")"
+
   echo "OpenJDK ${major}（Eclipse Temurin）"
   echo "────────────────────────────────────"
+  if [[ -n "$index_ver" ]]; then
+    echo "  bin 索引版本（brew install 默认）: ${index_ver}"
+  fi
 
   upstream="$(tulan_openjdk_fetch_asset "$major" 2>/dev/null | sed -n '1p' || echo "")"
   if [[ -n "$upstream" ]]; then
@@ -367,8 +442,12 @@ tulan_maven_show_versions() {
   local latest installed
   latest="$(tulan_maven_latest_version 2>/dev/null || echo "")"
 
+  local index_ver
+  index_ver="$(tulan_manifest_tool_version "maven" 2>/dev/null || echo "")"
+
   echo "Maven"
   echo "────────────────────────────────────"
+  [[ -n "$index_ver" ]] && echo "  bin 索引版本（brew install 默认）: ${index_ver}"
   [[ -n "$latest" ]] && echo "  上游最新: ${latest}"
 
   if [[ -f "$(tulan_binary_registry_path)" ]]; then
@@ -517,12 +596,13 @@ tulan_jdk_maven_list() {
   reg="$(tulan_binary_registry_path)"
   state="$(tulan_java_state_path)"
 
-  echo "Java / Maven（上游安装）:"
+  echo "Java / Maven（bin 索引 / 上游）:"
   echo "────────────────────────────────────"
 
   for major in 8 11 17; do
-    local tool ver_text
+    local tool index_ver ver_text
     tool="$(tulan_openjdk_tool_name "$major")"
+    index_ver="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "待同步")"
     if [[ -f "$reg" ]]; then
       ver_text="$(python3 - "$tool" "$reg" <<'PY'
 import json, sys
@@ -538,9 +618,9 @@ PY
 )"
     fi
     if [[ -n "${ver_text:-}" ]]; then
-      printf "  %-18s 已装:[%s]\n" "openjdk-${major}" "$ver_text"
+      printf "  %-18s 最新:%-16s 已装:[%s]\n" "openjdk-${major}" "$index_ver" "$ver_text"
     else
-      printf "  %-18s 未安装\n" "openjdk-${major}"
+      printf "  %-18s 最新:%-16s 未安装\n" "openjdk-${major}" "$index_ver"
     fi
   done
 
@@ -573,12 +653,14 @@ if versions:
     print(", ".join(f"{v}{'*' if v == active else ''}" for v in versions))
 PY
 )"
+    local mvn_index
+    mvn_index="$(tulan_manifest_tool_version "maven" 2>/dev/null || echo "待同步")"
     if [[ -n "${mvn_text:-}" ]]; then
-      printf "  %-18s 已装:[%s]\n" "maven" "$mvn_text"
+      printf "  %-18s 最新:%-16s 已装:[%s]\n" "maven" "$mvn_index" "$mvn_text"
     else
-      printf "  %-18s 未安装\n" "maven"
+      printf "  %-18s 最新:%-16s 未安装\n" "maven" "$mvn_index"
     fi
   else
-    printf "  %-18s 未安装\n" "maven"
+    printf "  %-18s 最新:%-16s 未安装\n" "maven" "$(tulan_manifest_tool_version "maven" 2>/dev/null || echo "待同步")"
   fi
 }

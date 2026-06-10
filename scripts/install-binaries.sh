@@ -8,6 +8,8 @@ _SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${_SCRIPT_ROOT}/lib/common.sh"
 # shellcheck source=../lib/binaries.sh
 source "${_SCRIPT_ROOT}/lib/binaries.sh"
+# shellcheck source=../lib/archives.sh
+source "${_SCRIPT_ROOT}/lib/archives.sh"
 # shellcheck source=../lib/jdk-maven.sh
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 # shellcheck source=../lib/node.sh
@@ -231,12 +233,42 @@ run_tool() {
       err "安装 OpenJDK 需要 python3"
       exit 1
     fi
-    tulan_install_openjdk "$major" "$REQUESTED_VERSION" "$DRY_RUN"
+    case "$SOURCE" in
+      github)
+        if tulan_manifest_tool_has_platform_path "$(tulan_openjdk_tool_name "$major")"; then
+          tulan_install_openjdk_from_bin "$major" "$DRY_RUN" "$VERIFY_CHECKSUM"
+        else
+          log "bin 分支无当前平台归档，改从上游安装 OpenJDK ${major}"
+          tulan_install_openjdk "$major" "$REQUESTED_VERSION" "$DRY_RUN"
+        fi
+        ;;
+      upstream)
+        tulan_install_openjdk "$major" "$REQUESTED_VERSION" "$DRY_RUN"
+        ;;
+      *)
+        err "未知源: $SOURCE"; exit 1
+        ;;
+    esac
     return
   fi
 
   if tulan_is_maven_tool "$raw" || [[ "$canonical" == maven ]]; then
-    tulan_install_maven "$REQUESTED_VERSION" "$DRY_RUN"
+    case "$SOURCE" in
+      github)
+        if tulan_manifest_tool_has_platform_path "maven"; then
+          tulan_install_maven_from_bin "$DRY_RUN" "$VERIFY_CHECKSUM"
+        else
+          log "bin 分支无当前平台归档，改从上游安装 Maven"
+          tulan_install_maven "$REQUESTED_VERSION" "$DRY_RUN"
+        fi
+        ;;
+      upstream)
+        tulan_install_maven "$REQUESTED_VERSION" "$DRY_RUN"
+        ;;
+      *)
+        err "未知源: $SOURCE"; exit 1
+        ;;
+    esac
     return
   fi
 
@@ -246,7 +278,22 @@ run_tool() {
       err "安装 Node.js 需要 python3"
       exit 1
     fi
-    tulan_install_node "$major" "$REQUESTED_VERSION" "$DRY_RUN"
+    case "$SOURCE" in
+      github)
+        if tulan_manifest_tool_has_platform_path "$(tulan_node_tool_name "$major")"; then
+          tulan_install_node_from_bin "$major" "$DRY_RUN" "$VERIFY_CHECKSUM"
+        else
+          log "bin 分支无当前平台归档，改从上游安装 Node.js ${major}"
+          tulan_install_node "$major" "$REQUESTED_VERSION" "$DRY_RUN"
+        fi
+        ;;
+      upstream)
+        tulan_install_node "$major" "$REQUESTED_VERSION" "$DRY_RUN"
+        ;;
+      *)
+        err "未知源: $SOURCE"; exit 1
+        ;;
+    esac
     return
   fi
 

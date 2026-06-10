@@ -35,9 +35,11 @@ jobs:
           REPO="${{ github.repository }}"
 
           rm -rf "${BIN_REPO}"
-          mkdir -p "${BIN_REPO}/linux-amd64" "${BIN_REPO}/linux-arm64"
+          mkdir -p "${BIN_REPO}/linux-amd64/archives" "${BIN_REPO}/linux-arm64/archives"
           cp -f "${STAGING}/linux-amd64/"{kubectl,docker-compose,mc} "${BIN_REPO}/linux-amd64/"
           cp -f "${STAGING}/linux-arm64/"{kubectl,docker-compose,mc} "${BIN_REPO}/linux-arm64/"
+          cp -f "${STAGING}/linux-amd64/archives/"*.tar.gz "${BIN_REPO}/linux-amd64/archives/"
+          cp -f "${STAGING}/linux-arm64/archives/"*.tar.gz "${BIN_REPO}/linux-arm64/archives/"
           cp .gitattributes "${BIN_REPO}/"
 
           cp config/binaries.manifest.template.json "${BIN_REPO}/binaries.manifest.json"
@@ -54,7 +56,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "sync: kubectl=${KUBE_VER} compose=${COMPOSE_VER} mc=${MC_VER}"
+          git commit -m "sync: kubectl=${KUBE_VER} compose=${COMPOSE_VER} mc=${MC_VER} + archives"
           git branch -M bin
           git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git push -f origin bin

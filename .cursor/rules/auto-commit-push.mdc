@@ -1,0 +1,18 @@
+---
+description: 工作完成后自动 git commit 并 push 到远程
+alwaysApply: true
+---
+
+# 自动提交与推送
+
+在本项目中，每次完成用户请求的开发工作后（无需用户再次提醒），自动执行：
+
+1. `git status` / `git diff` 确认变更
+2. 暂存相关文件（勿提交密钥、`.env`、`__pycache__/` 等）
+3. 用简洁中文 commit message 说明「为什么」
+4. `git push` 到远程（当前分支；首次推送用 `git push -u origin HEAD`）
+
+例外（不自动提交）：
+- 用户明确说「先别提交」「只改代码不提交」
+- 没有可提交的变更
+- commit 被 hook 拒绝时需先修复再新建 commit（不要 amend 除非符合 git 安全协议）

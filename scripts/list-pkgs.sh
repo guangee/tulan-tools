@@ -10,6 +10,8 @@ source "${_SCRIPT_ROOT}/lib/common.sh"
 source "${_SCRIPT_ROOT}/lib/binaries.sh"
 # shellcheck source=../lib/package.sh
 source "${_SCRIPT_ROOT}/lib/package.sh"
+# shellcheck source=../lib/archives.sh
+source "${_SCRIPT_ROOT}/lib/archives.sh"
 # shellcheck source=../lib/jdk-maven.sh
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 # shellcheck source=../lib/node.sh

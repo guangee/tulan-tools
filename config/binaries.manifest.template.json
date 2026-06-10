@@ -9,6 +9,7 @@
     "kubectl": {
       "version": "",
       "install_name": "kubectl",
+      "artifact_type": "binary",
       "paths": {
         "linux-amd64": "linux-amd64/kubectl",
         "linux-arm64": "linux-arm64/kubectl"
@@ -18,6 +19,7 @@
     "docker-compose": {
       "version": "",
       "install_name": "docker-compose",
+      "artifact_type": "binary",
       "paths": {
         "linux-amd64": "linux-amd64/docker-compose",
         "linux-arm64": "linux-arm64/docker-compose"
@@ -27,6 +29,7 @@
     "mc": {
       "version": "",
       "install_name": "mc",
+      "artifact_type": "binary",
       "paths": {
         "linux-amd64": "linux-amd64/mc",
         "linux-arm64": "linux-arm64/mc"
@@ -34,67 +37,112 @@
       "sha256": {}
     },
     "openjdk-8": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "openjdk-8",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Eclipse Temurin JDK 8",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/openjdk-8.tar.gz",
+        "linux-arm64": "linux-arm64/archives/openjdk-8.tar.gz"
+      },
+      "sha256": {}
     },
     "openjdk-11": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "openjdk-11",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Eclipse Temurin JDK 11",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/openjdk-11.tar.gz",
+        "linux-arm64": "linux-arm64/archives/openjdk-11.tar.gz"
+      },
+      "sha256": {}
     },
     "openjdk-17": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "openjdk-17",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Eclipse Temurin JDK 17",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/openjdk-17.tar.gz",
+        "linux-arm64": "linux-arm64/archives/openjdk-17.tar.gz"
+      },
+      "sha256": {}
     },
     "maven": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "mvn",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Apache Maven",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/apache-maven-bin.tar.gz",
+        "linux-arm64": "linux-arm64/archives/apache-maven-bin.tar.gz"
+      },
+      "sha256": {}
     },
     "node-16": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "node-16",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Node.js 16 LTS",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-16.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-16.tar.gz"
+      },
+      "sha256": {}
     },
     "node-18": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "node-18",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Node.js 18 LTS",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-18.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-18.tar.gz"
+      },
+      "sha256": {}
     },
     "node-20": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "node-20",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Node.js 20 LTS",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-20.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-20.tar.gz"
+      },
+      "sha256": {}
     },
     "node-22": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "node-22",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Node.js 22 LTS",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-22.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-22.tar.gz"
+      },
+      "sha256": {}
     },
     "node-24": {
-      "version": "上游最新",
+      "version": "",
       "install_name": "node-24",
-      "upstream_only": true,
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
       "description": "Node.js 24",
-      "paths": {}
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-24.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-24.tar.gz"
+      },
+      "sha256": {}
     }
   }
 }

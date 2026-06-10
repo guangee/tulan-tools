@@ -113,21 +113,21 @@ PY
 }
 
 tulan_node_register() {
-  local major="$1" version="$2" node_home="$3" activate="${4:-true}"
+  local major="$1" version="$2" node_home="$3" activate="${4:-true}" source="${5:-nodejs.org}"
   local tool
   tool="$(tulan_node_tool_name "$major")"
-  python3 - "$tool" "$version" "$node_home" "$activate" "$(tulan_binary_registry_path)" <<'PY'
+  python3 - "$tool" "$version" "$node_home" "$activate" "$source" "$(tulan_binary_registry_path)" <<'PY'
 import json, sys, time
 from pathlib import Path
 
-tool, version, node_home, activate, reg_path = sys.argv[1:6]
+tool, version, node_home, activate, source, reg_path = sys.argv[1:7]
 reg = Path(reg_path)
 reg.parent.mkdir(parents=True, exist_ok=True)
 data = json.loads(reg.read_text()) if reg.exists() else {}
 entry = data.setdefault(tool, {"install_name": tool, "active": "", "versions": {}})
 entry["install_name"] = tool
 entry["versions"][version] = {
-    "source": "nodejs.org",
+    "source": source,
     "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     "node_home": node_home,
     "major": tool.replace("node-", ""),
@@ -191,11 +191,59 @@ PY
   echo "  请执行: source ~/.bashrc  或  source ~/.zshrc"
 }
 
+tulan_node_install_archive() {
+  local major="$1" version="$2" archive="$3" source="${4:-upstream}"
+  local cellar_root node_bin node_home
+
+  if ! command -v tar &>/dev/null; then
+    tulan_error "安装 Node.js 需要 tar"
+    return 1
+  fi
+
+  cellar_root="$(tulan_node_cellar_root "$major" "$version")"
+  mkdir -p "$cellar_root"
+  tar -xzf "$archive" -C "$cellar_root"
+
+  node_bin="$(find "$cellar_root" -type f -name node -path '*/bin/node' 2>/dev/null | head -1)"
+  [[ -n "$node_bin" ]] || { tulan_error "解压后未找到 node 可执行文件"; return 1; }
+  node_home="$(cd "$(dirname "$node_bin")/.." && pwd)"
+
+  tulan_node_register "$major" "$version" "$node_home" "true" "$source"
+  tulan_node_activate "$major"
+  tulan_log "  已安装: ${cellar_root}（${source}）"
+}
+
+tulan_install_node_from_bin() {
+  local major="$1"
+  local dry_run="${2:-false}"
+  local verify="${3:-true}"
+  local tool version tmp
+
+  tool="$(tulan_node_tool_name "$major")"
+  version="$(tulan_manifest_tool_version "$tool")"
+  [[ -n "$version" ]] || { tulan_error "bin 索引无 Node.js ${major} 版本"; return 1; }
+
+  tulan_log "安装 Node.js ${major} ${version}（bin 索引）"
+
+  if [[ "$dry_run" == true ]]; then
+    tulan_log "[dry-run] ${tool} ${version}"
+    return 0
+  fi
+
+  tmp="$(mktemp)"
+  if ! tulan_download_archive_from_github "$tool" "$tmp" "$verify"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  tulan_node_install_archive "$major" "$version" "$tmp" "github"
+  rm -f "$tmp"
+}
+
 tulan_install_node() {
   local major="$1"
   local requested_version="${2:-}"
   local dry_run="${3:-false}"
-  local version suffix url cellar_root tmp node_bin node_home
+  local version suffix url tmp
 
   if ! command -v tar &>/dev/null; then
     tulan_error "安装 Node.js 需要 tar"
@@ -212,7 +260,7 @@ tulan_install_node() {
   suffix="$(tulan_node_platform_suffix)"
   url="https://nodejs.org/dist/${version}/node-${version}-${suffix}.tar.gz"
 
-  tulan_log "安装 Node.js ${major} -> ${version} (${suffix})"
+  tulan_log "安装 Node.js ${major} -> ${version}（nodejs.org 上游, ${suffix}）"
   tulan_debug "URL: ${url}"
 
   if [[ "$dry_run" == true ]]; then
@@ -220,20 +268,10 @@ tulan_install_node() {
     return 0
   fi
 
-  cellar_root="$(tulan_node_cellar_root "$major" "$version")"
-  mkdir -p "$cellar_root"
   tmp="$(mktemp)"
   curl -fSL "$url" -o "$tmp"
-  tar -xzf "$tmp" -C "$cellar_root"
+  tulan_node_install_archive "$major" "$version" "$tmp" "upstream"
   rm -f "$tmp"
-
-  node_bin="$(find "$cellar_root" -type f -name node -path '*/bin/node' 2>/dev/null | head -1)"
-  [[ -n "$node_bin" ]] || { tulan_error "解压后未找到 node 可执行文件"; return 1; }
-  node_home="$(cd "$(dirname "$node_bin")/.." && pwd)"
-
-  tulan_node_register "$major" "$version" "$node_home" "true"
-  tulan_node_activate "$major"
-  tulan_log "  已安装: ${cellar_root}"
 }
 
 tulan_node_show_versions() {
@@ -242,8 +280,14 @@ tulan_node_show_versions() {
 
   tool="$(tulan_node_tool_name "$major")"
 
+  local index_ver
+  index_ver="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "")"
+
   echo "Node.js ${major}"
   echo "────────────────────────────────────"
+  if [[ -n "$index_ver" ]]; then
+    echo "  bin 索引版本（brew install 默认）: ${index_ver}"
+  fi
 
   upstream="$(tulan_node_latest_version "$major" 2>/dev/null || echo "")"
   if [[ -n "$upstream" ]]; then
@@ -360,11 +404,13 @@ tulan_node_list() {
   reg="$(tulan_binary_registry_path)"
   state="$(tulan_node_state_path)"
 
-  echo "Node.js（上游安装）:"
+  echo "Node.js（bin 索引 / 上游）:"
   echo "────────────────────────────────────"
 
   for major in "${TULAN_NODE_MAJORS[@]}"; do
+    local index_ver
     tool="$(tulan_node_tool_name "$major")"
+    index_ver="$(tulan_manifest_tool_version "$tool" 2>/dev/null || echo "待同步")"
     ver_text=""
     if [[ -f "$reg" ]]; then
       ver_text="$(python3 - "$tool" "$reg" <<'PY'
@@ -381,9 +427,9 @@ PY
 )"
     fi
     if [[ -n "$ver_text" ]]; then
-      printf "  %-18s 已装:[%s]\n" "node-${major}" "$ver_text"
+      printf "  %-18s 最新:%-16s 已装:[%s]\n" "node-${major}" "$index_ver" "$ver_text"
     else
-      printf "  %-18s 未安装\n" "node-${major}"
+      printf "  %-18s 最新:%-16s 未安装\n" "node-${major}" "$index_ver"
     fi
   done
 

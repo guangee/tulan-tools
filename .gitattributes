@@ -2,3 +2,4 @@
 linux-*/kubectl filter=lfs diff=lfs merge=lfs -text
 linux-*/docker-compose filter=lfs diff=lfs merge=lfs -text
 linux-*/mc filter=lfs diff=lfs merge=lfs -text
+linux-*/archives/*.tar.gz filter=lfs diff=lfs merge=lfs -text

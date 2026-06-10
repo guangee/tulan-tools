@@ -60,7 +60,7 @@ brew list --installed
 
 ## OpenJDK 与 Maven
 
-从上游安装 Eclipse Temurin（Adoptium）与 Apache Maven 最新版，支持多版本并存并一键切换 `JAVA_HOME`：
+Linux 默认从 **bin 分支** 安装归档（CI 定期同步）；macOS 或无 bin 归档时自动回退上游。支持多版本并存并一键切换 `JAVA_HOME`：
 
 ```bash
 brew install openjdk-8 openjdk-11 openjdk-17
@@ -73,13 +73,15 @@ java -version
 mvn -version
 ```
 
+- bin 归档：`bin` 分支 `linux-*/archives/openjdk-*.tar.gz`、`apache-maven-bin.tar.gz`
 - JDK 目录：`~/.tulan-tools/cellar/openjdk-<8|11|17>/<版本>/`
 - Maven：`~/.tulan-tools/cellar/maven/<版本>/`，命令链接 `~/.tulan-tools/bin/mvn`
 - `JAVA_HOME` 写入 shell 配置中的 `# >>> tulan-java >>>` 标记块
+- 强制上游：`brew install openjdk-11 --source upstream`
 
 ## Node.js
 
-从 [nodejs.org](https://nodejs.org/) 安装官方二进制，支持 16 / 18 / 20 / 22 / 24 多版本并存并一键切换：
+Linux 默认从 **bin 分支** 安装归档；其他平台回退 [nodejs.org](https://nodejs.org/) 上游。支持 16 / 18 / 20 / 22 / 24 多版本并存并一键切换：
 
 ```bash
 brew install node-16 node-18 node-20 node-22 node-24
@@ -90,8 +92,10 @@ source ~/.bashrc                # 或 source ~/.zshrc
 node -v && npm -v
 ```
 
+- bin 归档：`bin` 分支 `linux-*/archives/node-*.tar.gz`
 - 目录：`~/.tulan-tools/cellar/node-<16|18|20|22|24>/<版本>/`
 - `NODE_HOME` 写入 shell 配置中的 `# >>> tulan-node >>>` 标记块
+- 强制上游：`brew install node-20 --source upstream`
 
 ## 环境安装
 
