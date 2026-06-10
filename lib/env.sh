@@ -45,7 +45,7 @@ tulan_refresh_shell_config() {
 }
 
 tulan_env_render() {
-  local env_file java_home node_home java_major node_major
+  local env_file java_home node_home
   env_file="$(tulan_env_file_path)"
   mkdir -p "$(dirname "$env_file")"
 
