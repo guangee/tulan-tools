@@ -31,6 +31,8 @@ tulan-tools — 个人开发工具集
   tulan docker configure        仅配置 registry 镜像加速
   tulan conda                   安装 Miniconda（阿里云源）
   tulan conda configure         仅配置 conda/pip 源与 shell
+  tulan vim                     安装 vimrc，配置 vim 为默认编辑器
+  tulan vim configure           仅配置 EDITOR / git editor
 
 下载选项:
   tulan download --tool kubectl           仅下载 kubectl
@@ -51,6 +53,7 @@ tulan-tools — 个人开发工具集
   tulan help download
   tulan help docker
   tulan help conda
+  tulan help vim
   tulan help pkg
 EOF
 }
@@ -117,6 +120,24 @@ shell: conda init → ~/.bashrc、~/.zshrc
 EOF
 }
 
+help_vim() {
+  cat <<EOF
+tulan vim — 安装 vimrc 与默认编辑器
+
+  tulan vim                           安装 vim、vimrc，配置默认编辑器
+  tulan vim fetch                     克隆/更新 vimrc 仓库
+  tulan vim configure                 仅配置 EDITOR/VISUAL 与 git editor
+  tulan vim --refresh                 强制重新克隆 ~/.vim_runtime
+  tulan vim --skip-vimrc              仅安装 vim 与编辑器配置
+  tulan vim --skip-editor             仅安装 vimrc，不改默认编辑器
+
+vimrc 仓库: https://git.tulan.wang/github/vimrc.git
+运行时目录: ~/.vim_runtime
+shell: EDITOR/VISUAL=vim → ~/.bashrc、~/.zshrc
+git: core.editor=vim
+EOF
+}
+
 help_pkg() {
   cat <<EOF
 tulan list / install / uninstall — 管理工具与软件包
@@ -141,10 +162,11 @@ main() {
     download|binaries) help_download ;;
     docker) help_docker ;;
     conda|miniconda) help_conda ;;
+    vim|vimrc) help_vim ;;
     pkg|package|packages|list) help_pkg ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: update, download, docker, conda, pkg"
+      echo "可用主题: update, download, docker, conda, vim, pkg"
       exit 1
       ;;
   esac

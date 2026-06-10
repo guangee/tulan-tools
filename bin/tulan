@@ -12,7 +12,7 @@ tulan — tulan-tools 命令行工具
 用法: tulan <命令> [选项]
 
 命令:
-  help [主题]       显示帮助（update / download / docker / conda / pkg）
+  help [主题]       显示帮助（update / download / docker / conda / vim / pkg）
   update            更新 tulan-tools 仓库
   download          下载 kubectl、docker-compose、mc
   list              列出二进制工具和私有软件包
@@ -20,14 +20,16 @@ tulan — tulan-tools 命令行工具
   uninstall <包名>  卸载软件包
   docker            安装 Docker（阿里云源 + registry 镜像加速）
   conda             安装 Miniconda（阿里云 conda/pip 源）
+  vim               安装 vimrc，配置 vim 为默认编辑器
 
 示例:
   tulan update
   tulan download --tool kubectl
   tulan docker
   tulan conda
+  tulan vim
   tulan install my-tool
-  tulan help conda
+  tulan help vim
 
 运行 tulan help <主题> 查看子命令详细选项。
 EOF
@@ -68,6 +70,10 @@ main() {
     conda|miniconda)
       shift
       exec "${TULAN_HOME}/scripts/install-miniconda.sh" "$@"
+      ;;
+    vim|vimrc)
+      shift
+      exec "${TULAN_HOME}/scripts/install-vimrc.sh" "$@"
       ;;
     *)
       echo "未知命令: ${cmd}" >&2

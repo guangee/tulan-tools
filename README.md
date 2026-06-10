@@ -44,6 +44,7 @@ curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.
 | `tulan uninstall <包名>` | 卸载软件包 |
 | `tulan docker` | 安装 Docker（阿里云源 + registry 镜像加速） |
 | `tulan conda` | 安装 Miniconda（阿里云 conda/pip 源） |
+| `tulan vim` | 安装 vimrc，配置 vim 为默认编辑器 |
 
 打开新终端时会自动检查更新（每天最多一次），也可随时手动执行 `tulan update`。
 
@@ -98,6 +99,22 @@ tulan conda --prefix ~/miniconda3   # 自定义安装路径
 ```
 
 安装后执行 `source ~/.bashrc` 或 `source ~/.zshrc` 生效。
+
+## 安装 vimrc
+
+自动检测并安装 vim，克隆 vimrc 到 `~/.vim_runtime`，执行官方安装脚本，并将 vim 设为默认编辑器（含 git merge）：
+
+```bash
+tulan vim                         # 完整安装
+tulan vim configure               # 仅配置 EDITOR / git core.editor
+tulan vim fetch                   # 仅克隆/更新 vimrc 仓库
+tulan vim --refresh               # 强制重新克隆
+```
+
+配置项：
+- `~/.bashrc`、`~/.zshrc` — `EDITOR=vim`、`VISUAL=vim`
+- `git config --global core.editor vim` — 合并冲突等场景使用 vim
+- Linux `update-alternatives` — 系统默认 `editor` 指向 vim
 
 ## 管理私有软件包
 
