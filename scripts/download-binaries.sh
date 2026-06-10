@@ -45,8 +45,9 @@ GitHub 模式（默认，无需 git-lfs）:
     TULAN_GITHUB_REPO            仓库地址，如 guangee/tulan-tools
     TULAN_MANIFEST_URL           远程 manifest 地址（覆盖默认）
     TULAN_MANIFEST_TTL           索引缓存有效期（秒），默认 86400
-    TULAN_GITHUB_PROXY           代理前缀，如 https://gh.coding-space.cn/
-    TULAN_GITHUB_PROXY_DISABLED  设为 true 禁用代理
+    TULAN_MANIFEST_PROXY         manifest 代理前缀（默认 https://gh.coding-space.cn/）
+    TULAN_GITHUB_PROXY           二进制下载代理前缀
+    TULAN_GITHUB_PROXY_DISABLED  设为 true 禁用所有代理
 
 示例:
   ./scripts/download-binaries.sh
@@ -240,12 +241,13 @@ main() {
     local repo url proxy cache
     repo="$(tulan_manifest_default_repo)"
     url="$(tulan_manifest_remote_url "$repo")"
-    proxy="$(tulan_get_github_proxy "")"
+    proxy="$(tulan_manifest_proxy)"
     cache="$(tulan_manifest_cache_path)"
     log "manifest 仓库: ${repo}"
-    log "manifest 直连: ${url}"
     if [[ -n "$proxy" ]]; then
       log "manifest 代理: $(tulan_proxy_url "$url" "$proxy")"
+    else
+      log "manifest 直连: ${url}"
     fi
     log "manifest 缓存: ${cache}"
     echo ""

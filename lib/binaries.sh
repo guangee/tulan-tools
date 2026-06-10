@@ -8,7 +8,7 @@ TULAN_MANIFEST_TTL="${TULAN_MANIFEST_TTL:-86400}"
 TULAN_MANIFEST_DEFAULT_REPO="${TULAN_GITHUB_REPO:-guangee/tulan-tools}"
 TULAN_MANIFEST_DEFAULT_BRANCH="bin"
 TULAN_MANIFEST_DEFAULT_FILE="binaries.manifest.json"
-TULAN_MANIFEST_DEFAULT_PROXY="${TULAN_GITHUB_PROXY:-https://gh.coding-space.cn/}"
+TULAN_MANIFEST_PROXY_DEFAULT="https://gh.coding-space.cn/"
 
 tulan_manifest_cache_path() {
   echo "$(tulan_get_home)/state/binaries.manifest.json"
@@ -78,18 +78,23 @@ tulan_manifest_refresh() {
     url="$(tulan_manifest_remote_url "$repo")"
   fi
 
-  proxy="$(tulan_get_github_proxy "")"
+  proxy="$(tulan_manifest_proxy)"
   mkdir -p "$(dirname "$cache")"
 
   tulan_debug "manifest 仓库: ${repo}"
   tulan_debug "manifest 分支: ${TULAN_MANIFEST_DEFAULT_BRANCH}"
   tulan_debug "manifest 直连: ${url}"
   if [[ -n "$proxy" ]]; then
-    tulan_debug "manifest 代理: $(tulan_proxy_url "$url" "$proxy")"
+    tulan_debug "manifest 代理前缀: ${proxy}"
+    tulan_debug "manifest 代理 URL: $(tulan_proxy_url "$url" "$proxy")"
   fi
   tulan_debug "manifest 缓存: ${cache}"
 
-  tulan_log "刷新二进制索引: ${url}"
+  if [[ -n "$proxy" ]]; then
+    tulan_log "刷新二进制索引: $(tulan_proxy_url "$url" "$proxy")"
+  else
+    tulan_log "刷新二进制索引: ${url}"
+  fi
   if ! tulan_curl_download "$url" "${cache}.tmp" "$proxy"; then
     [[ -f "$cache" ]] && { tulan_log "使用本地缓存 manifest"; return 0; }
     tulan_error "无法获取 binaries.manifest.json"
@@ -132,6 +137,26 @@ tulan_binary_media_url() {
   echo "https://media.githubusercontent.com/media/${repo}/${branch}/${path}"
 }
 
+# manifest 刷新专用代理（默认 gh.coding-space.cn）
+tulan_manifest_proxy() {
+  if [[ "${TULAN_GITHUB_PROXY_DISABLED:-}" == "true" ]] \
+      || [[ "${TULAN_MANIFEST_PROXY_DISABLED:-}" == "true" ]]; then
+    return 0
+  fi
+
+  if [[ -n "${TULAN_MANIFEST_PROXY:-}" ]]; then
+    echo "${TULAN_MANIFEST_PROXY%/}/"
+    return 0
+  fi
+
+  if [[ -n "${TULAN_GITHUB_PROXY:-}" ]]; then
+    echo "${TULAN_GITHUB_PROXY%/}/"
+    return 0
+  fi
+
+  echo "${TULAN_MANIFEST_PROXY_DEFAULT}"
+}
+
 tulan_get_github_proxy() {
   local manifest="${1:-}"
 
@@ -153,7 +178,7 @@ tulan_get_github_proxy() {
     fi
   fi
 
-  echo "${TULAN_MANIFEST_DEFAULT_PROXY}"
+  echo "${TULAN_MANIFEST_PROXY_DEFAULT}"
 }
 
 tulan_proxy_url() {
@@ -222,7 +247,7 @@ tulan_resolve_manifest() {
   if [[ -n "${TULAN_MANIFEST_URL:-}" ]]; then
     local tmp proxy
     tmp="$(mktemp)"
-    proxy="$(tulan_get_github_proxy "")"
+    proxy="$(tulan_manifest_proxy)"
     tulan_curl_download "${TULAN_MANIFEST_URL}" "$tmp" "$proxy"
     echo "$tmp"
     return 0

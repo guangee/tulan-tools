@@ -59,7 +59,7 @@ tulan list --binaries    # 确认安装状态
 
 工具会安装到 `~/.tulan-tools/bin`，可直接使用 `kubectl`、`docker-compose`、`mc`。
 
-二进制**索引**在 `bin` 分支（`binaries.manifest.json`），使用时自动缓存到 `~/.tulan-tools/state/`：
+二进制**索引**在 `bin` 分支（`binaries.manifest.json`），使用时自动缓存到 `~/.tulan-tools/state/`。刷新索引默认经 [gh.coding-space.cn](https://gh.coding-space.cn/) 代理，失败时回退直连：
 - `tulan update` 后自动刷新索引
 - 超过 24 小时未刷新时，调用下载/列表命令会自动更新
 - 可手动强制刷新：`tulan download --refresh-manifest`
