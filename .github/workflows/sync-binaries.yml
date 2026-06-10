@@ -23,48 +23,9 @@ jobs:
         run: git lfs install
 
       - name: Download binaries (linux amd64 + arm64)
-        run: |
-          set -euo pipefail
-          STAGING="${RUNNER_TEMP}/binaries"
-          mkdir -p "${STAGING}/linux-amd64" "${STAGING}/linux-arm64}"
-
-          KUBE_VER=$(curl -fsSL https://dl.k8s.io/release/stable.txt)
-          for arch in amd64 arm64; do
-            dir="linux-${arch}"
-            base="https://dl.k8s.io/release/${KUBE_VER}/bin/linux/${arch}"
-            curl -fsSL "${base}/kubectl" -o "${STAGING}/${dir}/kubectl"
-            curl -fsSL "${base}/kubectl.sha256" | awk '{print $1}' > "${STAGING}/${dir}/kubectl.sha256"
-            chmod +x "${STAGING}/${dir}/kubectl"
-          done
-
-          COMPOSE_VER=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest \
-            | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)
-          curl -fsSL \
-            "https://github.com/docker/compose/releases/download/${COMPOSE_VER}/docker-compose-linux-x86_64" \
-            -o "${STAGING}/linux-amd64/docker-compose"
-          curl -fsSL \
-            "https://github.com/docker/compose/releases/download/${COMPOSE_VER}/docker-compose-linux-aarch64" \
-            -o "${STAGING}/linux-arm64/docker-compose"
-          chmod +x "${STAGING}/linux-amd64/docker-compose" "${STAGING}/linux-arm64/docker-compose"
-
-          MC_VER=$(curl -fsSL https://api.github.com/repos/minio/mc/releases/latest \
-            | grep -o '"tag_name": *"[^"]*"' | head -1 | cut -d'"' -f4)
-          curl -fsSL \
-            "https://github.com/minio/mc/releases/download/${MC_VER}/mc.linux-amd64.${MC_VER}" \
-            -o "${STAGING}/linux-amd64/mc"
-          curl -fsSL \
-            "https://github.com/minio/mc/releases/download/${MC_VER}/mc.linux-arm64.${MC_VER}" \
-            -o "${STAGING}/linux-arm64/mc"
-          chmod +x "${STAGING}/linux-amd64/mc" "${STAGING}/linux-arm64/mc"
-
-          cat > "${STAGING}/versions.json" <<EOF
-          {"kubectl":"${KUBE_VER}","docker-compose":"${COMPOSE_VER}","mc":"${MC_VER}"}
-          EOF
-
-          echo "STAGING=${STAGING}" >> "$GITHUB_ENV"
-          echo "KUBE_VER=${KUBE_VER}" >> "$GITHUB_ENV"
-          echo "COMPOSE_VER=${COMPOSE_VER}" >> "$GITHUB_ENV"
-          echo "MC_VER=${MC_VER}" >> "$GITHUB_ENV"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci-download-binaries.sh "${RUNNER_TEMP}/binaries"
 
       - name: Push to bin branch (LFS)
         run: |
