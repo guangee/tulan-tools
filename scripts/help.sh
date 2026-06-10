@@ -22,7 +22,7 @@ tulan-tools — 个人开发工具集
   brew versions <名称>         查看版本信息
   brew install <名称>...       安装（默认最新版，需指定名称）
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
-  brew uninstall <名称>        卸载
+  brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
   brew docker / conda / vim    环境安装
 

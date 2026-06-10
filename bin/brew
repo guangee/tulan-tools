@@ -18,7 +18,7 @@ brew — 图蓝工具集（tulan-tools）
   versions <名称>     查看可用/已装版本
   install <名称>...   安装（默认最新版）
   use <工具> <版本>   切换二进制版本
-  uninstall <名称>    卸载
+  remove <名称>       移除已安装项
   docker / conda / vim  环境安装
 
 示例:
@@ -60,9 +60,14 @@ main() {
       echo "[tulan-tools] 提示: download 已改为 install" >&2
       exec "${TULAN_HOME}/scripts/install.sh" "$@"
       ;;
-    uninstall|remove)
+    remove|rm)
       shift
-      exec "${TULAN_HOME}/scripts/uninstall.sh" "$@"
+      exec "${TULAN_HOME}/scripts/remove.sh" "$@"
+      ;;
+    uninstall)
+      shift
+      echo "[tulan-tools] 提示: uninstall 已改为 remove" >&2
+      exec "${TULAN_HOME}/scripts/remove.sh" "$@"
       ;;
     use|switch)
       shift

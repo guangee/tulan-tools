@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 卸载二进制工具或私有软件包
+# 移除二进制工具或私有软件包
 
 set -euo pipefail
 
@@ -17,18 +17,18 @@ source "${_SCRIPT_ROOT}/lib/node.sh"
 
 usage() {
   cat <<EOF
-用法: brew uninstall <名称> [选项]
+用法: brew remove <名称> [选项]
 
-卸载二进制工具（kubectl / docker-compose / mc / openjdk / maven / node）或私有软件包。
+移除二进制工具（kubectl / docker-compose / mc / openjdk / maven / node）或私有软件包。
 
 选项:
-  --version VER   仅卸载二进制工具的指定版本
+  --version VER   仅移除二进制工具的指定版本
   -h, --help      显示帮助
 
 示例:
-  brew uninstall kubectl
-  brew uninstall kubectl --version v1.31.0
-  brew uninstall my-tool
+  brew remove kubectl
+  brew remove kubectl --version v1.31.0
+  brew remove my-tool
 EOF
 }
 

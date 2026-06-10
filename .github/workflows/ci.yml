@@ -55,7 +55,7 @@ jobs:
             lib/*.sh \
             scripts/*.sh \
             packages/*/*.sh \
-            install.sh uninstall.sh; do
+            install.sh remove.sh uninstall.sh; do
             [[ -f "$f" ]] || continue
             echo "Checking $f"
             bash -n "$f" || failed=1

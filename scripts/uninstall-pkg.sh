@@ -10,7 +10,7 @@ source "${_SCRIPT_ROOT}/lib/common.sh"
 source "${_SCRIPT_ROOT}/lib/package.sh"
 
 usage() {
-  echo "用法: brew uninstall <包名>"
+  echo "用法: brew remove <包名>"
 }
 
 main() {

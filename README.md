@@ -33,7 +33,7 @@ curl -fsSL https://gh.coding-space.cn/https://raw.githubusercontent.com/guangee/
 | `brew versions <名称>` | 查看版本（索引/上游/已装） |
 | `brew install <名称>` | 安装指定项（默认最新版） |
 | `brew use <工具> <版本>` | 切换二进制激活版本 |
-| `brew uninstall <名称>` | 卸载 |
+| `brew remove <名称>` | 移除已安装项 |
 | `brew update` | 更新 tulan-tools |
 
 **不会默认安装全部软件**。请先 `brew list`，再按需 `brew install`。
@@ -112,7 +112,7 @@ cp -r packages/_template packages/my-tool
 brew list --pkgs
 brew versions my-tool
 brew install my-tool
-brew uninstall my-tool
+brew remove my-tool
 ```
 
 ## 自定义别名
