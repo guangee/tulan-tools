@@ -200,6 +200,11 @@ tulan_log() {
   echo "[tulan-tools] $*"
 }
 
+tulan_debug() {
+  [[ "${TULAN_DEBUG:-}" == true ]] || return 0
+  echo "[tulan-tools:debug] $*" >&2
+}
+
 tulan_error() {
   echo "[tulan-tools] 错误: $*" >&2
 }

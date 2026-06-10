@@ -62,6 +62,7 @@ tulan-download-binaries — 下载常用二进制工具
   tulan-download-binaries                      下载全部（kubectl、docker-compose、mc）
   tulan-download-binaries --tool kubectl       仅下载指定工具
   tulan-download-binaries --refresh-manifest   从 bin 分支刷新索引缓存
+  tulan-download-binaries --debug              显示实际下载 URL
   tulan-download-binaries --no-proxy           直连 GitHub
   tulan-download-binaries --source upstream      从官方源下载
 

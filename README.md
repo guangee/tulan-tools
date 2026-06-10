@@ -58,6 +58,7 @@ tulan-list-pkgs --binaries    # 确认安装状态
 - `tulan-update` 后自动刷新索引
 - 超过 24 小时未刷新时，调用下载/列表命令会自动更新
 - 可手动强制刷新：`tulan-download-binaries --refresh-manifest`
+- 排查下载问题：`tulan-download-binaries --debug`（显示 manifest / 二进制直连与代理 URL）
 
 默认通过 [gh.coding-space.cn](https://gh.coding-space.cn/) 代理加速，失败时自动回退直连：
 

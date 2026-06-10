@@ -32,6 +32,7 @@ usage() {
   --proxy URL         GitHub 加速代理前缀（默认读取 manifest）
   --no-proxy          禁用代理，直连 GitHub
   --refresh-manifest  强制从 bin 分支刷新本地索引缓存
+  --debug             显示 manifest / 二进制实际下载 URL（含代理地址）
   --dry-run           仅显示信息
   -h, --help          显示帮助
 
@@ -67,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     --proxy) export TULAN_GITHUB_PROXY="$2"; shift 2 ;;
     --no-proxy) export TULAN_GITHUB_PROXY_DISABLED=true; shift ;;
     --refresh-manifest) export TULAN_MANIFEST_FORCE_REFRESH=true; shift ;;
+    --debug) export TULAN_DEBUG=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
     -h|--help) usage; exit 0 ;;
     *) err "未知参数: $1"; usage; exit 1 ;;
@@ -228,6 +230,27 @@ main() {
   log "下载源: ${SOURCE}"
   log "平台: $(detect_platform)/$(detect_arch)"
   log "安装目录: ${INSTALL_DIR}"
+
+  if [[ "${TULAN_MANIFEST_FORCE_REFRESH:-}" == true ]] && [[ "$SOURCE" == "github" ]]; then
+    tulan_manifest_refresh true || exit 1
+    echo ""
+  fi
+
+  if [[ "${TULAN_DEBUG:-}" == true ]] && [[ "$SOURCE" == "github" ]]; then
+    local repo url proxy cache
+    repo="$(tulan_manifest_default_repo)"
+    url="$(tulan_manifest_remote_url "$repo")"
+    proxy="$(tulan_get_github_proxy "")"
+    cache="$(tulan_manifest_cache_path)"
+    log "manifest 仓库: ${repo}"
+    log "manifest 直连: ${url}"
+    if [[ -n "$proxy" ]]; then
+      log "manifest 代理: $(tulan_proxy_url "$url" "$proxy")"
+    fi
+    log "manifest 缓存: ${cache}"
+    echo ""
+  fi
+
   echo ""
 
   case "$TOOLS" in

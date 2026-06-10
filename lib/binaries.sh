@@ -77,10 +77,22 @@ tulan_manifest_refresh() {
   proxy="$(tulan_get_github_proxy "")"
   mkdir -p "$(dirname "$cache")"
 
+  tulan_debug "manifest 仓库: ${repo}"
+  tulan_debug "manifest 分支: ${TULAN_MANIFEST_DEFAULT_BRANCH}"
+  tulan_debug "manifest 直连: ${url}"
+  if [[ -n "$proxy" ]]; then
+    tulan_debug "manifest 代理: $(tulan_proxy_url "$url" "$proxy")"
+  fi
+  tulan_debug "manifest 缓存: ${cache}"
+
   tulan_log "刷新二进制索引: ${url}"
   if ! tulan_curl_download "$url" "${cache}.tmp" "$proxy"; then
     [[ -f "$cache" ]] && { tulan_log "使用本地缓存 manifest"; return 0; }
     tulan_error "无法获取 binaries.manifest.json"
+    tulan_error "  直连: ${url}"
+    if [[ -n "$proxy" ]]; then
+      tulan_error "  代理: $(tulan_proxy_url "$url" "$proxy")"
+    fi
     return 1
   fi
 
@@ -154,18 +166,38 @@ tulan_curl_download() {
   local url="$1"
   local dest="$2"
   local proxy="${3:-}"
-  local proxied
+  local proxied err_file curl_err
 
   proxied="$(tulan_proxy_url "$url" "$proxy")"
+  err_file="$(mktemp)"
+
+  _tulan_curl_try() {
+    local target="$1"
+    local label="$2"
+    tulan_debug "${label}: ${target}"
+    if curl -fsSL "$target" -o "$dest" 2>"$err_file"; then
+      return 0
+    fi
+    curl_err="$(tr '\n' ' ' < "$err_file" 2>/dev/null | sed 's/  */ /g')"
+    tulan_debug "${label} 失败: ${curl_err}"
+    return 1
+  }
 
   if [[ -n "$proxy" ]] && [[ "$proxied" != "$url" ]]; then
-    if curl -fsSL "$proxied" -o "$dest"; then
+    if _tulan_curl_try "$proxied" "代理"; then
+      rm -f "$err_file"
       return 0
     fi
     tulan_log "代理下载失败，尝试直连..."
   fi
 
-  curl -fsSL "$url" -o "$dest"
+  if _tulan_curl_try "$url" "直连"; then
+    rm -f "$err_file"
+    return 0
+  fi
+
+  rm -f "$err_file"
+  return 1
 }
 
 tulan_binary_api_url() {
@@ -255,16 +287,26 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
   proxy="$(tulan_get_github_proxy "$manifest")"
 
   tulan_log "下载 ${tool} ${version} (${platform_key})"
+  tulan_debug "二进制路径: ${path}"
+  tulan_debug "media 直连: ${url}"
   if [[ -n "$proxy" ]]; then
-    tulan_log "  代理: ${proxy}"
+    tulan_debug "media 代理: $(tulan_proxy_url "$url" "$proxy")"
   fi
-  tulan_log "  来源: ${url}"
 
   mkdir -p "$install_dir"
   if ! tulan_curl_download "$url" "${dest}.tmp" "$proxy"; then
     tulan_log "media URL 失败，尝试 GitHub API..."
     url="$(tulan_binary_api_url "$repo" "$branch" "$path")"
-    tulan_curl_download "$url" "${dest}.tmp" "$proxy"
+    tulan_debug "API 直连: ${url}"
+    if [[ -n "$proxy" ]]; then
+      tulan_debug "API 代理: $(tulan_proxy_url "$url" "$proxy")"
+    fi
+    if ! tulan_curl_download "$url" "${dest}.tmp" "$proxy"; then
+      tulan_error "下载失败: ${tool}"
+      tulan_error "  media: $(tulan_binary_media_url "$repo" "$branch" "$path")"
+      tulan_error "  API: ${url}"
+      return 1
+    fi
   fi
 
   if [[ "$verify" == true ]] && [[ -n "$sha256" ]]; then
