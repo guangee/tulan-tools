@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# 列出可用和已安装的软件包
+
+set -euo pipefail
+
+TULAN_HOME="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=../lib/common.sh
+source "${TULAN_HOME}/lib/common.sh"
+# shellcheck source=../lib/package.sh
+source "${TULAN_HOME}/lib/package.sh"
+
+usage() {
+  echo "用法: tulan-list-pkgs [--installed]"
+}
+
+main() {
+  if [[ "${1:-}" == "--installed" ]]; then
+    tulan_pkg_list_installed
+  elif [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]]; then
+    usage
+  else
+    tulan_pkg_list_available
+  fi
+}
+
+main "$@"

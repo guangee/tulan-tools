@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# tulan-tools 自动更新脚本
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TULAN_HOME="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=../lib/common.sh
+source "${TULAN_HOME}/lib/common.sh"
+
+CHECK_ON_START=false
+FORCE=false
+LAST_CHECK_FILE="${TULAN_HOME}/.last-update-check"
+
+usage() {
+  cat <<EOF
+tulan-tools 更新脚本
+
+用法:
+  tulan-update [选项]
+  ./scripts/update.sh [选项]
+
+选项:
+  --check-on-start  静默检查（shell 启动时调用，每天最多一次）
+  --force           强制更新，忽略时间限制
+  -h, --help        显示帮助
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --check-on-start) CHECK_ON_START=true; shift ;;
+    --force) FORCE=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) shift ;;
+  esac
+done
+
+should_check() {
+  if [[ "$FORCE" == true ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$LAST_CHECK_FILE" ]]; then
+    return 0
+  fi
+
+  local last_check now
+  last_check="$(cat "$LAST_CHECK_FILE")"
+  now="$(date +%s)"
+  # 24 小时内不重复检查
+  if (( now - last_check < 86400 )); then
+    return 1
+  fi
+  return 0
+}
+
+do_update() {
+  if [[ ! -d "${TULAN_HOME}/.git" ]]; then
+    [[ "$CHECK_ON_START" == false ]] && tulan_log "非 git 安装，跳过更新"
+    return 0
+  fi
+
+  date +%s > "$LAST_CHECK_FILE"
+
+  local remote_hash local_hash
+  git -C "${TULAN_HOME}" fetch origin --quiet 2>/dev/null || return 0
+
+  local branch
+  branch="$(git -C "${TULAN_HOME}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")"
+
+  remote_hash="$(git -C "${TULAN_HOME}" rev-parse "origin/${branch}" 2>/dev/null || echo "")"
+  local_hash="$(git -C "${TULAN_HOME}" rev-parse HEAD 2>/dev/null || echo "")"
+
+  if [[ -z "$remote_hash" ]] || [[ "$remote_hash" == "$local_hash" ]]; then
+    [[ "$CHECK_ON_START" == false ]] && tulan_log "已是最新版本"
+    return 0
+  fi
+
+  tulan_log "发现新版本，正在更新..."
+  git -C "${TULAN_HOME}" pull --ff-only origin "${branch}" || {
+    tulan_error "更新失败，可能存在本地修改或冲突"
+    return 1
+  }
+
+  chmod +x "${TULAN_HOME}/bin/"* 2>/dev/null || true
+  chmod +x "${TULAN_HOME}/scripts/"* 2>/dev/null || true
+
+  tulan_log "更新完成: ${local_hash:0:7} -> ${remote_hash:0:7}"
+}
+
+main() {
+  if [[ "$CHECK_ON_START" == true ]]; then
+    should_check || exit 0
+    do_update
+  else
+    do_update
+  fi
+}
+
+main "$@"

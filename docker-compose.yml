@@ -1,0 +1,20 @@
+# tulan-binaries 工具容器
+# 使用前复制 .env.example 为 .env 并填写你的 Docker Hub 镜像地址
+
+services:
+  tulan-binaries:
+    image: ${TULAN_DOCKER_IMAGE:-tulan/binaries}:${TULAN_DOCKER_TAG:-latest}
+    container_name: ${TULAN_DOCKER_CONTAINER:-tulan-binaries}
+    restart: unless-stopped
+    ports:
+      - "${TULAN_APACHE_PORT:-18080}:80"
+    volumes:
+      # kubectl 配置
+      - ${HOME}/.kube:/root/.kube:ro
+      # minio client 配置
+      - ${HOME}/.mc:/root/.mc
+      # docker-compose 项目目录（按需挂载）
+      - ${TULAN_DOCKER_WORKDIR:-.}:/workspace
+    working_dir: /workspace
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}

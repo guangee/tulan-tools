@@ -1,0 +1,9 @@
+{
+  "name": "your-package",
+  "version": "1.0.0",
+  "description": "你的软件包描述",
+  "author": "your-name",
+  "dependencies": [],
+  "platforms": ["debian", "ubuntu", "centos"],
+  "bin": []
+}

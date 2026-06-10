@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# 在 tulan-binaries 容器内执行命令
+# 用法: tulan-exec kubectl get nodes
+#       tulan-exec mc ls myminio
+#       tulan-exec docker-compose up -d
+
+set -euo pipefail
+
+TULAN_HOME="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=../lib/common.sh
+source "${TULAN_HOME}/lib/common.sh"
+# shellcheck source=../lib/docker-tools.sh
+source "${TULAN_HOME}/lib/docker-tools.sh"
+
+usage() {
+  cat <<EOF
+在 tulan-binaries 容器内执行命令
+
+用法:
+  tulan-exec <命令> [参数...]
+
+示例:
+  tulan-exec kubectl get nodes
+  tulan-exec mc alias set myminio http://minio:9000 ACCESS SECRET
+  tulan-exec docker-compose -f docker-compose.yml up -d
+
+快捷别名（需先 tulan-docker-start）:
+  tulan-kubectl, tulan-mc, tulan-compose
+EOF
+}
+
+if [[ $# -eq 0 ]] || [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+tulan_docker_exec "$@"

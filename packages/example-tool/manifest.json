@@ -1,0 +1,9 @@
+{
+  "name": "example-tool",
+  "version": "1.0.0",
+  "description": "示例工具包，演示如何发布私有软件",
+  "author": "tulan",
+  "dependencies": [],
+  "platforms": ["debian", "ubuntu", "centos"],
+  "bin": ["example-hello"]
+}

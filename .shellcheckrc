@@ -1,0 +1,2 @@
+# 忽略 source 动态路径警告
+disable=SC1091
