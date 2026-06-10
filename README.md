@@ -20,8 +20,7 @@ source ~/.bashrc   # 或 source ~/.zshrc
 **远程一键安装：**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.sh | bash -s -- \
-  --repo git@github.com:guangee/tulan-tools.git
+curl -fsSL https://raw.githubusercontent.com/guangee/tulan-tools/master/install.sh | bash
 ```
 
 默认安装到 `~/.tulan-tools`，并自动写入 `~/.bashrc` 和 `~/.zshrc`。
