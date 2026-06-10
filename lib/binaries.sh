@@ -137,6 +137,39 @@ tulan_binary_media_url() {
   echo "https://media.githubusercontent.com/media/${repo}/${branch}/${path}"
 }
 
+# gh-proxy 兼容的 blob 页面 URL（优先走代理）
+tulan_binary_blob_url() {
+  local repo="$1" branch="$2" path="$3"
+  echo "https://github.com/${repo}/blob/${branch}/${path}"
+}
+
+# 下载 bin 分支二进制：blob 代理 → media 直连 → GitHub API
+tulan_download_binary_file() {
+  local repo="$1" branch="$2" path="$3" dest="$4" proxy="$5"
+  local blob media api
+
+  blob="$(tulan_binary_blob_url "$repo" "$branch" "$path")"
+  media="$(tulan_binary_media_url "$repo" "$branch" "$path")"
+
+  if [[ -n "$proxy" ]]; then
+    tulan_debug "blob 代理: $(tulan_proxy_url "$blob" "$proxy")"
+    if tulan_curl_download "$blob" "$dest" "$proxy"; then
+      return 0
+    fi
+    tulan_debug "blob 代理未成功，尝试 media 直连"
+  fi
+
+  tulan_debug "media 直连: ${media}"
+  if tulan_curl_download "$media" "$dest" ""; then
+    return 0
+  fi
+
+  tulan_log "media 失败，尝试 GitHub API..."
+  api="$(tulan_binary_api_url "$repo" "$branch" "$path")" || return 1
+  tulan_debug "API 直连: ${api}"
+  tulan_curl_download "$api" "$dest" ""
+}
+
 # manifest 刷新专用代理（默认 gh.coding-space.cn）
 tulan_manifest_proxy() {
   if [[ "${TULAN_GITHUB_PROXY_DISABLED:-}" == "true" ]] \
@@ -217,7 +250,7 @@ tulan_curl_download() {
       rm -f "$err_file"
       return 0
     fi
-    tulan_log "代理下载失败，尝试直连..."
+    tulan_debug "代理下载失败，尝试直连..."
   fi
 
   if _tulan_curl_try "$url" "直连"; then
@@ -312,30 +345,17 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
 " 2>/dev/null || echo "")"
 
   dest="${install_dir}/${install_name}"
-  url="$(tulan_binary_media_url "$repo" "$branch" "$path")"
   proxy="$(tulan_get_github_proxy "$manifest")"
 
   tulan_log "下载 ${tool} ${version} (${platform_key})"
   tulan_debug "二进制路径: ${path}"
-  tulan_debug "media 直连: ${url}"
-  if [[ -n "$proxy" ]]; then
-    tulan_debug "media 代理: $(tulan_proxy_url "$url" "$proxy")"
-  fi
 
   mkdir -p "$install_dir"
-  if ! tulan_curl_download "$url" "${dest}.tmp" "$proxy"; then
-    tulan_log "media URL 失败，尝试 GitHub API..."
-    url="$(tulan_binary_api_url "$repo" "$branch" "$path")"
-    tulan_debug "API 直连: ${url}"
-    if [[ -n "$proxy" ]]; then
-      tulan_debug "API 代理: $(tulan_proxy_url "$url" "$proxy")"
-    fi
-    if ! tulan_curl_download "$url" "${dest}.tmp" "$proxy"; then
-      tulan_error "下载失败: ${tool}"
-      tulan_error "  media: $(tulan_binary_media_url "$repo" "$branch" "$path")"
-      tulan_error "  API: ${url}"
-      return 1
-    fi
+  if ! tulan_download_binary_file "$repo" "$branch" "$path" "${dest}.tmp" "$proxy"; then
+    tulan_error "下载失败: ${tool}"
+    tulan_error "  blob: $(tulan_binary_blob_url "$repo" "$branch" "$path")"
+    tulan_error "  media: $(tulan_binary_media_url "$repo" "$branch" "$path")"
+    return 1
   fi
 
   if [[ "$verify" == true ]] && [[ -n "$sha256" ]]; then

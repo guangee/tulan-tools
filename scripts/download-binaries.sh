@@ -187,13 +187,12 @@ download_from_github() {
     branch="$(tulan_manifest_read "$manifest" "print(data.get('branch', 'bin'))")"
     platform_key="$(tulan_manifest_platform_key)"
     path="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}']['paths']['${platform_key}'])")"
-    url="$(tulan_binary_media_url "$repo" "$branch" "$path")"
     proxy="$(tulan_get_github_proxy "$manifest")"
     install_name="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('install_name','${tool}'))")"
     if [[ -n "$proxy" ]]; then
-      log "[dry-run] $(tulan_proxy_url "$url" "$proxy")"
+      log "[dry-run] blob 代理: $(tulan_proxy_url "$(tulan_binary_blob_url "$repo" "$branch" "$path")" "$proxy")"
     fi
-    log "[dry-run] $url -> ${INSTALL_DIR}/${install_name}"
+    log "[dry-run] media 直连: $(tulan_binary_media_url "$repo" "$branch" "$path") -> ${INSTALL_DIR}/${install_name}"
     return 0
   fi
 
@@ -234,6 +233,7 @@ main() {
 
   if [[ "${TULAN_MANIFEST_FORCE_REFRESH:-}" == true ]] && [[ "$SOURCE" == "github" ]]; then
     tulan_manifest_refresh true || exit 1
+    unset TULAN_MANIFEST_FORCE_REFRESH
     echo ""
   fi
 
