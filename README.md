@@ -97,10 +97,27 @@ node -v && npm -v
 - `NODE_HOME` 写入 `~/.tulan-tools/state/env.sh`，`node`/`npm` 链接到 `~/.tulan-tools/bin/`
 - 强制上游：`brew install node-20 --source upstream`
 
+## Docker Engine
+
+Linux 默认从 **bin 分支** 安装官方静态包（含 `docker`、`dockerd`、`containerd` 等）；无 bin 归档时回退上游：
+
+```bash
+brew install docker
+brew versions docker
+brew use docker 29.5.3
+sudo dockerd                    # 启动守护进程
+docker version
+```
+
+- bin 归档：`bin` 分支 `linux-*/archives/docker.tar.gz`
+- 目录：`~/.tulan-tools/cellar/docker/<版本>/docker/`
+- 命令链接：`~/.tulan-tools/bin/docker`、`dockerd`、`containerd`、`runc` 等
+- 安装后尝试写入 `/etc/docker/daemon.json`（registry 镜像，需 sudo）
+- 强制上游：`brew install docker --source upstream`
+
 ## 环境安装
 
 ```bash
-brew docker    # Docker + 镜像加速
 brew conda     # Miniconda + 阿里云源
 brew vim       # vimrc + 默认编辑器
 ```

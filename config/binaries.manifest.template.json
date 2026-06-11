@@ -36,6 +36,18 @@
       },
       "sha256": {}
     },
+    "docker": {
+      "version": "",
+      "install_name": "docker",
+      "artifact_type": "archive",
+      "archive_format": "tgz",
+      "description": "Docker Engine 静态包（docker + dockerd + containerd）",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/docker.tar.gz",
+        "linux-arm64": "linux-arm64/archives/docker.tar.gz"
+      },
+      "sha256": {}
+    },
     "openjdk-8": {
       "version": "",
       "install_name": "openjdk-8",

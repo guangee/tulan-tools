@@ -14,6 +14,8 @@ source "${_SCRIPT_ROOT}/lib/archives.sh"
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 # shellcheck source=../lib/node.sh
 source "${_SCRIPT_ROOT}/lib/node.sh"
+# shellcheck source=../lib/docker.sh
+source "${_SCRIPT_ROOT}/lib/docker.sh"
 
 INSTALL_DIR="$(tulan_get_home)/bin"
 TOOL_ARGS=()
@@ -24,7 +26,7 @@ REQUESTED_VERSION=""
 
 usage() {
   cat <<EOF
-安装二进制工具: kubectl, docker-compose, mc, openjdk, maven, node
+安装二进制工具: kubectl, docker-compose, mc, docker, openjdk, maven, node
 
 用法:
   brew install <工具> [工具...] [选项]
@@ -273,6 +275,29 @@ run_tool() {
         ;;
       upstream)
         tulan_install_maven "$REQUESTED_VERSION" "$DRY_RUN"
+        ;;
+      *)
+        err "未知源: $SOURCE"; exit 1
+        ;;
+    esac
+    return
+  fi
+
+  if [[ "$canonical" == docker ]] || [[ "$raw" == docker ]]; then
+    case "$SOURCE" in
+      github)
+        if tulan_manifest_ensure_archive_path "docker"; then
+          tulan_archive_log_download_urls "docker"
+          tulan_install_docker_from_bin "$DRY_RUN" "$VERIFY_CHECKSUM"
+        else
+          log "bin 索引无 docker 归档（本地 manifest 可能过期）"
+          log "  可先试: brew install docker --refresh-manifest"
+          log "  现改从上游安装 Docker"
+          tulan_install_docker_upstream "$REQUESTED_VERSION" "$DRY_RUN"
+        fi
+        ;;
+      upstream)
+        tulan_install_docker_upstream "$REQUESTED_VERSION" "$DRY_RUN"
         ;;
       *)
         err "未知源: $SOURCE"; exit 1

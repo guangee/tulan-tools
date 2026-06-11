@@ -14,12 +14,14 @@ source "${_SCRIPT_ROOT}/lib/package.sh"
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 # shellcheck source=../lib/node.sh
 source "${_SCRIPT_ROOT}/lib/node.sh"
+# shellcheck source=../lib/docker.sh
+source "${_SCRIPT_ROOT}/lib/docker.sh"
 
 usage() {
   cat <<EOF
 用法: brew remove <名称> [选项]
 
-移除二进制工具（kubectl / docker-compose / mc / openjdk / maven / node）或私有软件包。
+移除二进制工具（kubectl / docker-compose / mc / docker / openjdk / maven / node）或私有软件包。
 
 选项:
   --version VER   仅移除二进制工具的指定版本
@@ -71,6 +73,11 @@ main() {
   major="$(tulan_node_major_for_tool "${canonical:-$name}")"
   if [[ -n "$major" ]]; then
     tulan_node_uninstall "$major" "$version"
+    exit 0
+  fi
+
+  if [[ "$canonical" == docker ]]; then
+    tulan_docker_uninstall "$version"
     exit 0
   fi
 

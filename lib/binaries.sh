@@ -361,6 +361,7 @@ tulan_manifest_platform_key() {
 tulan_binary_canonical_name() {
   case "$1" in
     compose|docker-compose)      echo "docker-compose" ;;
+    docker|docker-engine|dockerd) echo "docker" ;;
     mc|minio)                    echo "mc" ;;
     kubectl|k8s)                 echo "kubectl" ;;
     maven|mvn)                   echo "maven" ;;
@@ -715,7 +716,12 @@ with open(manifest_path) as f:
 registry = json.loads(Path(reg_path).read_text()) if Path(reg_path).exists() else {}
 found = False
 for tool, info in manifest.get("tools", {}).items():
-    if info.get("artifact_type") == "archive" or tool.startswith("openjdk-") or tool.startswith("node-") or tool == "maven":
+    if tool != "docker" and (
+        info.get("artifact_type") == "archive"
+        or tool.startswith("openjdk-")
+        or tool.startswith("node-")
+        or tool == "maven"
+    ):
         continue
     install_name = info.get("install_name", tool)
     index_ver = info.get("version", "") or "待同步"

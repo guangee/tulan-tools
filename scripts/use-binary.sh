@@ -12,6 +12,8 @@ source "${_SCRIPT_ROOT}/lib/binaries.sh"
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 # shellcheck source=../lib/node.sh
 source "${_SCRIPT_ROOT}/lib/node.sh"
+# shellcheck source=../lib/docker.sh
+source "${_SCRIPT_ROOT}/lib/docker.sh"
 
 usage() {
   cat <<EOF
@@ -74,8 +76,13 @@ main() {
     exit 0
   fi
 
+  if [[ "$canonical" == docker ]]; then
+    tulan_docker_activate "$version"
+    exit 0
+  fi
+
   if [[ -z "$canonical" ]]; then
-    tulan_error "未知工具: $tool（可选: kubectl, docker-compose, mc, java, maven, node）"
+    tulan_error "未知工具: $tool（可选: kubectl, docker-compose, mc, docker, java, maven, node）"
     exit 1
   fi
 

@@ -19,7 +19,7 @@ brew — 图蓝工具集（tulan-tools）
   install <名称>...   安装（默认最新版）
   use <工具> <版本>   切换二进制版本
   remove <名称>       移除已安装项
-  docker / conda / vim  环境安装
+  conda / vim  环境安装
 
 示例:
   brew list
@@ -72,10 +72,6 @@ main() {
     use|switch)
       shift
       exec "${TULAN_HOME}/scripts/use-binary.sh" "$@"
-      ;;
-    docker)
-      shift
-      exec "${TULAN_HOME}/scripts/install-docker.sh" "$@"
       ;;
     conda|miniconda)
       shift

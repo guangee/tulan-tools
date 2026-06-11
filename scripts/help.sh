@@ -24,7 +24,7 @@ tulan-tools — 个人开发工具集
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
-  brew docker / conda / vim    环境安装
+  brew conda / vim             环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -32,7 +32,6 @@ tulan-tools — 个人开发工具集
 查看子命令详细帮助:
   brew help install
   brew help list
-  brew help docker
   brew help conda
   brew help vim
 EOF
@@ -58,6 +57,7 @@ brew install — 安装工具或软件包（类似 brew install）
   brew install my-tool              安装私有包
   brew install kubectl --version v1.32.0 --source upstream
   brew use kubectl v1.32.0          切换激活版本
+  brew install docker                          # Linux 静态包（bin 索引）
   brew install openjdk-8 openjdk-11 openjdk-17   # Linux 默认 bin 归档
   brew install maven
   brew use java 11                  切换 JAVA_HOME
@@ -85,16 +85,6 @@ brew list — 查看可安装项
 EOF
 }
 
-help_docker() {
-  cat <<EOF
-brew docker — 安装 Docker
-
-  brew docker                      安装 Docker（默认阿里云 CE 源）
-  brew docker fetch                下载官方脚本到本地缓存
-  brew docker configure            仅配置 registry 镜像加速
-EOF
-}
-
 help_conda() {
   cat <<EOF
 brew conda — 安装 Miniconda
@@ -119,12 +109,11 @@ main() {
     update) help_update ;;
     install|download|binaries) help_install ;;
     list|versions|pkg|package) help_list ;;
-    docker) help_docker ;;
     conda|miniconda) help_conda ;;
     vim|vimrc) help_vim ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: install, list, update, docker, conda, vim"
+      echo "可用主题: install, list, update, conda, vim"
       exit 1
       ;;
   esac

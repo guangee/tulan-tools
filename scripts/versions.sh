@@ -16,6 +16,8 @@ source "${_SCRIPT_ROOT}/lib/archives.sh"
 source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 # shellcheck source=../lib/node.sh
 source "${_SCRIPT_ROOT}/lib/node.sh"
+# shellcheck source=../lib/docker.sh
+source "${_SCRIPT_ROOT}/lib/docker.sh"
 
 usage() {
   cat <<EOF
@@ -75,6 +77,11 @@ main() {
   major="$(tulan_node_major_for_tool "$canonical")"
   if [[ -n "$major" ]]; then
     tulan_node_show_versions "$major"
+    exit 0
+  fi
+
+  if [[ "$canonical" == docker ]]; then
+    tulan_docker_show_versions
     exit 0
   fi
 

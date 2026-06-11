@@ -11,6 +11,7 @@ JDK_MAJORS = (8, 11, 17)
 NODE_MAJORS = (16, 18, 20, 22, 24)
 ADOPTIUM_ARCH = {"amd64": "x64", "arm64": "aarch64"}
 NODE_SUFFIX = {"amd64": "linux-x64", "arm64": "linux-arm64"}
+DOCKER_ARCH = {"amd64": "x86_64", "arm64": "aarch64"}
 
 
 def log(msg: str) -> None:
@@ -69,6 +70,20 @@ def node_latest(major: int) -> str:
 
 def _maven_is_stable(version: str) -> bool:
     return not re.search(r"(alpha|beta|rc|snapshot)", version, re.I)
+
+
+def docker_latest() -> str:
+    url = "https://download.docker.com/linux/static/stable/x86_64/"
+    req = urllib.request.Request(url, headers={"User-Agent": "tulan-tools-ci"})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        html = resp.read().decode()
+    vers = []
+    for v in re.findall(r"docker-(\d+\.\d+\.\d+)\.tgz", html):
+        if v not in vers:
+            vers.append(v)
+    if not vers:
+        raise RuntimeError("无法获取 Docker 静态包版本")
+    return vers[-1]
 
 
 def maven_latest() -> str:
@@ -145,6 +160,17 @@ def main() -> int:
             curl_download(url, dest)
         versions[tool] = ver
         log(f"{tool} -> {ver}")
+
+    docker_ver = docker_latest()
+    for arch, docker_arch in DOCKER_ARCH.items():
+        url = (
+            f"https://download.docker.com/linux/static/stable/{docker_arch}/"
+            f"docker-{docker_ver}.tgz"
+        )
+        dest = staging / f"linux-{arch}" / "archives" / "docker.tar.gz"
+        curl_download(url, dest)
+    versions["docker"] = docker_ver
+    log(f"docker -> {docker_ver}")
 
     versions_path.write_text(json.dumps(versions, ensure_ascii=False) + "\n")
     log("归档下载完成")
