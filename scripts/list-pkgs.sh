@@ -31,8 +31,17 @@ usage() {
 EOF
 }
 
+tulan_list_prepare_manifest() {
+  if [[ -n "${TULAN_MANIFEST_PATH:-}" ]] && [[ -f "$TULAN_MANIFEST_PATH" ]]; then
+    return 0
+  fi
+  TULAN_MANIFEST_PATH="$(tulan_resolve_manifest)" || return 1
+  export TULAN_MANIFEST_PATH
+}
+
 main() {
   local mode="all"
+  local manifest=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -46,27 +55,29 @@ main() {
 
   case "$mode" in
     all)
+      tulan_list_prepare_manifest || exit 1
+      manifest="$TULAN_MANIFEST_PATH"
       echo "可安装项（默认 brew install 安装最新版）:"
       echo ""
-      tulan_binaries_list false
+      tulan_binaries_list false "$manifest"
       echo ""
-      tulan_jdk_maven_list
-      echo ""
-      tulan_node_list
+      tulan_archive_tools_list "$manifest"
       echo ""
       tulan_pkg_list_available
       ;;
     installed)
-      tulan_binaries_list true
+      tulan_list_prepare_manifest || exit 1
+      manifest="$TULAN_MANIFEST_PATH"
+      tulan_binaries_list true "$manifest"
       echo ""
       tulan_pkg_list_installed
       ;;
     binaries)
-      tulan_binaries_list false
+      tulan_list_prepare_manifest || exit 1
+      manifest="$TULAN_MANIFEST_PATH"
+      tulan_binaries_list false "$manifest"
       echo ""
-      tulan_jdk_maven_list
-      echo ""
-      tulan_node_list
+      tulan_archive_tools_list "$manifest"
       ;;
     pkgs)
       tulan_pkg_list_available

@@ -690,9 +690,12 @@ PY
 }
 
 tulan_binaries_list() {
-  local manifest installed_only="${1:-false}"
+  local installed_only="${1:-false}"
+  local manifest="${2:-}"
 
-  manifest="$(tulan_resolve_manifest)" || return 1
+  if [[ -z "$manifest" ]]; then
+    manifest="$(tulan_resolve_manifest)" || return 1
+  fi
 
   if [[ "$installed_only" == true ]]; then
     echo "已安装二进制工具:"

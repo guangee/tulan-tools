@@ -368,53 +368,6 @@ PY
 }
 
 tulan_node_list() {
-  local reg state active_major node_home major tool ver_text
-
-  reg="$(tulan_binary_registry_path)"
-  state="$(tulan_node_state_path)"
-
-  echo "Node.js（bin 索引 / 上游）:"
-  echo "────────────────────────────────────"
-
-  for major in "${TULAN_NODE_MAJORS[@]}"; do
-    local index_ver
-    tool="$(tulan_node_tool_name "$major")"
-    index_ver="$(tulan_manifest_index_version_display "$tool" 2>/dev/null || echo "待同步")"
-    ver_text=""
-    if [[ -f "$reg" ]]; then
-      ver_text="$(python3 - "$tool" "$reg" <<'PY'
-import json, sys
-from pathlib import Path
-tool, reg_path = sys.argv[1:3]
-data = json.loads(Path(reg_path).read_text())
-entry = data.get(tool, {})
-active = entry.get("active", "")
-versions = sorted(entry.get("versions", {}).keys())
-if versions:
-    print(", ".join(f"{v}{'*' if v == active else ''}" for v in versions))
-PY
-)"
-    fi
-    if [[ -n "$ver_text" ]]; then
-      printf "  %-18s 最新:%-16s 已装:[%s]\n" "node-${major}" "$index_ver" "$ver_text"
-    else
-      printf "  %-18s 最新:%-16s 未安装\n" "node-${major}" "$index_ver"
-    fi
-  done
-
-  if [[ -f "$state" ]]; then
-    active_major="$(python3 - "$state" <<'PY'
-import json, sys
-from pathlib import Path
-print(json.loads(Path(sys.argv[1]).read_text()).get("active_major", ""))
-PY
-)"
-    node_home="$(python3 - "$state" <<'PY'
-import json, sys
-from pathlib import Path
-print(json.loads(Path(sys.argv[1]).read_text()).get("node_home", ""))
-PY
-)"
-    [[ -n "$active_major" ]] && echo "  NODE_HOME 当前: Node ${active_major} -> ${node_home}"
-  fi
+  local manifest="${1:-${TULAN_MANIFEST_PATH:-}}"
+  tulan_archive_tools_list "$manifest" "node"
 }

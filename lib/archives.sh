@@ -154,3 +154,81 @@ print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
     tulan_verbose "跳过 SHA256 校验（索引未记录）"
   fi
 }
+
+# 一次 Python 输出 JDK / Maven / Node 列表（供 brew list 使用）
+tulan_archive_tools_list() {
+  local manifest="${1:-}"
+  local section="${2:-all}"
+  local home reg java_state node_state platform_key
+
+  if [[ -z "$manifest" ]]; then
+    manifest="$(tulan_resolve_manifest)" || return 1
+  fi
+
+  home="$(tulan_get_home)"
+  reg="$(tulan_binary_registry_path)"
+  java_state="${home}/state/java.json"
+  node_state="${home}/state/node.json"
+  platform_key="$(tulan_manifest_platform_key)"
+
+  python3 - "$manifest" "$reg" "$java_state" "$node_state" "$platform_key" "$section" <<'PY'
+import json, sys
+from pathlib import Path
+
+manifest_path, reg_path, java_state_path, node_state_path, platform_key, section = sys.argv[1:7]
+with open(manifest_path) as f:
+    tools = json.load(f).get("tools", {})
+registry = json.loads(Path(reg_path).read_text()) if Path(reg_path).exists() else {}
+
+def index_ver(tool):
+    info = tools.get(tool, {})
+    ver = info.get("version", "") or ""
+    path = info.get("paths", {}).get(platform_key, "") or ""
+    if not path or not ver or ver == "上游最新":
+        return "待同步"
+    return ver
+
+def installed_text(tool):
+    entry = registry.get(tool, {})
+    active = entry.get("active", "")
+    versions = sorted(entry.get("versions", {}).keys())
+    if versions:
+        return ", ".join(f"{v}{'*' if v == active else ''}" for v in versions)
+    return ""
+
+def print_tool_row(name, tool):
+    idx = index_ver(tool)
+    inst = installed_text(tool)
+    if inst:
+        print(f"  {name:18s} 最新:{idx:16s} 已装:[{inst}]")
+    else:
+        print(f"  {name:18s} 最新:{idx:16s} 未安装")
+
+if section in ("all", "java"):
+    print("Java / Maven（bin 索引 / 上游）:")
+    print("────────────────────────────────────")
+    for major in ("8", "11", "17"):
+        tool = f"openjdk-{major}"
+        print_tool_row(f"openjdk-{major}", tool)
+    if Path(java_state_path).exists():
+        state = json.loads(Path(java_state_path).read_text())
+        am = state.get("active_major", "")
+        if am:
+            print(f"  JAVA_HOME 当前: Java {am} -> {state.get('java_home', '')}")
+    print_tool_row("maven", "maven")
+
+if section in ("all", "node"):
+    if section == "all":
+        print()
+    print("Node.js（bin 索引 / 上游）:")
+    print("────────────────────────────────────")
+    for major in ("16", "18", "20", "22", "24"):
+        tool = f"node-{major}"
+        print_tool_row(f"node-{major}", tool)
+    if Path(node_state_path).exists():
+        state = json.loads(Path(node_state_path).read_text())
+        am = state.get("active_major", "")
+        if am:
+            print(f"  NODE_HOME 当前: Node {am} -> {state.get('node_home', '')}")
+PY
+}
