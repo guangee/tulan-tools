@@ -290,7 +290,10 @@ PY
 
 tulan_time_enable_ntp() {
   if command -v timedatectl &>/dev/null; then
-    tulan_as_root timedatectl set-ntp true
+    if tulan_as_root timedatectl set-ntp true 2>/dev/null; then
+      return 0
+    fi
+    tulan_debug "timedatectl set-ntp 不可用（无 systemd 时跳过）"
   fi
 }
 
@@ -339,7 +342,7 @@ tulan_time_force_sync() {
   fi
 
   if command -v timedatectl &>/dev/null; then
-    tulan_as_root timedatectl set-ntp true
+    tulan_as_root timedatectl set-ntp true 2>/dev/null || true
   fi
 }
 
@@ -403,7 +406,7 @@ tulan_time_setup() {
   fi
 
   tulan_time_enable_ntp
-  tulan_time_restart_sync_service || return 1
+  tulan_time_restart_sync_service
   tulan_time_force_sync
 
   echo ""
