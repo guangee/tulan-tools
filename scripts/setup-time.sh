@@ -17,11 +17,12 @@ CUSTOM_SERVERS=()
 
 usage() {
   cat <<EOF
-用法: brew time [install|configure|probe|now|status] [选项]
+用法: brew time [install|configure|probe|now|shell|status] [选项]
 
 子命令:
   install       探测国内 NTP、配置东八区时区并同步（默认）
   configure     同 install（仅重新配置，不安装系统包除非缺失）
+  shell         仅配置 shell 东八区显示（date 自动 +0800 格式，无需 sudo）
   probe         仅探测 NTP 服务器延迟，不修改系统
   now           显示东八区当前时间
   status        显示当前时区与 NTP 状态
@@ -41,6 +42,7 @@ usage() {
 示例:
   brew time                          # 测速 + 东八区 + NTP 同步
   brew time now                      # 显示东八区当前时间
+  brew time shell                    # 仅让 date 自动显示 +0800（无需 sudo）
   brew time probe                    # 查看各 NTP 延迟
   brew time status                   # 查看当前状态
   brew time --servers ntp.aliyun.com cn.ntp.org.cn
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     install) ACTION="install"; shift ;;
     configure) ACTION="configure"; shift ;;
+    shell) ACTION="shell"; shift ;;
     probe) ACTION="probe"; shift ;;
     now) ACTION="now"; shift ;;
     status) ACTION="status"; shift ;;
@@ -88,6 +91,9 @@ main() {
       ;;
     now)
       tulan_time_show_now
+      ;;
+    shell)
+      tulan_time_apply_shell
       ;;
     status)
       tulan_time_show_status

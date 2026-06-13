@@ -112,6 +112,7 @@ brew time — 配置东八区时区与国内 NTP 同步
 
   brew time                          测速选最快 NTP + 东八区 + 同步
   brew time now                      显示东八区当前时间（+0800）
+  brew time shell                    让 date 自动显示上海时区格式（无需 sudo）
   brew time probe                    仅探测各 NTP 延迟
   brew time status                   查看时区与 NTP 状态
   brew time --servers ntp.aliyun.com cn.ntp.org.cn

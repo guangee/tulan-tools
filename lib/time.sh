@@ -231,17 +231,31 @@ tulan_time_configure_locale() {
 
 tulan_time_write_shell_env() {
   local timezone="${1:-$TULAN_TIME_DEFAULT_TIMEZONE}"
-  local env_file
+  local env_file home
   env_file="$(tulan_time_env_file)"
+  home="$(tulan_get_home)"
 
   mkdir -p "$(dirname "$env_file")"
   cat > "$env_file" <<EOF
 # tulan-tools 东八区时间环境（brew time 自动生成，请勿手改）
 export TZ=${timezone}
 export LC_TIME=zh_CN.UTF-8
+if [[ -f "${home}/lib/time-shell.sh" ]]; then
+  # shellcheck source=lib/time-shell.sh
+  source "${home}/lib/time-shell.sh"
+fi
 EOF
-  tulan_log "已写入 shell 时区: ${env_file}（TZ=${timezone}）"
+  tulan_log "已写入 shell 时区: ${env_file}（TZ=${timezone}，date 默认 +0800 格式）"
   tulan_refresh_shell_config 2>/dev/null || true
+}
+
+# 仅配置 shell 层东八区显示（无需 sudo）
+tulan_time_apply_shell() {
+  tulan_time_write_shell_env "$TULAN_TIME_DEFAULT_TIMEZONE"
+  tulan_time_show_now
+  echo ""
+  echo "  请执行: source ~/.bashrc  或  source ~/.zshrc"
+  echo "  之后直接输入 date 将显示: YYYY-MM-DD HH:MM:SS +0800 (Asia/Shanghai)"
 }
 
 tulan_time_write_chrony_config() {
