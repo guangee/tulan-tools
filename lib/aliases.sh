@@ -4,6 +4,12 @@
 
 alias help='brew help'
 
+# 东八区 date 显示（brew time 写入 time.env 后生效）
+if [[ -n "${TULAN_TOOLS_HOME:-}" && -f "${TULAN_TOOLS_HOME}/state/time.env" ]]; then
+  # shellcheck source=/dev/null
+  source "${TULAN_TOOLS_HOME}/state/time.env"
+fi
+
 # 示例别名
 # alias ll='ls -alh'
 # alias gs='git status'

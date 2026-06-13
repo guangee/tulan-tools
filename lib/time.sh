@@ -251,11 +251,29 @@ EOF
 
 # 仅配置 shell 层东八区显示（无需 sudo）
 tulan_time_apply_shell() {
+  local home
+  home="$(tulan_get_home)"
+
   tulan_time_write_shell_env "$TULAN_TIME_DEFAULT_TIMEZONE"
+
+  # 刷新 bash/zsh 配置块（写入 time.env 加载逻辑）
+  tulan_inject_shell_config "${HOME}/.bashrc" "$home"
+  tulan_inject_shell_config "${HOME}/.zshrc" "$home"
+
   tulan_time_show_now
   echo ""
-  echo "  请执行: source ~/.bashrc  或  source ~/.zshrc"
-  echo "  之后直接输入 date 将显示: YYYY-MM-DD HH:MM:SS +0800 (Asia/Shanghai)"
+  case "${SHELL##*/}" in
+    zsh)
+      echo "  请执行: source ~/.zshrc"
+      ;;
+    bash)
+      echo "  请执行: source ~/.bashrc"
+      ;;
+    *)
+      echo "  请执行: source ~/.bashrc  或  source ~/.zshrc"
+      ;;
+  esac
+  echo "  之后 date 将显示: YYYY-MM-DD HH:MM:SS +0800 (Asia/Shanghai)"
 }
 
 tulan_time_write_chrony_config() {
