@@ -24,7 +24,7 @@ tulan-tools — 个人开发工具集
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
-  brew conda / vim / time      环境安装
+  brew conda / vim / time / fonts  环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -35,6 +35,7 @@ tulan-tools — 个人开发工具集
   brew help conda
   brew help vim
   brew help time
+  brew help fonts
 EOF
 }
 
@@ -118,6 +119,20 @@ brew time — 配置东八区时区与国内 NTP 同步
 EOF
 }
 
+help_fonts() {
+  cat <<EOF
+brew fonts — 安装中文字体并配置 fontconfig
+
+  brew fonts                         安装 Noto CJK + 文泉驿 + locale
+  brew fonts status                  查看中文字体与 locale 状态
+  brew fonts test                    测试中文渲染匹配
+  brew fonts configure --user        仅用户级 fontconfig
+
+fontconfig 模板: ${TULAN_HOME}/config/fonts.cn.conf
+install 需要 sudo（Linux）
+EOF
+}
+
 main() {
   case "${1:-}" in
     ""|-h|--help) usage ;;
@@ -127,9 +142,10 @@ main() {
     conda|miniconda) help_conda ;;
     vim|vimrc) help_vim ;;
     time|timezone|ntp) help_time ;;
+    fonts|font|cjk) help_fonts ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: install, list, update, conda, vim, time"
+      echo "可用主题: install, list, update, conda, vim, time, fonts"
       exit 1
       ;;
   esac
