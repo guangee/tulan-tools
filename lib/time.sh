@@ -35,10 +35,17 @@ tulan_time_require_linux() {
   fi
 }
 
+tulan_time_load_default_servers() {
+  local -n _dest=$1
+  read -r -a _dest <<< "$(tulan_time_default_servers)"
+}
+
 # 探测 NTP 服务器响应延迟（毫秒），输出按延迟升序：毫秒<TAB>主机
 tulan_time_probe_servers() {
   local servers=("$@")
-  [[ ${#servers[@]} -gt 0 ]] || servers=($(tulan_time_default_servers))
+  if [[ ${#servers[@]} -eq 0 ]]; then
+    tulan_time_load_default_servers servers
+  fi
 
   python3 - "${servers[@]}" <<'PY'
 import socket
@@ -90,7 +97,9 @@ tulan_time_rank_servers() {
 
 tulan_time_show_probe() {
   local servers=("$@")
-  [[ ${#servers[@]} -gt 0 ]] || servers=($(tulan_time_default_servers))
+  if [[ ${#servers[@]} -eq 0 ]]; then
+    tulan_time_load_default_servers servers
+  fi
 
   tulan_log "探测 NTP 服务器（${#servers[@]} 个）..."
   local count=0 line ms host
@@ -215,12 +224,11 @@ tulan_time_write_chrony_config() {
 
 tulan_time_write_timesyncd_config() {
   local servers=("$@")
-  local primary ntp_list fallback_list tmp i
+  local primary fallback_list tmp i
 
   [[ ${#servers[@]} -gt 0 ]] || return 1
   primary="${servers[0]}"
 
-  ntp_list="$primary"
   fallback_list=""
   for ((i = 1; i < ${#servers[@]} && i < 4; i++)); do
     fallback_list+="${servers[$i]} "
@@ -298,7 +306,7 @@ tulan_time_enable_ntp() {
 }
 
 tulan_time_restart_sync_service() {
-  local unit rc=0
+  local unit
 
   unit="$(tulan_time_chrony_unit)"
   if [[ -n "$unit" ]]; then
@@ -326,12 +334,12 @@ tulan_time_restart_sync_service() {
 }
 
 tulan_time_force_sync() {
-  local unit waited
+  local unit
 
   unit="$(tulan_time_chrony_unit)"
   if [[ -n "$unit" ]] && command -v chronyc &>/dev/null; then
     tulan_as_root chronyc -a makestep 2>/dev/null || true
-    for waited in 1 2 3 4 5; do
+    for _ in 1 2 3 4 5; do
       if chronyc tracking 2>/dev/null | grep -q "Leap status.*Normal"; then
         return 0
       fi
@@ -380,7 +388,7 @@ tulan_time_setup() {
   tulan_time_require_linux || return 1
   tulan_require_privilege || return 1
 
-  [[ ${#servers[@]} -gt 0 ]] || servers=($(tulan_time_default_servers))
+  [[ ${#servers[@]} -eq 0 ]] && tulan_time_load_default_servers servers
 
   if [[ "$skip_probe" != true ]]; then
     tulan_time_show_probe "${servers[@]}" || return 1

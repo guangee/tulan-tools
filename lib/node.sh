@@ -6,6 +6,8 @@ set -euo pipefail
 # shellcheck source=env.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/env.sh"
 
+# 支持的 Node 主版本（供外部脚本引用）
+# shellcheck disable=SC2034
 TULAN_NODE_MAJORS=(16 18 20 22 24)
 
 tulan_node_state_path() {

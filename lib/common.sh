@@ -260,7 +260,8 @@ tulan_verbose_init() {
 }
 
 tulan_verbose_elapsed() {
-  local now="${1:-$(date +%s)}"
+  local now
+  now="$(date +%s)"
   echo $((now - ${TULAN_VERBOSE_EPOCH:-now}))
 }
 

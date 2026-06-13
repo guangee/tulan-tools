@@ -64,7 +64,6 @@ EOF
 
 tulan_mirrors_configure_go() {
   local env_file="$TULAN_MIRRORS_ENV"
-  local goproxy gosumdb
 
   mkdir -p "$(dirname "$env_file")"
 

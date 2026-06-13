@@ -41,7 +41,7 @@ usage() {
   -h, --help      显示帮助
 
 说明:
-  系统源备份: ~/.tulan-tools/state/repo-backup/
+  系统源备份: ${TULAN_HOME}/state/repo-backup/
   restore --repo  优先从备份还原；无备份则写入官方默认源
   支持系统: Debian、Ubuntu、CentOS（apt / yum / dnf）
 

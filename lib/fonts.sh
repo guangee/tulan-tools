@@ -52,7 +52,6 @@ tulan_fonts_pkg_list() {
 tulan_fonts_install_packages() {
   local minimal="${1:-false}"
   local pkg_manager pkgs=()
-  local pkg
 
   tulan_require_privilege || return 1
   read -r -a pkgs <<< "$(tulan_fonts_pkg_list "$minimal")"
