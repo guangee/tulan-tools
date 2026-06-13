@@ -24,7 +24,7 @@ tulan-tools — 个人开发工具集
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
-  brew conda / vim / time / fonts  环境安装
+  brew conda / vim / time / fonts / mirrors  环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -36,6 +36,7 @@ tulan-tools — 个人开发工具集
   brew help vim
   brew help time
   brew help fonts
+  brew help mirrors
 EOF
 }
 
@@ -133,6 +134,22 @@ install 需要 sudo（Linux）
 EOF
 }
 
+help_mirrors() {
+  cat <<EOF
+brew mirrors — 国内镜像配置（系统源 + pip / npm / Go）
+
+  brew mirrors                       配置 pip + npm + Go 国内镜像
+  brew mirrors --repo                Debian/Ubuntu/CentOS 切换国内软件源
+  brew mirrors --all                 系统源 + pip + npm + Go
+  brew mirrors restore --repo        还原系统软件源（优先从备份恢复）
+  brew mirrors restore --all         还原全部镜像配置
+  brew mirrors status                查看当前配置
+
+系统源备份: ${TULAN_HOME}/state/repo-backup/
+配置系统源需要 sudo（Linux）
+EOF
+}
+
 main() {
   case "${1:-}" in
     ""|-h|--help) usage ;;
@@ -143,9 +160,10 @@ main() {
     vim|vimrc) help_vim ;;
     time|timezone|ntp) help_time ;;
     fonts|font|cjk) help_fonts ;;
+    mirrors|mirror) help_mirrors ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: install, list, update, conda, vim, time, fonts"
+      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors"
       exit 1
       ;;
   esac

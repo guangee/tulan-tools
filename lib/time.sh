@@ -35,13 +35,6 @@ tulan_time_require_linux() {
   fi
 }
 
-tulan_time_require_sudo() {
-  if ! command -v sudo &>/dev/null; then
-    tulan_error "配置系统时间需要 sudo"
-    return 1
-  fi
-}
-
 # 探测 NTP 服务器响应延迟（毫秒），输出按延迟升序：毫秒<TAB>主机
 tulan_time_probe_servers() {
   local servers=("$@")
@@ -150,14 +143,14 @@ tulan_time_install_chrony() {
 
   case "$pkg_manager" in
     apt)
-      sudo apt-get update -qq
-      sudo apt-get install -y chrony
+      tulan_as_root apt-get update -qq
+      tulan_as_root apt-get install -y chrony
       ;;
     dnf)
-      sudo dnf install -y chrony
+      tulan_as_root dnf install -y chrony
       ;;
     yum)
-      sudo yum install -y chrony
+      tulan_as_root yum install -y chrony
       ;;
     *)
       tulan_error "无法识别包管理器，请手动安装 chrony"
@@ -170,13 +163,18 @@ tulan_time_configure_timezone() {
   local timezone="${1:-$TULAN_TIME_DEFAULT_TIMEZONE}"
 
   if command -v timedatectl &>/dev/null; then
-    sudo timedatectl set-timezone "$timezone"
-    tulan_log "时区已设为 ${timezone}"
-    return 0
+    if tulan_as_root timedatectl set-timezone "$timezone" 2>/dev/null; then
+      tulan_log "时区已设为 ${timezone}"
+      return 0
+    fi
+    tulan_debug "timedatectl 不可用，回退到 /etc/localtime"
   fi
 
   if [[ -f "/usr/share/zoneinfo/${timezone}" ]]; then
-    sudo ln -sf "/usr/share/zoneinfo/${timezone}" /etc/localtime
+    tulan_as_root ln -sf "/usr/share/zoneinfo/${timezone}" /etc/localtime
+    if [[ -f /etc/timezone ]]; then
+      echo "$timezone" | tulan_as_root tee /etc/timezone >/dev/null
+    fi
     tulan_log "时区已设为 ${timezone}（/etc/localtime）"
     return 0
   fi
@@ -193,7 +191,7 @@ tulan_time_write_chrony_config() {
   conf_path="$(tulan_time_chrony_conf_path)"
   dropin="$(tulan_time_chrony_dropin_dir)/tulan-tools.conf"
 
-  sudo mkdir -p "$(dirname "$dropin")"
+  tulan_as_root mkdir -p "$(dirname "$dropin")"
 
   {
     echo "# tulan-tools 自动生成 — 国内 NTP 测速结果"
@@ -204,11 +202,11 @@ tulan_time_write_chrony_config() {
       echo "server ${servers[$i]} iburst"
     done
     echo "makestep 1.0 3"
-  } | sudo tee "$dropin" >/dev/null
+  } | tulan_as_root tee "$dropin" >/dev/null
 
   if [[ "$conf_path" == "/etc/chrony.conf" ]]; then
-    if ! sudo grep -qF "include ${dropin}" "$conf_path" 2>/dev/null; then
-      echo "include ${dropin}" | sudo tee -a "$conf_path" >/dev/null
+    if ! tulan_as_root grep -qF "include ${dropin}" "$conf_path" 2>/dev/null; then
+      echo "include ${dropin}" | tulan_as_root tee -a "$conf_path" >/dev/null
     fi
   fi
 
@@ -285,37 +283,43 @@ path.parent.mkdir(parents=True, exist_ok=True)
 print("\n".join(out).rstrip() + "\n")
 PY
 
-  sudo cp "$tmp" /etc/systemd/timesyncd.conf
+  tulan_as_root cp "$tmp" /etc/systemd/timesyncd.conf
   rm -f "$tmp"
   tulan_log "已写入 /etc/systemd/timesyncd.conf（首选: ${primary}）"
 }
 
 tulan_time_enable_ntp() {
   if command -v timedatectl &>/dev/null; then
-    sudo timedatectl set-ntp true
+    tulan_as_root timedatectl set-ntp true
   fi
 }
 
 tulan_time_restart_sync_service() {
-  local unit
+  local unit rc=0
 
   unit="$(tulan_time_chrony_unit)"
   if [[ -n "$unit" ]]; then
-    sudo systemctl enable "$unit" 2>/dev/null || true
-    sudo systemctl restart "$unit"
-    tulan_log "已重启 ${unit}"
+    tulan_as_root systemctl enable "$unit" 2>/dev/null || true
+    if tulan_as_root systemctl restart "$unit" 2>/dev/null; then
+      tulan_log "已重启 ${unit}"
+      return 0
+    fi
+    tulan_log "警告: 无法重启 ${unit}（容器内 systemd 可能未运行，NTP 配置已写入）"
     return 0
   fi
 
   if systemctl list-unit-files systemd-timesyncd.service &>/dev/null 2>&1; then
-    sudo systemctl enable systemd-timesyncd 2>/dev/null || true
-    sudo systemctl restart systemd-timesyncd
-    tulan_log "已重启 systemd-timesyncd"
+    tulan_as_root systemctl enable systemd-timesyncd 2>/dev/null || true
+    if tulan_as_root systemctl restart systemd-timesyncd 2>/dev/null; then
+      tulan_log "已重启 systemd-timesyncd"
+      return 0
+    fi
+    tulan_log "警告: 无法重启 systemd-timesyncd（配置已写入）"
     return 0
   fi
 
-  tulan_error "未找到 chrony 或 systemd-timesyncd 服务"
-  return 1
+  tulan_log "警告: 未找到可重启的 NTP 服务（配置已写入）"
+  return 0
 }
 
 tulan_time_force_sync() {
@@ -323,19 +327,19 @@ tulan_time_force_sync() {
 
   unit="$(tulan_time_chrony_unit)"
   if [[ -n "$unit" ]] && command -v chronyc &>/dev/null; then
-    sudo chronyc -a makestep 2>/dev/null || true
+    tulan_as_root chronyc -a makestep 2>/dev/null || true
     for waited in 1 2 3 4 5; do
       if chronyc tracking 2>/dev/null | grep -q "Leap status.*Normal"; then
         return 0
       fi
       sleep 1
     done
-    sudo chronyc -a burst 2>/dev/null || true
+    tulan_as_root chronyc -a burst 2>/dev/null || true
     return 0
   fi
 
   if command -v timedatectl &>/dev/null; then
-    sudo timedatectl set-ntp true
+    tulan_as_root timedatectl set-ntp true
   fi
 }
 
@@ -371,7 +375,7 @@ tulan_time_setup() {
   local ranked=() use_timesyncd=false
 
   tulan_time_require_linux || return 1
-  tulan_time_require_sudo || return 1
+  tulan_require_privilege || return 1
 
   [[ ${#servers[@]} -gt 0 ]] || servers=($(tulan_time_default_servers))
 

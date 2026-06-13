@@ -14,13 +14,6 @@ tulan_fonts_require_linux() {
   fi
 }
 
-tulan_fonts_require_sudo() {
-  if ! command -v sudo &>/dev/null; then
-    tulan_error "安装系统字体需要 sudo"
-    return 1
-  fi
-}
-
 # 输出当前平台应安装的字形包（空格分隔）
 tulan_fonts_pkg_list() {
   local minimal="${1:-false}"
@@ -61,21 +54,21 @@ tulan_fonts_install_packages() {
   local pkg_manager pkgs=()
   local pkg
 
-  tulan_fonts_require_sudo || return 1
+  tulan_require_privilege || return 1
   read -r -a pkgs <<< "$(tulan_fonts_pkg_list "$minimal")"
   pkg_manager="$(tulan_detect_pkg_manager)"
 
   tulan_log "安装中文字体包（${#pkgs[@]} 个）..."
   case "$pkg_manager" in
     apt)
-      sudo apt-get update -qq
-      sudo apt-get install -y "${pkgs[@]}"
+      tulan_as_root apt-get update -qq
+      tulan_as_root apt-get install -y "${pkgs[@]}"
       ;;
     dnf)
-      sudo dnf install -y "${pkgs[@]}"
+      tulan_as_root dnf install -y "${pkgs[@]}"
       ;;
     yum)
-      sudo yum install -y "${pkgs[@]}"
+      tulan_as_root yum install -y "${pkgs[@]}"
       ;;
     *)
       return 1
@@ -92,15 +85,15 @@ tulan_fonts_configure_locale() {
     apt)
       if ! locale -a 2>/dev/null | grep -qi 'zh_CN\.utf-8'; then
         if grep -q '^#.*zh_CN.UTF-8' /etc/locale.gen 2>/dev/null; then
-          sudo sed -i 's/^# \(zh_CN.UTF-8 UTF-8\)/\1/' /etc/locale.gen
+          tulan_as_root sed -i 's/^# \(zh_CN.UTF-8 UTF-8\)/\1/' /etc/locale.gen
         elif ! grep -q '^zh_CN.UTF-8 UTF-8' /etc/locale.gen 2>/dev/null; then
-          echo "zh_CN.UTF-8 UTF-8" | sudo tee -a /etc/locale.gen >/dev/null
+          echo "zh_CN.UTF-8 UTF-8" | tulan_as_root tee -a /etc/locale.gen >/dev/null
         fi
-        sudo locale-gen zh_CN.UTF-8 2>/dev/null || sudo locale-gen
+        tulan_as_root locale-gen zh_CN.UTF-8 2>/dev/null || tulan_as_root locale-gen
       fi
       ;;
     dnf|yum)
-      sudo dnf install -y glibc-langpack-zh 2>/dev/null || sudo yum install -y glibc-langpack-zh 2>/dev/null || true
+      tulan_as_root dnf install -y glibc-langpack-zh 2>/dev/null || tulan_as_root yum install -y glibc-langpack-zh 2>/dev/null || true
       ;;
   esac
 }
@@ -129,9 +122,9 @@ tulan_fonts_write_fontconfig() {
     cp "$TULAN_FONTS_TEMPLATE" "$target"
     tulan_log "已写入用户 fontconfig: ${target}"
   else
-    tulan_fonts_require_sudo || return 1
-    sudo mkdir -p "$(dirname "$target")"
-    sudo cp "$TULAN_FONTS_TEMPLATE" "$target"
+    tulan_require_privilege || return 1
+    tulan_as_root mkdir -p "$(dirname "$target")"
+    tulan_as_root cp "$TULAN_FONTS_TEMPLATE" "$target"
     tulan_log "已写入系统 fontconfig: ${target}"
   fi
 }
@@ -144,8 +137,8 @@ tulan_fonts_refresh_cache() {
 
   tulan_log "刷新字体缓存..."
   fc-cache -f >/dev/null 2>&1 || true
-  if command -v sudo &>/dev/null; then
-    sudo fc-cache -f >/dev/null 2>&1 || true
+  if tulan_can_privilege; then
+    tulan_as_root fc-cache -f >/dev/null 2>&1 || true
   fi
 }
 

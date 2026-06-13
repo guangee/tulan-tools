@@ -118,6 +118,11 @@ if [[ -f "\${TULAN_TOOLS_HOME}/state/env.sh" ]]; then
   source "\${TULAN_TOOLS_HOME}/state/env.sh"
 fi
 
+# 国内镜像环境变量（brew mirrors 写入）
+if [[ -f "\${TULAN_TOOLS_HOME}/state/mirrors.env" ]]; then
+  source "\${TULAN_TOOLS_HOME}/state/mirrors.env"
+fi
+
 export PATH="\${TULAN_TOOLS_HOME}/bin:\${PATH}"
 
 # 加载自定义函数和别名
@@ -273,4 +278,26 @@ tulan_verbose_step() {
 
 tulan_error() {
   echo "[tulan-tools] 错误: $*" >&2
+}
+
+# 是否具备 root 权限（root 用户或 sudo 可用）
+tulan_can_privilege() {
+  [[ "${EUID:-$(id -u)}" -eq 0 ]] && return 0
+  command -v sudo &>/dev/null
+}
+
+tulan_require_privilege() {
+  if ! tulan_can_privilege; then
+    tulan_error "需要 root 或 sudo 权限"
+    return 1
+  fi
+}
+
+# 以 root 执行命令（已是 root 则直接执行）
+tulan_as_root() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
 }
