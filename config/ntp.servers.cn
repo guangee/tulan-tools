@@ -1,0 +1,6 @@
+# 国内常用 NTP 源（brew time 默认探测列表，按行读取，# 开头为注释）
+ntp.aliyun.com
+cn.ntp.org.cn
+ntp.ntsc.ac.cn
+time1.cloud.tencent.com
+time.cloudflare.com

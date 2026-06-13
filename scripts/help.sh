@@ -24,7 +24,7 @@ tulan-tools — 个人开发工具集
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
-  brew conda / vim             环境安装
+  brew conda / vim / time      环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -34,6 +34,7 @@ tulan-tools — 个人开发工具集
   brew help list
   brew help conda
   brew help vim
+  brew help time
 EOF
 }
 
@@ -103,6 +104,20 @@ brew vim — 安装 vimrc 与默认编辑器
 EOF
 }
 
+help_time() {
+  cat <<EOF
+brew time — 配置东八区时区与国内 NTP 同步
+
+  brew time                          测速选最快 NTP + 东八区 + 同步
+  brew time probe                    仅探测各 NTP 延迟
+  brew time status                   查看时区与 NTP 状态
+  brew time --servers ntp.aliyun.com cn.ntp.org.cn
+
+默认 NTP 列表: ${TULAN_HOME}/config/ntp.servers.cn
+需要 sudo（Linux）
+EOF
+}
+
 main() {
   case "${1:-}" in
     ""|-h|--help) usage ;;
@@ -111,9 +126,10 @@ main() {
     list|versions|pkg|package) help_list ;;
     conda|miniconda) help_conda ;;
     vim|vimrc) help_vim ;;
+    time|timezone|ntp) help_time ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: install, list, update, conda, vim"
+      echo "可用主题: install, list, update, conda, vim, time"
       exit 1
       ;;
   esac

@@ -120,7 +120,10 @@ docker version
 ```bash
 brew conda     # Miniconda + 阿里云源
 brew vim       # vimrc + 默认编辑器
+brew time      # 东八区时区 + 国内 NTP 测速同步（需 sudo）
 ```
+
+`brew time` 会探测 `config/ntp.servers.cn` 中的国内 NTP 源，自动选用延迟最低的服务器，并将系统时区设为 `Asia/Shanghai`（东八区）。可用 `brew time probe` 仅查看测速结果。
 
 ## 管理私有软件包
 
