@@ -123,6 +123,11 @@ if [[ -f "\${TULAN_TOOLS_HOME}/state/mirrors.env" ]]; then
   source "\${TULAN_TOOLS_HOME}/state/mirrors.env"
 fi
 
+# 东八区时间环境（brew time 写入）
+if [[ -f "\${TULAN_TOOLS_HOME}/state/time.env" ]]; then
+  source "\${TULAN_TOOLS_HOME}/state/time.env"
+fi
+
 export PATH="\${TULAN_TOOLS_HOME}/bin:\${PATH}"
 
 # 加载自定义函数和别名

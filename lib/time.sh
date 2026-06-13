@@ -5,6 +5,21 @@ set -euo pipefail
 
 TULAN_TIME_DEFAULT_TIMEZONE="${TULAN_TIME_DEFAULT_TIMEZONE:-Asia/Shanghai}"
 TULAN_TIME_SERVERS_FILE="${TULAN_TIME_SERVERS_FILE:-$(tulan_get_home)/config/ntp.servers.cn}"
+TULAN_TIME_ENV="${TULAN_TIME_ENV:-$(tulan_get_home)/state/time.env}"
+
+tulan_time_env_file() {
+  echo "$TULAN_TIME_ENV"
+}
+
+# 格式化为明确的东八区时间（24 小时 + %z，避免 CST/PM 歧义）
+tulan_time_format_now() {
+  local timezone="${1:-$TULAN_TIME_DEFAULT_TIMEZONE}"
+  TZ="$timezone" date "+%Y-%m-%d %H:%M:%S %z (${timezone})"
+}
+
+tulan_time_show_now() {
+  echo "东八区当前时间: $(tulan_time_format_now)"
+}
 
 # 读取默认 NTP 服务器列表（环境变量 TULAN_NTP_SERVERS 空格分隔可覆盖）
 tulan_time_default_servers() {
@@ -192,6 +207,44 @@ tulan_time_configure_timezone() {
   return 1
 }
 
+tulan_time_configure_locale() {
+  local pkg_manager
+  pkg_manager="$(tulan_detect_pkg_manager)"
+
+  case "$pkg_manager" in
+    apt)
+      if locale -a 2>/dev/null | grep -qi 'zh_CN\.utf-8'; then
+        return 0
+      fi
+      if grep -q '^#.*zh_CN.UTF-8' /etc/locale.gen 2>/dev/null; then
+        tulan_as_root sed -i 's/^# \(zh_CN.UTF-8 UTF-8\)/\1/' /etc/locale.gen
+      elif ! grep -q '^zh_CN.UTF-8 UTF-8' /etc/locale.gen 2>/dev/null; then
+        echo "zh_CN.UTF-8 UTF-8" | tulan_as_root tee -a /etc/locale.gen >/dev/null
+      fi
+      tulan_as_root locale-gen zh_CN.UTF-8 2>/dev/null || tulan_as_root locale-gen
+      ;;
+    dnf|yum)
+      tulan_as_root dnf install -y glibc-langpack-zh 2>/dev/null || \
+        tulan_as_root yum install -y glibc-langpack-zh 2>/dev/null || true
+      ;;
+  esac
+}
+
+tulan_time_write_shell_env() {
+  local timezone="${1:-$TULAN_TIME_DEFAULT_TIMEZONE}"
+  local env_file
+  env_file="$(tulan_time_env_file)"
+
+  mkdir -p "$(dirname "$env_file")"
+  cat > "$env_file" <<EOF
+# tulan-tools 东八区时间环境（brew time 自动生成，请勿手改）
+export TZ=${timezone}
+export LC_TIME=zh_CN.UTF-8
+EOF
+  tulan_log "已写入 shell 时区: ${env_file}（TZ=${timezone}）"
+  tulan_refresh_shell_config 2>/dev/null || true
+}
+
 tulan_time_write_chrony_config() {
   local dropin servers=("$@") primary conf_path
 
@@ -357,6 +410,8 @@ tulan_time_force_sync() {
 tulan_time_show_status() {
   echo "系统时间状态"
   echo "────────────────────────────────────"
+  tulan_time_show_now
+  echo ""
 
   if command -v timedatectl &>/dev/null; then
     timedatectl status 2>/dev/null || true
@@ -400,6 +455,8 @@ tulan_time_setup() {
 
   tulan_log "配置时区 ${timezone}（东八区）..."
   tulan_time_configure_timezone "$timezone"
+  tulan_time_configure_locale
+  tulan_time_write_shell_env "$timezone"
 
   if ! command -v chronyd &>/dev/null && ! command -v chronyc &>/dev/null; then
     tulan_log "安装 chrony..."
@@ -418,6 +475,6 @@ tulan_time_setup() {
   tulan_time_force_sync
 
   echo ""
-  tulan_log "时间同步完成，当前: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  tulan_log "时间同步完成，当前: $(tulan_time_format_now)"
   tulan_time_show_status
 }
