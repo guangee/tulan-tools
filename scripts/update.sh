@@ -93,10 +93,21 @@ do_update() {
     [[ "$CHECK_ON_START" == false ]] && tulan_log "已是最新版本"
   else
     tulan_log "发现新版本，正在更新..."
-    git -C "${TULAN_HOME}" pull --ff-only origin "${branch}" || {
-      tulan_error "更新失败，可能存在本地修改或冲突"
-      return 1
-    }
+    if ! git -C "${TULAN_HOME}" pull --ff-only origin "${branch}" 2>/dev/null; then
+      if git -C "${TULAN_HOME}" diff --quiet 2>/dev/null && \
+         git -C "${TULAN_HOME}" diff --cached --quiet 2>/dev/null; then
+        tulan_error "更新失败，请检查网络或仓库状态"
+        return 1
+      fi
+      tulan_log "检测到本地修改，自动 stash 后重试..."
+      git -C "${TULAN_HOME}" stash push -m "tulan-tools auto-stash before update" >/dev/null 2>&1 || true
+      git -C "${TULAN_HOME}" pull --ff-only origin "${branch}" || {
+        tulan_error "更新失败。可手动: cd ${TULAN_HOME} && git stash && git pull"
+        return 1
+      }
+      git -C "${TULAN_HOME}" stash pop >/dev/null 2>&1 || \
+        tulan_log "提示: 本地修改在 stash 中，请执行: cd ${TULAN_HOME} && git stash pop"
+    fi
     git_updated=true
     chmod +x "${TULAN_HOME}/bin/"* 2>/dev/null || true
     chmod +x "${TULAN_HOME}/scripts/"* 2>/dev/null || true
