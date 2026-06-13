@@ -13,8 +13,7 @@ tulan_time_env_file() {
 
 # 格式化为明确的东八区时间（24 小时 + %z，避免 CST/PM 歧义）
 tulan_time_format_now() {
-  local timezone="${1:-$TULAN_TIME_DEFAULT_TIMEZONE}"
-  TZ="$timezone" date "+%Y-%m-%d %H:%M:%S %z (${timezone})"
+  TZ="$TULAN_TIME_DEFAULT_TIMEZONE" date "+%Y-%m-%d %H:%M:%S %z (${TULAN_TIME_DEFAULT_TIMEZONE})"
 }
 
 tulan_time_show_now() {
