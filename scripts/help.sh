@@ -195,17 +195,18 @@ EOF
 
 help_firewall() {
   cat <<EOF
-brew firewall — 防火墙端口开放/关闭（ufw / firewalld）
+brew firewall — 防火墙端口开放/关闭（多后端兼容）
 
-  brew firewall status                   查看防火墙状态
-  brew firewall open <port>              开放端口（默认 tcp）
+  brew firewall status                   查看各防火墙组件状态
+  brew firewall open <port>              开放端口（自动选择后端）
   brew firewall open 8443/tcp
   brew firewall close <port>             关闭端口
   brew firewall disable                  关闭全部防火墙
   brew firewall disable --restart-docker -y   关防火墙并重启 Docker
-  brew firewall enable                   重新启用防火墙
+  brew firewall enable                   启用 ufw 或 firewalld
 
-  支持: ufw（Debian/Ubuntu）、firewalld（CentOS/RHEL）
+  兼容: firewalld、ufw、iptables、nftables
+  Debian/Ubuntu 常用 ufw 或 iptables；CentOS/RHEL 常用 firewalld 或 iptables
   需要 sudo
 EOF
 }

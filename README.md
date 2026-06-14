@@ -143,7 +143,7 @@ brew firewall  # 防火墙端口开放/关闭（ufw / firewalld）
 
 `brew zsh` 在检测到 Oh My Zsh 已配置时，克隆 `zsh-autosuggestions` 并加入 `~/.zshrc` 的 `plugins`；未安装 zsh / Oh My Zsh 时自动跳过。
 
-`brew firewall` 支持 ufw / firewalld 的端口开放与关闭；`brew firewall disable --restart-docker` 可关闭全部防火墙并重启 Docker 使规则生效。
+`brew firewall` 自动检测并兼容 firewalld、ufw、iptables、nftables；`disable` 会关闭全部可用防火墙组件，`--restart-docker` 可重启 Docker 使规则生效。
 
 ## K8s / Rancher 单机安装
 

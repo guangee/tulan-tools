@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 防火墙端口开放/关闭（ufw / firewalld）
+# 防火墙端口开放/关闭（firewalld / ufw / iptables / nftables）
 
 set -euo pipefail
 
@@ -22,7 +22,7 @@ usage() {
   status            查看防火墙与端口状态（默认）
   open <port>       开放端口（默认 tcp，如 8080 或 8080/udp）
   close <port>      关闭端口
-  disable           关闭防火墙（ufw disable / 停止 firewalld）
+  disable           关闭全部防火墙（firewalld / ufw / iptables / nftables）
   enable            重新启用防火墙
   off               同 disable
 
@@ -32,7 +32,8 @@ usage() {
   -h, --help        显示帮助
 
 说明:
-  支持 ufw（Debian/Ubuntu）与 firewalld（CentOS/RHEL）
+  自动检测并兼容 firewalld（CentOS/RHEL）、ufw（Debian/Ubuntu）、
+  iptables、nftables；disable 会依次关闭所有可用组件
   需要 root 或 sudo
   状态记录: $(tulan_get_home)/state/firewall.json
 
@@ -51,7 +52,7 @@ confirm_disable() {
     return 0
   fi
   echo ""
-  echo "将关闭系统防火墙（ufw / firewalld）。"
+  echo "将关闭全部防火墙组件（firewalld / ufw / iptables / nftables）。"
   [[ "$RESTART_DOCKER" == true ]] && echo "并将重启 Docker 服务使网络规则生效。"
   echo ""
   read -r -p "确认继续? [y/N]: " confirm

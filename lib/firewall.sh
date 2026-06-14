@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Linux 防火墙（ufw / firewalld）端口管理
+# Linux 防火墙（firewalld / ufw / iptables / nftables）
 
 set -euo pipefail
 
 TULAN_FIREWALL_STATE_FILE="${TULAN_FIREWALL_STATE_FILE:-$(tulan_get_home)/state/firewall.json}"
+TULAN_IPTABLES_CHAIN="${TULAN_IPTABLES_CHAIN:-TULAN-ALLOW}"
+TULAN_NFT_TABLE="${TULAN_NFT_TABLE:-tulan_tools}"
+TULAN_NFT_CHAIN="${TULAN_NFT_CHAIN:-input}"
 
 tulan_firewall_require_linux() {
   if [[ "$(uname -s | tr '[:upper:]' '[:lower:]')" != "linux" ]]; then
@@ -12,23 +15,84 @@ tulan_firewall_require_linux() {
   fi
 }
 
-tulan_firewall_detect_backend() {
-  if command -v firewall-cmd &>/dev/null; then
-    if tulan_as_root firewall-cmd --state &>/dev/null 2>&1; then
-      echo "firewalld"
-      return 0
-    fi
-    if systemctl is-enabled firewalld &>/dev/null 2>&1 \
-      || systemctl is-active firewalld &>/dev/null 2>&1; then
-      echo "firewalld"
-      return 0
-    fi
+tulan_firewall_has_firewalld() {
+  command -v firewall-cmd &>/dev/null
+}
+
+tulan_firewall_firewalld_active() {
+  tulan_firewall_has_firewalld || return 1
+  tulan_as_root firewall-cmd --state 2>/dev/null | grep -qi running
+}
+
+tulan_firewall_has_ufw() {
+  command -v ufw &>/dev/null
+}
+
+tulan_firewall_ufw_active() {
+  tulan_firewall_has_ufw || return 1
+  tulan_as_root ufw status 2>/dev/null | grep -qiE 'Status:[[:space:]]*active'
+}
+
+tulan_firewall_has_iptables() {
+  command -v iptables &>/dev/null
+}
+
+tulan_firewall_has_ip6tables() {
+  command -v ip6tables &>/dev/null
+}
+
+tulan_firewall_has_nft() {
+  command -v nft &>/dev/null
+}
+
+tulan_firewall_nft_in_use() {
+  tulan_firewall_has_nft || return 1
+  local ruleset
+  ruleset="$(tulan_as_root nft list ruleset 2>/dev/null | grep -v '^$' || true)"
+  [[ -n "$ruleset" ]]
+}
+
+tulan_firewall_list_backends() {
+  if tulan_firewall_firewalld_active; then
+    echo firewalld
   fi
-  if command -v ufw &>/dev/null; then
-    echo "ufw"
+  if tulan_firewall_ufw_active; then
+    echo ufw
+  fi
+  if tulan_firewall_has_iptables; then
+    echo iptables
+  fi
+  if tulan_firewall_has_nft; then
+    echo nftables
+  fi
+}
+
+tulan_firewall_primary_backend() {
+  if tulan_firewall_firewalld_active; then
+    echo firewalld
     return 0
   fi
-  echo "none"
+  if tulan_firewall_ufw_active; then
+    echo ufw
+    return 0
+  fi
+  if tulan_firewall_has_iptables; then
+    echo iptables
+    return 0
+  fi
+  if tulan_firewall_has_nft; then
+    echo nftables
+    return 0
+  fi
+  if tulan_firewall_has_ufw; then
+    echo ufw
+    return 0
+  fi
+  if tulan_firewall_has_firewalld; then
+    echo firewalld
+    return 0
+  fi
+  echo none
 }
 
 tulan_firewall_parse_port_spec() {
@@ -91,12 +155,95 @@ p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 PY
 }
 
+tulan_firewall_iptables_open() {
+  local port="$1" proto="$2" cmd chain comment
+  chain="$TULAN_IPTABLES_CHAIN"
+  comment="tulan-tools-${port}-${proto}"
+
+  for cmd in iptables ip6tables; do
+    command -v "$cmd" &>/dev/null || continue
+    tulan_as_root "$cmd" -N "$chain" 2>/dev/null || true
+    tulan_as_root "$cmd" -C INPUT -j "$chain" 2>/dev/null \
+      || tulan_as_root "$cmd" -I INPUT 1 -j "$chain"
+    if tulan_as_root "$cmd" -C "$chain" -p "$proto" --dport "$port" -j ACCEPT 2>/dev/null; then
+      continue
+    fi
+    tulan_as_root "$cmd" -A "$chain" -p "$proto" --dport "$port" \
+      -m comment --comment "$comment" -j ACCEPT
+  done
+}
+
+tulan_firewall_iptables_close() {
+  local port="$1" proto="$2" cmd chain
+  chain="$TULAN_IPTABLES_CHAIN"
+
+  for cmd in iptables ip6tables; do
+    command -v "$cmd" &>/dev/null || continue
+    while tulan_as_root "$cmd" -C "$chain" -p "$proto" --dport "$port" -j ACCEPT 2>/dev/null; do
+      tulan_as_root "$cmd" -D "$chain" -p "$proto" --dport "$port" -j ACCEPT
+    done
+  done
+}
+
+tulan_firewall_iptables_disable() {
+  local cmd tbl chain
+  for cmd in iptables ip6tables; do
+    command -v "$cmd" &>/dev/null || continue
+    tulan_log "${cmd}: 清空规则并设为 ACCEPT"
+    for tbl in filter nat mangle raw; do
+      tulan_as_root "$cmd" -t "$tbl" -F 2>/dev/null || true
+      tulan_as_root "$cmd" -t "$tbl" -X 2>/dev/null || true
+    done
+    tulan_as_root "$cmd" -P INPUT ACCEPT 2>/dev/null || true
+    tulan_as_root "$cmd" -P FORWARD ACCEPT 2>/dev/null || true
+    tulan_as_root "$cmd" -P OUTPUT ACCEPT 2>/dev/null || true
+  done
+}
+
+tulan_firewall_nft_ensure_chain() {
+  tulan_as_root nft list table "inet ${TULAN_NFT_TABLE}" &>/dev/null \
+    || tulan_as_root nft add table "inet ${TULAN_NFT_TABLE}"
+  tulan_as_root nft list chain "inet ${TULAN_NFT_TABLE}" "${TULAN_NFT_CHAIN}" &>/dev/null \
+    || tulan_as_root nft add chain "inet ${TULAN_NFT_TABLE}" "${TULAN_NFT_CHAIN}" \
+      '{ type filter hook input priority 0; policy accept; }'
+}
+
+tulan_firewall_nft_open() {
+  local port="$1" proto="$2" handle
+  tulan_firewall_nft_ensure_chain
+  if tulan_as_root nft list chain "inet ${TULAN_NFT_TABLE}" "${TULAN_NFT_CHAIN}" 2>/dev/null \
+    | grep -q "tulan-tools-${port}-${proto}"; then
+    return 0
+  fi
+  tulan_as_root nft add rule "inet ${TULAN_NFT_TABLE}" "${TULAN_NFT_CHAIN}" \
+    "$proto" dport "$port" accept comment "\"tulan-tools-${port}-${proto}\""
+}
+
+tulan_firewall_nft_close() {
+  local port="$1" proto="$2" handle
+  tulan_as_root nft list chain "inet ${TULAN_NFT_TABLE}" "${TULAN_NFT_CHAIN}" -a 2>/dev/null \
+    | grep "tulan-tools-${port}-${proto}" | awk '{print $NF}' | while read -r handle; do
+      [[ -n "$handle" ]] || continue
+      tulan_as_root nft delete rule "inet ${TULAN_NFT_TABLE}" "${TULAN_NFT_CHAIN}" handle "$handle" 2>/dev/null || true
+    done
+}
+
+tulan_firewall_nft_disable() {
+  tulan_firewall_has_nft || return 0
+  tulan_log "nftables: 清空 tulan_tools 表"
+  tulan_as_root nft delete table "inet ${TULAN_NFT_TABLE}" 2>/dev/null || true
+  if tulan_firewall_nft_in_use; then
+    tulan_log "nftables: flush ruleset（系统存在 nft 规则）"
+    tulan_as_root nft flush ruleset 2>/dev/null || true
+  fi
+}
+
 tulan_firewall_open_port() {
   local port_spec="$1" backend port proto
   port_spec="$(tulan_firewall_parse_port_spec "$port_spec")" || return 1
   port="${port_spec%/*}"
   proto="${port_spec#*/}"
-  backend="$(tulan_firewall_detect_backend)"
+  backend="$(tulan_firewall_primary_backend)"
 
   tulan_firewall_require_linux || return 1
   tulan_require_privilege || return 1
@@ -105,16 +252,33 @@ tulan_firewall_open_port() {
     ufw)
       tulan_log "ufw 开放 ${port_spec}"
       tulan_as_root ufw allow "${port}/${proto}"
-      tulan_as_root ufw status numbered 2>/dev/null | grep -E "${port}/${proto}" || true
       ;;
     firewalld)
       tulan_log "firewalld 开放 ${port_spec}"
       tulan_as_root firewall-cmd --permanent --add-port="${port}/${proto}"
       tulan_as_root firewall-cmd --reload
       ;;
+    iptables)
+      tulan_log "iptables 开放 ${port_spec}"
+      tulan_firewall_iptables_open "$port" "$proto"
+      ;;
+    nftables)
+      tulan_log "nftables 开放 ${port_spec}"
+      tulan_firewall_nft_open "$port" "$proto"
+      ;;
     none)
-      tulan_error "未检测到 ufw 或 firewalld，无法自动开放端口"
-      return 1
+      if tulan_firewall_has_iptables; then
+        tulan_log "iptables 开放 ${port_spec}"
+        tulan_firewall_iptables_open "$port" "$proto"
+        backend=iptables
+      elif tulan_firewall_has_nft; then
+        tulan_log "nftables 开放 ${port_spec}"
+        tulan_firewall_nft_open "$port" "$proto"
+        backend=nftables
+      else
+        tulan_error "未检测到可用的防火墙工具（ufw / firewalld / iptables / nft）"
+        return 1
+      fi
       ;;
   esac
 
@@ -126,7 +290,7 @@ tulan_firewall_close_port() {
   port_spec="$(tulan_firewall_parse_port_spec "$port_spec")" || return 1
   port="${port_spec%/*}"
   proto="${port_spec#*/}"
-  backend="$(tulan_firewall_detect_backend)"
+  backend="$(tulan_firewall_primary_backend)"
 
   tulan_firewall_require_linux || return 1
   tulan_require_privilege || return 1
@@ -146,9 +310,18 @@ tulan_firewall_close_port() {
       tulan_as_root firewall-cmd --permanent --remove-port="${port}/${proto}" 2>/dev/null || true
       tulan_as_root firewall-cmd --reload
       ;;
+    iptables)
+      tulan_log "iptables 关闭 ${port_spec}"
+      tulan_firewall_iptables_close "$port" "$proto"
+      ;;
+    nftables)
+      tulan_log "nftables 关闭 ${port_spec}"
+      tulan_firewall_nft_close "$port" "$proto"
+      ;;
     none)
-      tulan_error "未检测到 ufw 或 firewalld"
-      return 1
+      tulan_firewall_iptables_close "$port" "$proto" 2>/dev/null || true
+      tulan_firewall_nft_close "$port" "$proto" 2>/dev/null || true
+      backend=iptables
       ;;
   esac
 
@@ -156,53 +329,67 @@ tulan_firewall_close_port() {
 }
 
 tulan_firewall_disable_all() {
-  local backend
-  backend="$(tulan_firewall_detect_backend)"
+  local disabled_any=false
 
   tulan_firewall_require_linux || return 1
   tulan_require_privilege || return 1
 
-  case "$backend" in
-    ufw)
-      tulan_log "关闭 ufw 防火墙"
-      tulan_as_root ufw --force disable
-      ;;
-    firewalld)
+  if tulan_firewall_has_firewalld; then
+    if tulan_firewall_firewalld_active || systemctl is-enabled firewalld &>/dev/null 2>&1; then
       tulan_log "停止并禁用 firewalld"
       tulan_as_root systemctl stop firewalld 2>/dev/null || true
       tulan_as_root systemctl disable firewalld 2>/dev/null || true
-      ;;
-    none)
-      tulan_log "未检测到 ufw / firewalld，无可关闭的防火墙服务"
-      return 0
-      ;;
-  esac
+      disabled_any=true
+    fi
+  fi
 
-  tulan_firewall_save_state "$backend" true disable
+  if tulan_firewall_has_ufw; then
+    if tulan_firewall_ufw_active || tulan_as_root ufw status 2>/dev/null | grep -qi installed; then
+      tulan_log "关闭 ufw"
+      tulan_as_root ufw --force disable 2>/dev/null || true
+      disabled_any=true
+    fi
+  fi
+
+  if tulan_firewall_has_iptables; then
+    tulan_firewall_iptables_disable
+    disabled_any=true
+  fi
+
+  if tulan_firewall_has_nft; then
+    tulan_firewall_nft_disable
+    disabled_any=true
+  fi
+
+  if [[ "$disabled_any" == false ]]; then
+    tulan_log "未检测到可关闭的防火墙组件"
+  fi
+
+  tulan_firewall_save_state "$(tulan_firewall_primary_backend)" true disable
 }
 
 tulan_firewall_enable_all() {
-  local backend
-  backend="$(tulan_firewall_detect_backend)"
+  local backend os
+  backend="$(tulan_firewall_primary_backend)"
+  os="$(tulan_detect_os 2>/dev/null || echo unknown)"
 
   tulan_firewall_require_linux || return 1
   tulan_require_privilege || return 1
 
-  case "$backend" in
-    ufw)
-      tulan_log "启用 ufw 防火墙"
-      tulan_as_root ufw --force enable
-      ;;
-    firewalld)
-      tulan_log "启用 firewalld"
-      tulan_as_root systemctl enable firewalld 2>/dev/null || true
-      tulan_as_root systemctl start firewalld 2>/dev/null || true
-      ;;
-    none)
-      tulan_error "未检测到 ufw 或 firewalld"
-      return 1
-      ;;
-  esac
+  if tulan_firewall_has_firewalld && [[ "$backend" == firewalld || "$os" == centos ]]; then
+    tulan_log "启用 firewalld"
+    tulan_as_root systemctl enable firewalld 2>/dev/null || true
+    tulan_as_root systemctl start firewalld 2>/dev/null || true
+    backend=firewalld
+  elif tulan_firewall_has_ufw; then
+    tulan_log "启用 ufw"
+    tulan_as_root ufw --force enable
+    backend=ufw
+  else
+    tulan_error "未检测到 ufw 或 firewalld，无法自动启用"
+    tulan_log "iptables/nftables 需手动恢复策略与规则"
+    return 1
+  fi
 
   tulan_firewall_save_state "$backend" false enable
 }
@@ -218,43 +405,75 @@ tulan_firewall_restart_docker() {
     tulan_log "重启 dockerd 进程"
     tulan_as_root pkill dockerd 2>/dev/null || true
     sleep 2
-    if command -v dockerd &>/dev/null; then
-      tulan_log "请手动执行: sudo dockerd &"
-    fi
+    tulan_log "请手动执行: sudo dockerd &"
     return 0
   fi
   tulan_log "未检测到运行中的 Docker，跳过重启"
 }
 
+tulan_firewall_show_component_status() {
+  local os
+  os="$(tulan_detect_os 2>/dev/null || echo unknown)"
+  echo "  系统:       ${os} ($(tulan_detect_pkg_manager 2>/dev/null || echo unknown))"
+
+  echo "  firewalld:  $(if tulan_firewall_has_firewalld; then if tulan_firewall_firewalld_active; then echo "已安装 (运行中)"; else echo "已安装 (未运行)"; fi; else echo "未安装"; fi)"
+
+  if tulan_firewall_has_ufw; then
+    if tulan_can_privilege; then
+      echo "  ufw:        $(tulan_as_root ufw status 2>/dev/null | head -1 || echo "未知")"
+    else
+      echo "  ufw:        已安装 (需要 sudo 查看状态)"
+    fi
+  else
+    echo "  ufw:        未安装"
+  fi
+
+  echo "  iptables:   $(tulan_firewall_has_iptables && echo "可用" || echo "不可用")"
+  echo "  nftables:   $(tulan_firewall_has_nft && echo "可用" || echo "不可用")"
+
+  if tulan_can_privilege && tulan_firewall_has_iptables; then
+    echo "  iptables INPUT 策略: $(tulan_as_root iptables -L INPUT -n 2>/dev/null | head -1 || echo "-")"
+    echo "  tulan 链 (${TULAN_IPTABLES_CHAIN}):"
+    tulan_as_root iptables -L "$TULAN_IPTABLES_CHAIN" -n --line-numbers 2>/dev/null | sed 's/^/    /' \
+      || echo "    (无)"
+  fi
+
+  if tulan_can_privilege && tulan_firewall_has_nft; then
+    echo "  nft tulan_tools:"
+    tulan_as_root nft list table "inet ${TULAN_NFT_TABLE}" 2>/dev/null | sed 's/^/    /' \
+      || echo "    (无)"
+  fi
+}
+
 tulan_firewall_show_status() {
-  local backend
-  backend="$(tulan_firewall_detect_backend)"
+  local backend backends=()
+  backend="$(tulan_firewall_primary_backend)"
+  mapfile -t backends < <(tulan_firewall_list_backends | awk '!seen[$0]++')
 
   echo "防火墙状态"
   echo "────────────────────────────────────"
-  echo "  后端:       ${backend}"
+  echo "  当前后端:   ${backend}"
+  if [[ ${#backends[@]} -gt 0 ]]; then
+    echo "  可用后端:   ${backends[*]}"
+  fi
+  echo ""
+
+  tulan_firewall_show_component_status
 
   case "$backend" in
-    ufw)
-      echo "  ufw 状态:"
-      if tulan_can_privilege; then
-        tulan_as_root ufw status verbose 2>/dev/null | sed 's/^/    /' || echo "    (无法读取)"
-      else
-        echo "    (需要 sudo 查看详情)"
-      fi
-      ;;
     firewalld)
-      echo "  firewalld:"
       if tulan_can_privilege; then
-        tulan_as_root firewall-cmd --state 2>/dev/null | sed 's/^/    状态: /' || echo "    状态: 未知"
-        echo "    开放端口:"
-        tulan_as_root firewall-cmd --list-ports 2>/dev/null | tr ' ' '\n' | sed 's/^/      /' || true
-      else
-        echo "    (需要 sudo 查看详情)"
+        echo ""
+        echo "  firewalld 端口:"
+        tulan_as_root firewall-cmd --list-ports 2>/dev/null | tr ' ' '\n' | sed 's/^/    /' || true
       fi
       ;;
-    none)
-      echo "  未检测到 ufw / firewalld"
+    ufw)
+      if tulan_can_privilege; then
+        echo ""
+        echo "  ufw 规则:"
+        tulan_as_root ufw status numbered 2>/dev/null | sed 's/^/    /' || true
+      fi
       ;;
   esac
 
@@ -266,6 +485,7 @@ from pathlib import Path
 
 data = json.loads(Path(sys.argv[1]).read_text())
 print("  tulan-tools 记录:")
+print(f"    最近后端: {data.get('backend', '-')}")
 print(f"    防火墙已关闭: {'是' if data.get('disabled') else '否'}")
 ports = data.get("ports") or []
 if ports:
