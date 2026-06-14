@@ -6,6 +6,8 @@ set -euo pipefail
 TULAN_TIME_DEFAULT_TIMEZONE="${TULAN_TIME_DEFAULT_TIMEZONE:-Asia/Shanghai}"
 TULAN_TIME_SERVERS_FILE="${TULAN_TIME_SERVERS_FILE:-$(tulan_get_home)/config/ntp.servers.cn}"
 TULAN_TIME_ENV="${TULAN_TIME_ENV:-$(tulan_get_home)/state/time.env}"
+TULAN_TIME_ZSHENV_MARKER="# >>> tulan-tools-time >>>"
+TULAN_TIME_ZSHENV_MARKER_END="# <<< tulan-tools-time <<<"
 
 tulan_time_env_file() {
   echo "$TULAN_TIME_ENV"
@@ -229,6 +231,61 @@ tulan_time_configure_locale() {
   esac
 }
 
+tulan_time_install_date_wrapper() {
+  local home bin_dir real_date="/usr/bin/date"
+  home="$(tulan_get_home)"
+  bin_dir="${home}/bin"
+  mkdir -p "$bin_dir"
+
+  if [[ ! -x "$real_date" ]]; then
+    real_date="$(command -v date 2>/dev/null || echo /usr/bin/date)"
+  fi
+
+  cat > "${bin_dir}/date" <<EOF
+#!/usr/bin/env bash
+# tulan-tools date — 默认东八区 +0800（brew time 自动生成）
+set -euo pipefail
+_real_date="${real_date}"
+export TZ="\${TZ:-Asia/Shanghai}"
+if [[ \$# -eq 0 ]]; then
+  exec "\$_real_date" "+%Y-%m-%d %H:%M:%S %z (Asia/Shanghai)"
+else
+  exec "\$_real_date" "\$@"
+fi
+EOF
+  chmod +x "${bin_dir}/date"
+  tulan_log "已安装 date 包装: ${bin_dir}/date"
+}
+
+tulan_time_inject_zshenv() {
+  local home="$1"
+  local zshenv="${HOME}/.zshenv"
+  local tmp
+
+  touch "$zshenv"
+  if grep -qF "${TULAN_TIME_ZSHENV_MARKER}" "$zshenv" 2>/dev/null; then
+    tmp="$(mktemp)"
+    awk -v marker="${TULAN_TIME_ZSHENV_MARKER}" -v end="${TULAN_TIME_ZSHENV_MARKER_END}" '
+      $0 ~ marker { skip=1; next }
+      $0 ~ end { skip=0; next }
+      !skip { print }
+    ' "$zshenv" > "$tmp"
+    mv "$tmp" "$zshenv"
+  fi
+
+  cat >> "$zshenv" <<EOF
+${TULAN_TIME_ZSHENV_MARKER}
+# tulan-tools 东八区（zsh 启动最早阶段加载）
+export TULAN_TOOLS_HOME="\${TULAN_TOOLS_HOME:-${home}}"
+export TZ=Asia/Shanghai
+if [[ -f "\${TULAN_TOOLS_HOME}/state/time.env" ]]; then
+  source "\${TULAN_TOOLS_HOME}/state/time.env"
+fi
+${TULAN_TIME_ZSHENV_MARKER_END}
+EOF
+  tulan_log "已配置: ${zshenv}"
+}
+
 tulan_time_write_shell_env() {
   local timezone="${1:-$TULAN_TIME_DEFAULT_TIMEZONE}"
   local env_file home
@@ -245,6 +302,8 @@ if [[ -f "${home}/lib/time-shell.sh" ]]; then
   source "${home}/lib/time-shell.sh"
 fi
 EOF
+  tulan_time_install_date_wrapper
+  tulan_time_inject_zshenv "$home"
   tulan_log "已写入 shell 时区: ${env_file}（TZ=${timezone}，date 默认 +0800 格式）"
   tulan_refresh_shell_config 2>/dev/null || true
 }
@@ -264,13 +323,14 @@ tulan_time_apply_shell() {
   echo ""
   case "${SHELL##*/}" in
     zsh)
-      echo "  请执行: source ~/.zshrc"
+      echo "  请执行: source ~/.zshenv  或重新打开终端"
+      echo "  （已写入 ~/.zshenv，新终端将自动生效）"
       ;;
     bash)
       echo "  请执行: source ~/.bashrc"
       ;;
     *)
-      echo "  请执行: source ~/.bashrc  或  source ~/.zshrc"
+      echo "  请执行: source ~/.bashrc  或  source ~/.zshenv"
       ;;
   esac
   echo "  之后 date 将显示: YYYY-MM-DD HH:MM:SS +0800 (Asia/Shanghai)"
