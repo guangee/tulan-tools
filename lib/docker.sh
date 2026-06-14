@@ -4,6 +4,14 @@
 set -euo pipefail
 
 TULAN_DOCKER_REGISTRY_MIRROR="${TULAN_DOCKER_REGISTRY_MIRROR:-https://hub.coding-space.cn}"
+TULAN_DOCKER_DAEMON_PATH="${TULAN_DOCKER_DAEMON_PATH:-/etc/docker/daemon.json}"
+TULAN_DOCKER_BACKUP_DIR="${TULAN_DOCKER_BACKUP_DIR:-$(tulan_get_home)/state/docker-backup}"
+TULAN_DOCKER_STATE_FILE="${TULAN_DOCKER_STATE_FILE:-$(tulan_get_home)/state/docker-config.json}"
+TULAN_DOCKER_LOG_DRIVER="${TULAN_DOCKER_LOG_DRIVER:-json-file}"
+TULAN_DOCKER_LOG_MAX_SIZE="${TULAN_DOCKER_LOG_MAX_SIZE:-10m}"
+TULAN_DOCKER_LOG_MAX_FILE="${TULAN_DOCKER_LOG_MAX_FILE:-3}"
+TULAN_DOCKER_LOG_COMPRESS="${TULAN_DOCKER_LOG_COMPRESS:-true}"
+TULAN_DOCKER_DEFAULTS_FILE="${TULAN_DOCKER_DEFAULTS_FILE:-$(tulan_get_home)/config/docker.daemon.defaults.json}"
 TULAN_DOCKER_BINARIES=(
   docker dockerd containerd runc ctr
   docker-init docker-proxy containerd-shim containerd-shim-runc-v2
@@ -188,30 +196,88 @@ tulan_docker_install_archive() {
 tulan_docker_post_install() {
   tulan_log "启动守护进程: sudo dockerd"
   tulan_log "验证: docker version（需 dockerd 已运行）"
+  tulan_log "完整守护进程配置: brew docker configure"
   if command -v sudo &>/dev/null; then
     tulan_docker_configure_registry "$TULAN_DOCKER_REGISTRY_MIRROR" || true
   else
-    tulan_log "配置镜像加速需 sudo，可设置 TULAN_DOCKER_REGISTRY_MIRROR 后重装"
+    tulan_log "配置 daemon.json 需 sudo，可执行: brew docker configure"
   fi
 }
 
-tulan_docker_configure_registry() {
-  local mirror="$1"
-  local tmp
+tulan_docker_load_defaults() {
+  if [[ -f "$TULAN_DOCKER_DEFAULTS_FILE" ]]; then
+    python3 - "$TULAN_DOCKER_DEFAULTS_FILE" <<'PY'
+import json, sys
+from pathlib import Path
 
-  if ! command -v sudo &>/dev/null; then
-    tulan_error "配置 registry 镜像需要 sudo"
-    return 1
+data = json.loads(Path(sys.argv[1]).read_text())
+mirrors = data.get("registry-mirrors") or []
+if mirrors:
+    print(f"export TULAN_DOCKER_REGISTRY_MIRROR={mirrors[0]!r}")
+print(f"export TULAN_DOCKER_LOG_DRIVER={data.get('log-driver', 'json-file')!r}")
+opts = data.get("log-opts") or {}
+print(f"export TULAN_DOCKER_LOG_MAX_SIZE={opts.get('max-size', '10m')!r}")
+print(f"export TULAN_DOCKER_LOG_MAX_FILE={opts.get('max-file', '3')!r}")
+print(f"export TULAN_DOCKER_LOG_COMPRESS={opts.get('compress', 'true')!r}")
+PY
   fi
+}
 
-  tmp="$(mktemp)"
-  python3 - "$mirror" <<'PY' > "$tmp"
+tulan_docker_backup_daemon() {
+  local stamp target
+  tulan_require_privilege || return 1
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  target="${TULAN_DOCKER_BACKUP_DIR}/${stamp}"
+  mkdir -p "$target"
+  if tulan_as_root test -f "$TULAN_DOCKER_DAEMON_PATH"; then
+    tulan_as_root cp -a "$TULAN_DOCKER_DAEMON_PATH" "${target}/daemon.json"
+    echo "$stamp" > "${TULAN_DOCKER_BACKUP_DIR}/latest"
+    tulan_log "已备份 daemon.json -> ${target}/daemon.json"
+  else
+    tulan_log "未发现现有 ${TULAN_DOCKER_DAEMON_PATH}，跳过备份"
+  fi
+}
+
+tulan_docker_latest_backup() {
+  local latest="${TULAN_DOCKER_BACKUP_DIR}/latest"
+  [[ -f "$latest" ]] || return 1
+  local stamp
+  stamp="$(tr -d '[:space:]' < "$latest")"
+  [[ -n "$stamp" && -f "${TULAN_DOCKER_BACKUP_DIR}/${stamp}/daemon.json" ]] || return 1
+  echo "${TULAN_DOCKER_BACKUP_DIR}/${stamp}/daemon.json"
+}
+
+tulan_docker_save_state() {
+  local mirror="$1" log_driver="$2" log_max_size="$3" log_max_file="$4" log_compress="$5"
+  mkdir -p "$(dirname "$TULAN_DOCKER_STATE_FILE")"
+  python3 - "$mirror" "$log_driver" "$log_max_size" "$log_max_file" "$log_compress" \
+    "$TULAN_DOCKER_STATE_FILE" "$TULAN_DOCKER_DAEMON_PATH" <<'PY'
+import json, sys, time
+from pathlib import Path
+
+mirror, driver, max_size, max_file, compress, state_path, daemon_path = sys.argv[1:8]
+data = {
+    "registry_mirror": mirror,
+    "log_driver": driver,
+    "log_max_size": max_size,
+    "log_max_file": max_file,
+    "log_compress": compress,
+    "daemon_path": daemon_path,
+    "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+}
+Path(state_path).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+PY
+}
+
+tulan_docker_build_daemon_json() {
+  local mirror="$1" log_driver="$2" log_max_size="$3" log_max_file="$4" log_compress="$5"
+  python3 - "$mirror" "$log_driver" "$log_max_size" "$log_max_file" "$log_compress" "$TULAN_DOCKER_DAEMON_PATH" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-mirror = sys.argv[1]
-path = Path("/etc/docker/daemon.json")
+mirror, driver, max_size, max_file, compress, daemon_path = sys.argv[1:7]
+path = Path(daemon_path)
 data = {}
 if path.exists():
     try:
@@ -220,22 +286,204 @@ if path.exists():
         data = {}
 
 mirrors = list(data.get("registry-mirrors") or [])
-if mirror not in mirrors:
+if mirror and mirror not in mirrors:
     mirrors.insert(0, mirror)
-data["registry-mirrors"] = mirrors
+elif mirror:
+    mirrors = [mirror] + [m for m in mirrors if m != mirror]
+if mirror:
+    data["registry-mirrors"] = mirrors
+
+data["log-driver"] = driver
+opts = dict(data.get("log-opts") or {})
+opts["max-size"] = max_size
+opts["max-file"] = str(max_file)
+if driver == "json-file":
+    opts["compress"] = str(compress).lower()
+elif "compress" in opts and driver != "json-file":
+    opts.pop("compress", None)
+data["log-opts"] = opts
+
 print(json.dumps(data, indent=2, ensure_ascii=False))
 PY
+}
 
-  sudo mkdir -p /etc/docker
-  sudo cp "$tmp" /etc/docker/daemon.json
+tulan_docker_apply_daemon_config() {
+  local mirror="${1:-$TULAN_DOCKER_REGISTRY_MIRROR}"
+  local log_driver="${2:-$TULAN_DOCKER_LOG_DRIVER}"
+  local log_max_size="${3:-$TULAN_DOCKER_LOG_MAX_SIZE}"
+  local log_max_file="${4:-$TULAN_DOCKER_LOG_MAX_FILE}"
+  local log_compress="${5:-$TULAN_DOCKER_LOG_COMPRESS}"
+  local tmp json
+
+  tulan_docker_require_linux || return 1
+  tulan_require_privilege || return 1
+
+  tmp="$(mktemp)"
+  json="$(tulan_docker_build_daemon_json "$mirror" "$log_driver" "$log_max_size" "$log_max_file" "$log_compress")"
+  printf '%s\n' "$json" > "$tmp"
+
+  tulan_as_root mkdir -p "$(dirname "$TULAN_DOCKER_DAEMON_PATH")"
+  tulan_as_root cp "$tmp" "$TULAN_DOCKER_DAEMON_PATH"
   rm -f "$tmp"
-  tulan_log "已写入 /etc/docker/daemon.json（registry: ${mirror}）"
 
-  if command -v systemctl &>/dev/null; then
-    if systemctl is-active docker &>/dev/null 2>&1; then
-      sudo systemctl restart docker || true
+  tulan_docker_save_state "$mirror" "$log_driver" "$log_max_size" "$log_max_file" "$log_compress"
+  tulan_log "已写入 ${TULAN_DOCKER_DAEMON_PATH}"
+  tulan_docker_try_restart
+}
+
+tulan_docker_try_restart() {
+  if command -v systemctl &>/dev/null && systemctl list-units --type=service 2>/dev/null | grep -q '\bdocker\.service'; then
+    if tulan_as_root systemctl is-active docker &>/dev/null; then
+      tulan_as_root systemctl restart docker && tulan_log "已重启 docker 服务" && return 0
     fi
   fi
+  if pgrep dockerd >/dev/null 2>&1; then
+    tulan_log "检测到 dockerd 进程，请手动重启使配置生效:"
+    tulan_log "  sudo systemctl restart docker   # 若使用 systemd"
+    tulan_log "  或 sudo pkill dockerd && sudo dockerd &   # 静态安装"
+  else
+    tulan_log "dockerd 未运行，下次启动时生效"
+  fi
+}
+
+tulan_docker_prompt_config() {
+  local mirror log_driver log_max_size log_max_file compress_input
+
+  if [[ -n "${DOCKER_REGISTRY_MIRROR:-}" ]]; then
+    export TULAN_DOCKER_REGISTRY_MIRROR="$DOCKER_REGISTRY_MIRROR"
+  fi
+  if [[ -n "${DOCKER_LOG_DRIVER:-}" ]]; then
+    export TULAN_DOCKER_LOG_DRIVER="$DOCKER_LOG_DRIVER"
+  fi
+  if [[ -n "${DOCKER_LOG_MAX_SIZE:-}" ]]; then
+    export TULAN_DOCKER_LOG_MAX_SIZE="$DOCKER_LOG_MAX_SIZE"
+  fi
+  if [[ -n "${DOCKER_LOG_MAX_FILE:-}" ]]; then
+    export TULAN_DOCKER_LOG_MAX_FILE="$DOCKER_LOG_MAX_FILE"
+  fi
+  if [[ -n "${DOCKER_LOG_COMPRESS:-}" ]]; then
+    export TULAN_DOCKER_LOG_COMPRESS="$DOCKER_LOG_COMPRESS"
+  fi
+
+  if [[ "${DOCKER_SKIP_PROMPT:-false}" == true ]]; then
+    return 0
+  fi
+
+  if [[ -n "${DOCKER_REGISTRY_MIRROR:-}${DOCKER_LOG_DRIVER:-}${DOCKER_LOG_MAX_SIZE:-}${DOCKER_LOG_MAX_FILE:-}" ]]; then
+    return 0
+  fi
+
+  echo ""
+  echo "Docker 守护进程配置"
+  echo "────────────────────────────────────"
+  echo "  配置文件: ${TULAN_DOCKER_DAEMON_PATH}"
+  echo ""
+
+  read -r -p "镜像加速地址 [${TULAN_DOCKER_REGISTRY_MIRROR}]: " mirror
+  mirror="${mirror:-$TULAN_DOCKER_REGISTRY_MIRROR}"
+
+  read -r -p "日志驱动 (json-file/local) [${TULAN_DOCKER_LOG_DRIVER}]: " log_driver
+  log_driver="${log_driver:-$TULAN_DOCKER_LOG_DRIVER}"
+
+  read -r -p "单日志文件大小 [${TULAN_DOCKER_LOG_MAX_SIZE}]: " log_max_size
+  log_max_size="${log_max_size:-$TULAN_DOCKER_LOG_MAX_SIZE}"
+
+  read -r -p "日志保留份数 [${TULAN_DOCKER_LOG_MAX_FILE}]: " log_max_file
+  log_max_file="${log_max_file:-$TULAN_DOCKER_LOG_MAX_FILE}"
+
+  if [[ "$log_driver" == "json-file" ]]; then
+    read -r -p "压缩轮转日志? [Y/n]: " compress_input
+    compress_input="${compress_input:-Y}"
+    if [[ "$compress_input" =~ ^[yY]$ ]]; then
+      log_compress=true
+    else
+      log_compress=false
+    fi
+  else
+    log_compress="${TULAN_DOCKER_LOG_COMPRESS}"
+  fi
+
+  export TULAN_DOCKER_REGISTRY_MIRROR="$mirror"
+  export TULAN_DOCKER_LOG_DRIVER="$log_driver"
+  export TULAN_DOCKER_LOG_MAX_SIZE="$log_max_size"
+  export TULAN_DOCKER_LOG_MAX_FILE="$log_max_file"
+  export TULAN_DOCKER_LOG_COMPRESS="$log_compress"
+
+  echo ""
+  echo "  镜像加速: ${TULAN_DOCKER_REGISTRY_MIRROR}"
+  echo "  日志驱动: ${TULAN_DOCKER_LOG_DRIVER}"
+  echo "  单文件:   ${TULAN_DOCKER_LOG_MAX_SIZE}  保留: ${TULAN_DOCKER_LOG_MAX_FILE} 份"
+  [[ "$log_driver" == "json-file" ]] && echo "  压缩:     ${TULAN_DOCKER_LOG_COMPRESS}"
+  echo ""
+}
+
+tulan_docker_show_config_status() {
+  local backup
+
+  echo "Docker 守护进程配置"
+  echo "────────────────────────────────────"
+  echo "  daemon.json: ${TULAN_DOCKER_DAEMON_PATH}"
+  echo "  状态记录:    ${TULAN_DOCKER_STATE_FILE}"
+  echo "  备份目录:    ${TULAN_DOCKER_BACKUP_DIR}"
+  echo ""
+
+  if [[ -f "$TULAN_DOCKER_STATE_FILE" ]]; then
+    python3 - "$TULAN_DOCKER_STATE_FILE" <<'PY'
+import json, sys
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text())
+print("  最近配置（tulan-tools 写入）:")
+print(f"    镜像加速:   {data.get('registry_mirror', '-')}")
+print(f"    日志驱动:   {data.get('log_driver', '-')}")
+print(f"    单文件大小: {data.get('log_max_size', '-')}")
+print(f"    保留份数:   {data.get('log_max_file', '-')}")
+print(f"    压缩日志:   {data.get('log_compress', '-')}")
+print(f"    更新时间:   {data.get('updated_at', '-')}")
+PY
+    echo ""
+  fi
+
+  if tulan_as_root test -f "$TULAN_DOCKER_DAEMON_PATH" 2>/dev/null \
+    || [[ -f "$TULAN_DOCKER_DAEMON_PATH" ]]; then
+    echo "  当前 daemon.json:"
+    if [[ -r "$TULAN_DOCKER_DAEMON_PATH" ]]; then
+      sed 's/^/    /' "$TULAN_DOCKER_DAEMON_PATH"
+    else
+      tulan_as_root cat "$TULAN_DOCKER_DAEMON_PATH" 2>/dev/null | sed 's/^/    /' || echo "    (无法读取，需 sudo)"
+    fi
+  else
+    echo "  当前 daemon.json: (不存在)"
+  fi
+
+  backup="$(tulan_docker_latest_backup 2>/dev/null || true)"
+  if [[ -n "$backup" ]]; then
+    echo ""
+    echo "  最近备份: ${backup}"
+  fi
+}
+
+tulan_docker_restore_daemon() {
+  local backup
+  backup="$(tulan_docker_latest_backup)" || {
+    tulan_error "无可用备份（${TULAN_DOCKER_BACKUP_DIR}）"
+    return 1
+  }
+  tulan_require_privilege || return 1
+  tulan_as_root mkdir -p "$(dirname "$TULAN_DOCKER_DAEMON_PATH")"
+  tulan_as_root cp -a "$backup" "$TULAN_DOCKER_DAEMON_PATH"
+  tulan_log "已从备份还原 ${TULAN_DOCKER_DAEMON_PATH}"
+  tulan_docker_try_restart
+}
+
+tulan_docker_configure_registry() {
+  local mirror="$1"
+  tulan_docker_load_defaults 2>/dev/null | while read -r line; do eval "$line"; done || true
+  tulan_docker_apply_daemon_config "$mirror" \
+    "${TULAN_DOCKER_LOG_DRIVER}" \
+    "${TULAN_DOCKER_LOG_MAX_SIZE}" \
+    "${TULAN_DOCKER_LOG_MAX_FILE}" \
+    "${TULAN_DOCKER_LOG_COMPRESS}" || return 1
 }
 
 tulan_install_docker_from_bin() {

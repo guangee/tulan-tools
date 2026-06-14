@@ -24,7 +24,7 @@ tulan-tools — 个人开发工具集
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
-  brew conda / vim / time / fonts / mirrors / k8s  环境安装
+  brew conda / vim / time / fonts / mirrors / docker / k8s  环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -37,6 +37,7 @@ tulan-tools — 个人开发工具集
   brew help time
   brew help fonts
   brew help mirrors
+  brew help docker
   brew help k8s
 EOF
 }
@@ -153,6 +154,29 @@ brew mirrors — 国内镜像配置（系统源 + pip / npm / Go）
 EOF
 }
 
+help_docker() {
+  cat <<EOF
+brew docker — Docker 守护进程配置（daemon.json）
+
+  brew docker configure              交互配置镜像加速与日志轮转
+  brew docker status                 查看 daemon.json 与配置记录
+  brew docker restore                从备份还原 daemon.json
+
+  brew docker --mirror <url>         指定镜像加速
+  brew docker --log-driver json-file 日志驱动（json-file / local）
+  brew docker --log-max-size 10m     单日志文件大小
+  brew docker --log-max-file 3       日志保留份数
+  brew docker --log-compress         压缩 json-file 轮转日志
+  brew docker -y                     跳过交互
+
+默认模板: ${TULAN_HOME}/config/docker.daemon.defaults.json
+配置备份: ${TULAN_HOME}/state/docker-backup/
+状态记录: ${TULAN_HOME}/state/docker-config.json
+
+安装 Docker 二进制: brew install docker
+EOF
+}
+
 help_k8s() {
   cat <<EOF
 brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
@@ -187,10 +211,11 @@ main() {
     time|timezone|ntp) help_time ;;
     fonts|font|cjk) help_fonts ;;
     mirrors|mirror) help_mirrors ;;
+    docker|dockerd|docker-config) help_docker ;;
     k8s|k8s-init|rancher) help_k8s ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors, k8s"
+      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors, docker, k8s"
       exit 1
       ;;
   esac

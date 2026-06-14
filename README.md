@@ -113,7 +113,14 @@ docker version
 - 目录：`~/.tulan-tools/cellar/docker/<版本>/docker/`
 - 命令链接：`~/.tulan-tools/bin/docker`、`dockerd`、`containerd`、`runc` 等
 - 安装后尝试写入 `/etc/docker/daemon.json`（registry 镜像，需 sudo）
+- 完整守护进程配置（镜像加速、日志轮转）：`brew docker configure`
 - 强制上游：`brew install docker --source upstream`
+
+```bash
+brew docker configure    # 交互配置镜像加速与日志保留
+brew docker status
+brew help docker
+```
 
 ## 环境安装
 
@@ -123,6 +130,7 @@ brew vim       # vimrc + 默认编辑器
 brew time      # 东八区时区 + 国内 NTP 测速同步（需 sudo）
 brew fonts     # 中文字体 + fontconfig + zh_CN locale（需 sudo）
 brew mirrors   # pip / npm / Go 国内镜像；--repo 切换系统软件源
+brew docker    # Docker daemon.json：镜像加速、日志轮转
 ```
 
 `brew time` 会探测 `config/ntp.servers.cn` 中的国内 NTP 源，自动选用延迟最低的服务器，并将系统时区设为 `Asia/Shanghai`（东八区）。可用 `brew time probe` 仅查看测速结果。
