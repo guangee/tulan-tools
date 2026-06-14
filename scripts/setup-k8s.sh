@@ -13,6 +13,7 @@ TULAN_HOME="$(tulan_get_home)"
 ACTION="install"
 EXTRA_ARGS=()
 CA_ASSUME_YES=false
+CA_CLEAN_ALL=false
 
 usage() {
   cat <<EOF
@@ -35,6 +36,8 @@ ca 选项:
   --ip <addr>           指定 SAN IP（默认自动检测局域网 IP）
 
 ca-clean 选项:
+  -d, --domain <name>   指定要清理的域名证书
+  -a, --all             清理全部域名证书及 CA
   -y, --yes             跳过确认
 
 环境变量:
@@ -55,6 +58,8 @@ ca-clean 选项:
   brew k8s ca
   brew k8s ca -d rancher.local.example.com
   brew k8s ca-clean
+  brew k8s ca-clean -d rancher.local.example.com
+  brew k8s ca-clean -a
   brew k8s install
   brew k8s password
   brew k8s sync-registries -f nodes.txt
@@ -86,6 +91,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -y|--yes) CA_ASSUME_YES=true; shift ;;
+    -a|--all) CA_CLEAN_ALL=true; shift ;;
     -*) EXTRA_ARGS+=("$1"); shift ;;
     *) EXTRA_ARGS+=("$1"); shift ;;
   esac
@@ -105,14 +111,21 @@ main() {
       ;;
     ca-clean)
       tulan_k8s_require_linux || exit 1
-      if [[ "$CA_ASSUME_YES" != true ]]; then
-        echo ""
-        echo "将清理 ${TULAN_K8S_CERT_OUT} 下的 CA 与站点证书，并从系统信任链移除 tulan CA。"
-        echo "（不会删除 Rancher 容器与数据，如需完整清理请用 brew k8s clean）"
-        echo ""
-        read -r -p "确认清理证书? [y/N]: " confirm
-        [[ "$confirm" =~ ^[yY]$ ]] || { tulan_log "已取消"; exit 0; }
+      if [[ "$CA_CLEAN_ALL" == true ]]; then
+        export K8S_CLEAN_DOMAINS
+        K8S_CLEAN_DOMAINS="$(tulan_k8s_list_cert_domains | tr '\n' ' ')"
+        K8S_CLEAN_DOMAINS="${K8S_CLEAN_DOMAINS%% }"
+        export K8S_CLEAN_INCLUDE_CA=true
+        if [[ -z "$K8S_CLEAN_DOMAINS" ]] && ! tulan_k8s_has_ca_files; then
+          tulan_error "未发现可清理的证书（${TULAN_K8S_CERT_OUT}）"
+          exit 1
+        fi
+        [[ -n "$K8S_CLEAN_DOMAINS" ]] || export K8S_CLEAN_DOMAINS="__ca_only__"
+      else
+        tulan_k8s_prompt_ca_clean || exit 1
       fi
+      export TULAN_K8S_CA_CLEAN_YES="$CA_ASSUME_YES"
+      tulan_k8s_confirm_ca_clean || exit 0
       tulan_require_privilege || exit 1
       tulan_k8s_run ca-clean.sh
       ;;

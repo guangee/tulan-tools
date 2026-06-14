@@ -109,10 +109,12 @@ docker restart rancher
 
 ## 清理与重装
 
-仅清理证书（保留 Rancher 容器与数据）：
+仅清理证书（保留 Rancher 容器与数据，会列出可清理的域名供选择）：
 
 ```bash
-brew k8s ca-clean
+brew k8s ca-clean                              # 交互选择域名
+brew k8s ca-clean -d rancher.local.example.com # 指定域名
+brew k8s ca-clean -a                           # 清理全部
 ```
 
 完整清理 Rancher/K8s 相关组件与数据（请谨慎）：

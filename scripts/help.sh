@@ -159,7 +159,9 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
 
   brew k8s ca                        生成自签证书（交互输入域名，自动检测局域网 IP）
   brew k8s ca -d <domain>            指定域名生成证书
-  brew k8s ca-clean                  清理自签证书
+  brew k8s ca-clean                  交互选择要清理的域名证书
+  brew k8s ca-clean -d <domain>      清理指定域名证书
+  brew k8s ca-clean -a               清理全部域名证书及 CA
   brew k8s install                   安装 Rancher（Docker）
   brew k8s password                  获取 Bootstrap 初始密码
   brew k8s upgrade                   升级 Rancher 版本

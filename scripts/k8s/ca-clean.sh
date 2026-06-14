@@ -6,9 +6,13 @@
 #
 # 环境变量:
 #   CERT_OUT=/etc/certs
+#   K8S_CLEAN_DOMAINS="domain1 domain2" | __ca_only__
+#   K8S_CLEAN_INCLUDE_CA=true   同时清理 CA（选「全部」时由 brew 传入）
 set -euo pipefail
 
 CERT_OUT="${CERT_OUT:-/etc/certs}"
+K8S_CLEAN_DOMAINS="${K8S_CLEAN_DOMAINS:-}"
+K8S_CLEAN_INCLUDE_CA="${K8S_CLEAN_INCLUDE_CA:-false}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -21,14 +25,18 @@ require_root() {
   fi
 }
 
-load_domain() {
-  local domain=""
-  if [[ -f "${CERT_OUT}/site.env" ]]; then
-    # shellcheck source=/dev/null
-    source "${CERT_OUT}/site.env"
-    domain="${K8S_SITE_DOMAIN:-}"
-  fi
-  echo "${domain:-k8s.local.tulan.wang}"
+list_cert_domains() {
+  local f domain
+  for f in "${CERT_OUT}"/*.crt; do
+    [[ -f "$f" ]] || continue
+    domain="$(basename "$f" .crt)"
+    [[ "$domain" == "ca" ]] && continue
+    echo "$domain"
+  done
+}
+
+has_ca_files() {
+  [[ -f "${CERT_OUT}/ca.crt" || -f "${CERT_OUT}/ca.key" ]]
 }
 
 remove_site_files() {
@@ -40,28 +48,73 @@ remove_site_files() {
     "${CERT_OUT}/${domain}.cert"
 }
 
-main() {
-  require_root
-
-  local domain
-  domain="$(load_domain)"
-
-  log "清理证书目录: ${CERT_OUT}"
-  log "站点域名: ${domain}"
-
+remove_ca_files() {
   rm -f "${CERT_OUT}/ca.key" "${CERT_OUT}/ca.crt" "${CERT_OUT}/ca.srl"
-  rm -f "${CERT_OUT}/v3.ext" "${CERT_OUT}/site.env"
-  remove_site_files "$domain"
-
-  # 兼容旧版默认域名
-  if [[ "$domain" != "k8s.local.tulan.wang" ]]; then
-    remove_site_files "k8s.local.tulan.wang"
-  fi
+  rm -f "${CERT_OUT}/v3.ext"
 
   if [[ -f /usr/local/share/ca-certificates/tulan-ca.crt ]]; then
     rm -f /usr/local/share/ca-certificates/tulan-ca.crt
     update-ca-certificates 2>/dev/null || true
     log "已从系统信任链移除 tulan CA"
+  fi
+}
+
+maybe_remove_site_env() {
+  local domain="$1" env_domain=""
+  [[ -f "${CERT_OUT}/site.env" ]] || return 0
+  # shellcheck source=/dev/null
+  source "${CERT_OUT}/site.env"
+  env_domain="${K8S_SITE_DOMAIN:-}"
+  if [[ "$domain" == "$env_domain" ]]; then
+    rm -f "${CERT_OUT}/site.env"
+    log "已移除 site.env"
+  fi
+}
+
+clean_domains() {
+  local domain
+  for domain in "$@"; do
+    log "清理站点证书: ${domain}"
+    remove_site_files "$domain"
+    maybe_remove_site_env "$domain"
+  done
+}
+
+main() {
+  require_root
+
+  if [[ -z "$K8S_CLEAN_DOMAINS" ]]; then
+    echo "未指定要清理的域名，请通过 brew k8s ca-clean 交互选择"
+    exit 1
+  fi
+
+  log "清理证书目录: ${CERT_OUT}"
+
+  if [[ "$K8S_CLEAN_DOMAINS" == "__ca_only__" ]]; then
+    if has_ca_files; then
+      log "清理 CA"
+      remove_ca_files
+    else
+      log "未发现 CA 文件"
+    fi
+    log "证书清理完成"
+    exit 0
+  fi
+
+  # shellcheck disable=SC2086
+  clean_domains ${K8S_CLEAN_DOMAINS}
+
+  if [[ "$K8S_CLEAN_INCLUDE_CA" == true ]]; then
+    log "清理 CA"
+    remove_ca_files
+    rm -f "${CERT_OUT}/site.env"
+  else
+    # 若无剩余站点证书，一并清理 CA
+    if [[ -z "$(list_cert_domains)" ]] && has_ca_files; then
+      log "已无站点证书，一并清理 CA"
+      remove_ca_files
+      rm -f "${CERT_OUT}/site.env"
+    fi
   fi
 
   log "证书清理完成。如需重装请执行: brew k8s ca"
