@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-TULAN_K8S_DIR="${TULAN_K8S_DIR:-$(tulan_get_home)/k8s-init}"
+TULAN_K8S_DIR="${TULAN_K8S_DIR:-$(tulan_get_home)/scripts/k8s}"
 TULAN_K8S_CERT_OUT="${TULAN_K8S_CERT_OUT:-/etc/certs}"
 TULAN_K8S_RANCHER_DATA="${TULAN_K8S_RANCHER_DATA:-/opt/rancher-data}"
 TULAN_K8S_RANCHER_IMAGE="${TULAN_K8S_RANCHER_IMAGE:-rancher/rancher:v2.8.5}"
@@ -48,7 +48,7 @@ tulan_k8s_script_path() {
   path="$(tulan_k8s_dir)/${name}"
   if [[ ! -f "$path" ]]; then
     tulan_error "缺少 K8s 脚本: ${path}"
-    tulan_log "请先 brew update 或确认 k8s-init 目录存在"
+    tulan_log "请先 brew update 或确认 scripts/k8s 目录存在"
     return 1
   fi
   echo "$path"

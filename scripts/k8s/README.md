@@ -12,7 +12,7 @@ brew k8s status
 brew help k8s        # 完整子命令列表
 ```
 
-也可直接执行本目录脚本（需 root）：`sudo bash k8s-init/install.sh`
+也可直接执行本目录脚本（需 root）：`sudo bash scripts/k8s/install.sh`
 
 ## 目录文件说明
 

@@ -155,7 +155,7 @@ EOF
 
 help_k8s() {
   cat <<EOF
-brew k8s — Rancher 单机 K8s 快捷安装（k8s-init）
+brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
 
   brew k8s ca                        生成自签证书
   brew k8s install                   安装 Rancher（Docker）
@@ -166,8 +166,8 @@ brew k8s — Rancher 单机 K8s 快捷安装（k8s-init）
   brew k8s shell-init                配置 kubectl/crictl 别名
   brew k8s status                    查看状态
 
-脚本目录: ${TULAN_HOME}/k8s-init/
-详细说明: ${TULAN_HOME}/k8s-init/README.md
+脚本目录: ${TULAN_HOME}/scripts/k8s/
+详细说明: ${TULAN_HOME}/scripts/k8s/README.md
 EOF
 }
 

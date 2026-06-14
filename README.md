@@ -133,7 +133,7 @@ brew mirrors   # pip / npm / Go 国内镜像；--repo 切换系统软件源
 
 ## K8s / Rancher 单机安装
 
-基于 `k8s-init` 脚本，通过 Docker 部署 Rancher（内置 k3s）：
+基于 `scripts/k8s` 脚本，通过 Docker 部署 Rancher（内置 k3s）：
 
 ```bash
 brew k8s ca          # 生成自签证书（/etc/certs）
@@ -143,7 +143,7 @@ brew k8s status
 brew help k8s
 ```
 
-脚本目录：`~/.tulan-tools/k8s-init/`，详细说明见该目录下 `README.md`。
+脚本目录：`~/.tulan-tools/scripts/k8s/`，详细说明见该目录下 `README.md`。
 
 ## Docker 测试镜像
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rancher 单机 K8s 快捷安装（k8s-init）
+# Rancher 单机 K8s 快捷安装（scripts/k8s）
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ usage() {
   password          从容器日志获取 Bootstrap 初始密码
   upgrade           升级 Rancher 镜像版本
   clean             清理 Rancher/K3s/RKE2 组件与数据（危险）
-  sync-registries   同步 registries.yaml 到节点清单（见 k8s-init/sync-registries.sh -h）
+  sync-registries   同步 registries.yaml 到节点清单（见 scripts/k8s/sync-registries.sh -h）
   shell-init        配置 crictl/kubectl 别名（写入 ~/.zshrc）
   status            查看 Rancher 容器与配置
   legacy-run        旧版 run-k8s.sh（Rancher v2.5.17，容器名 k8s）
@@ -37,8 +37,8 @@ usage() {
   TULAN_K8S_HTTPS_PORT        默认 8443:443
 
 说明:
-  脚本目录: ${TULAN_HOME}/k8s-init/
-  详细文档: ${TULAN_HOME}/k8s-init/README.md
+  脚本目录: ${TULAN_HOME}/scripts/k8s/
+  详细文档: ${TULAN_HOME}/scripts/k8s/README.md
   install/ca/clean/upgrade 需要 root 或 sudo
 
 示例:
