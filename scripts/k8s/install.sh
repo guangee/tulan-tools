@@ -5,6 +5,7 @@
 #
 # 可选变量:
 #   CERT_OUT=/etc/certs
+#   K8S_SITE_DOMAIN=k8s.local.example.com
 #   RANCHER_IMAGE=rancher/rancher:v2.8.5
 #   REGISTRY_MIRROR=https://hub.local.tulan.wang
 #   RANCHER_DATA=/opt/rancher-data
@@ -30,7 +31,20 @@ require_root() {
   fi
 }
 
+load_site_config() {
+  if [[ -f "${CERT_OUT}/site.env" ]]; then
+    # shellcheck source=/dev/null
+    source "${CERT_OUT}/site.env"
+  fi
+  K8S_SITE_DOMAIN="${K8S_SITE_DOMAIN:-k8s.local.tulan.wang}"
+
+  if [[ ! -f "${CERT_OUT}/${K8S_SITE_DOMAIN}.crt" && -f "${CERT_OUT}/k8s.local.tulan.wang.crt" ]]; then
+    K8S_SITE_DOMAIN="k8s.local.tulan.wang"
+  fi
+}
+
 prepare_rancher_files() {
+  load_site_config
   mkdir -p "${RANCHER_DATA}"
 
   if [[ -n "${K8S_REGISTRIES_TEMPLATE:-}" && -f "${K8S_REGISTRIES_TEMPLATE}" ]]; then
@@ -48,8 +62,8 @@ mirrors:
 EOF
   fi
 
-  [[ -f "${CERT_OUT}/k8s.local.tulan.wang.crt" ]] || { echo "缺少证书: ${CERT_OUT}/k8s.local.tulan.wang.crt"; exit 1; }
-  [[ -f "${CERT_OUT}/k8s.local.tulan.wang.key" ]] || { echo "缺少私钥: ${CERT_OUT}/k8s.local.tulan.wang.key"; exit 1; }
+  [[ -f "${CERT_OUT}/${K8S_SITE_DOMAIN}.crt" ]] || { echo "缺少证书: ${CERT_OUT}/${K8S_SITE_DOMAIN}.crt（请先 brew k8s ca）"; exit 1; }
+  [[ -f "${CERT_OUT}/${K8S_SITE_DOMAIN}.key" ]] || { echo "缺少私钥: ${CERT_OUT}/${K8S_SITE_DOMAIN}.key"; exit 1; }
   [[ -f "${CERT_OUT}/ca.crt" ]] || { echo "缺少 CA 证书: ${CERT_OUT}/ca.crt"; exit 1; }
 }
 
@@ -68,20 +82,20 @@ main() {
   log "拉取镜像 ${RANCHER_IMAGE}"
   docker pull "${RANCHER_IMAGE}"
 
-  log "启动 Rancher v2.8.5"
+  log "启动 Rancher（站点: ${K8S_SITE_DOMAIN}）"
   docker run -d --name rancher --restart=unless-stopped \
     -p "${HTTP_PORT_MAP}" -p "${HTTPS_PORT_MAP}" \
     -v "${RANCHER_DATA}:/var/lib/rancher" \
     -v "${CERT_OUT}/registries.yaml:/etc/rancher/k3s/registries.yaml:ro" \
-    -v "${CERT_OUT}/k8s.local.tulan.wang.crt:/etc/rancher/ssl/cert.pem:ro" \
-    -v "${CERT_OUT}/k8s.local.tulan.wang.key:/etc/rancher/ssl/key.pem:ro" \
+    -v "${CERT_OUT}/${K8S_SITE_DOMAIN}.crt:/etc/rancher/ssl/cert.pem:ro" \
+    -v "${CERT_OUT}/${K8S_SITE_DOMAIN}.key:/etc/rancher/ssl/key.pem:ro" \
     -v "${CERT_OUT}/ca.crt:/etc/rancher/ssl/cacerts.pem:ro" \
     --privileged \
     "${RANCHER_IMAGE}"
 
   log "当前容器状态："
   docker ps --filter name=rancher
-  log "完成。请通过 https://k8s.local.tulan.wang 访问（按端口映射调整端口）。"
+  log "完成。请通过 https://${K8S_SITE_DOMAIN} 访问（按端口映射调整端口）。"
 }
 
 main "$@"

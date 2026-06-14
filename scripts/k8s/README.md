@@ -5,7 +5,9 @@
 ## 通过 tulan-tools 使用（推荐）
 
 ```bash
-brew k8s ca          # 生成证书
+brew k8s ca          # 交互生成证书（自动检测局域网 IP，询问域名）
+brew k8s ca -d rancher.local.example.com   # 指定域名
+brew k8s ca-clean    # 清理自签证书
 brew k8s install     # 安装 Rancher
 brew k8s password    # 获取初始密码
 brew k8s status
@@ -16,44 +18,44 @@ brew help k8s        # 完整子命令列表
 
 ## 目录文件说明
 
-- `ca.sh`：生成 CA 与站点证书（`k8s.local.tulan.wang`），并将 CA 安装到系统信任链。
+- `ca.sh`：生成 CA 与站点证书，自动写入 `site.env`（域名与 IP），并将 CA 安装到系统信任链。
+- `ca-clean.sh`：清理自签 CA 与站点证书（不删除 Rancher 容器与数据）。
 - `install.sh`：启动 Rancher 容器（默认 `rancher/rancher:v2.8.5`），挂载证书与镜像源配置。
 - `get-init-password.sh`：从 Rancher 容器日志提取首次登录密码（Bootstrap Password）。
 - `clean.sh`：清理 Rancher/k3s/rke2 相关进程、容器、网络与数据目录（高风险操作）。
 - `registries.yaml`：k3s 容器运行时镜像仓库配置（会被 `install.sh` 覆盖）。
-- `ca.crt` / `ca.key`：自签 CA 证书与私钥。
-- `k8s.local.tulan.wang.crt` / `.key`：Rancher HTTPS 站点证书与私钥。
+- `site.env`：由 `ca.sh` 生成，记录 `K8S_SITE_DOMAIN` 与 `K8S_SITE_IP`，供 `install.sh` 读取。
 
 ## 前置条件
 
 - Linux 主机，已安装 Docker 与 systemd。
 - 具备 root 权限（或可使用 `sudo`）。
 - 本机可访问 Rancher 镜像与后续业务集群所需镜像仓库。
-- DNS 或 hosts 已将 `k8s.local.tulan.wang` 指向服务器地址（证书中默认为 `192.168.20.250`）。
+- DNS 或 hosts 已将证书域名（`brew k8s ca` 时输入）指向服务器地址；证书 SAN 会自动包含检测到的局域网 IP。
 
 ## 快速开始
 
-1. 生成证书（首次部署）：
+1. 生成证书（首次部署，会询问域名并自动检测局域网 IP）：
 
 ```bash
-sudo bash /etc/certs/ca.sh
+brew k8s ca
 ```
 
 2. 安装并启动 Rancher：
 
 ```bash
-sudo bash /etc/certs/install.sh
+brew k8s install
 ```
 
 3. 获取初始密码：
 
 ```bash
-sudo bash /etc/certs/get-init-password.sh
+brew k8s password
 ```
 
 4. 浏览器访问：
 
-- `https://k8s.local.tulan.wang:8443`（默认端口映射）
+- `https://<你的域名>:8443`（默认端口映射，域名见 `/etc/certs/site.env`）
 - 如使用了默认 hosts/DNS 且做了反向代理，也可按实际入口访问
 
 ## install.sh 可选参数
@@ -107,17 +109,23 @@ docker restart rancher
 
 ## 清理与重装
 
-执行以下命令会清理 Rancher/K8s 相关组件与数据，请谨慎：
+仅清理证书（保留 Rancher 容器与数据）：
 
 ```bash
-sudo bash /etc/certs/clean.sh
+brew k8s ca-clean
 ```
 
-建议清理后重启系统，再重新执行 `ca.sh` + `install.sh`。
+完整清理 Rancher/K8s 相关组件与数据（请谨慎）：
+
+```bash
+brew k8s clean
+```
+
+建议完整清理后重启系统，再重新执行 `brew k8s ca` + `brew k8s install`。
 
 ## 常见问题
 
-- 证书域名不匹配：确保访问地址与证书 CN/SAN 一致（默认 `k8s.local.tulan.wang`）。
+- 证书域名不匹配：确保访问地址与 `site.env` 中的 `K8S_SITE_DOMAIN` 一致。
 - 镜像拉取失败：检查 `registries.yaml` 与网络连通性，必要时切回官方仓库。
 - 无法获取初始密码：可执行 `docker exec -it rancher reset-password` 重置管理员密码。
 

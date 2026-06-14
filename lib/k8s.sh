@@ -5,6 +5,7 @@ set -euo pipefail
 
 TULAN_K8S_DIR="${TULAN_K8S_DIR:-$(tulan_get_home)/scripts/k8s}"
 TULAN_K8S_CERT_OUT="${TULAN_K8S_CERT_OUT:-/etc/certs}"
+TULAN_K8S_SITE_DOMAIN="${TULAN_K8S_SITE_DOMAIN:-k8s.local.tulan.wang}"
 TULAN_K8S_RANCHER_DATA="${TULAN_K8S_RANCHER_DATA:-/opt/rancher-data}"
 TULAN_K8S_RANCHER_IMAGE="${TULAN_K8S_RANCHER_IMAGE:-rancher/rancher:v2.8.5}"
 TULAN_K8S_REGISTRY_MIRROR="${TULAN_K8S_REGISTRY_MIRROR:-${TULAN_DOCKER_REGISTRY_MIRROR:-https://hub.coding-space.cn}}"
@@ -30,7 +31,105 @@ tulan_k8s_require_docker() {
   fi
 }
 
+tulan_k8s_is_private_ip() {
+  local ip="$1"
+  [[ "$ip" =~ ^10\. ]] && return 0
+  [[ "$ip" =~ ^192\.168\. ]] && return 0
+  [[ "$ip" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]] && return 0
+  return 1
+}
+
+tulan_k8s_detect_lan_ip() {
+  local ip addr
+
+  if command -v ip &>/dev/null; then
+    ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit }}')"
+    if [[ -n "$ip" ]] && tulan_k8s_is_private_ip "$ip"; then
+      echo "$ip"
+      return 0
+    fi
+
+    while read -r addr; do
+      if tulan_k8s_is_private_ip "$addr"; then
+        echo "$addr"
+        return 0
+      fi
+    done < <(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+  fi
+
+  if command -v hostname &>/dev/null; then
+    for ip in $(hostname -I 2>/dev/null); do
+      if tulan_k8s_is_private_ip "$ip"; then
+        echo "$ip"
+        return 0
+      fi
+    done
+  fi
+
+  return 1
+}
+
+tulan_k8s_site_env_path() {
+  echo "${TULAN_K8S_CERT_OUT}/site.env"
+}
+
+tulan_k8s_load_site_config() {
+  local env_file
+  env_file="$(tulan_k8s_site_env_path)"
+  if [[ -f "$env_file" ]]; then
+    # shellcheck source=/dev/null
+    source "$env_file"
+  fi
+  K8S_SITE_DOMAIN="${K8S_SITE_DOMAIN:-${TULAN_K8S_SITE_DOMAIN}}"
+  export K8S_SITE_DOMAIN K8S_SITE_IP
+}
+
+tulan_k8s_validate_domain() {
+  local domain="$1"
+  if [[ ! "$domain" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
+    tulan_error "无效域名: ${domain}"
+    return 1
+  fi
+}
+
+tulan_k8s_prompt_ca_params() {
+  local lan_ip default_domain domain
+
+  if [[ -n "${K8S_SITE_DOMAIN:-}" ]]; then
+    tulan_k8s_validate_domain "$K8S_SITE_DOMAIN" || return 1
+    if [[ -z "${K8S_SITE_IP:-}" ]]; then
+      K8S_SITE_IP="$(tulan_k8s_detect_lan_ip 2>/dev/null || true)"
+    fi
+    export K8S_SITE_DOMAIN K8S_SITE_IP
+    return 0
+  fi
+
+  lan_ip="$(tulan_k8s_detect_lan_ip 2>/dev/null || true)"
+  default_domain="${TULAN_K8S_SITE_DOMAIN}"
+
+  echo ""
+  echo "Rancher HTTPS 证书配置"
+  echo "────────────────────────────────────"
+  if [[ -n "$lan_ip" ]]; then
+    echo "  检测到局域网 IP: ${lan_ip}"
+  else
+    echo "  未检测到局域网 IP，证书 SAN 将不含 IP 项"
+  fi
+  echo ""
+  read -r -p "请输入证书域名 [${default_domain}]: " domain
+  domain="${domain:-$default_domain}"
+  tulan_k8s_validate_domain "$domain" || return 1
+
+  export K8S_SITE_DOMAIN="$domain"
+  export K8S_SITE_IP="$lan_ip"
+  echo ""
+  echo "  域名: ${K8S_SITE_DOMAIN}"
+  [[ -n "$K8S_SITE_IP" ]] && echo "  IP:   ${K8S_SITE_IP}"
+  echo ""
+}
+
 tulan_k8s_export_env() {
+  tulan_k8s_load_site_config
   export CERT_OUT="$TULAN_K8S_CERT_OUT"
   export RANCHER_DATA="$TULAN_K8S_RANCHER_DATA"
   export RANCHER_IMAGE="$TULAN_K8S_RANCHER_IMAGE"
@@ -83,6 +182,13 @@ tulan_k8s_show_status() {
   echo "────────────────────────────────────"
   echo "  脚本目录: $(tulan_k8s_dir)"
   echo "  证书目录: ${TULAN_K8S_CERT_OUT}"
+  tulan_k8s_load_site_config
+  if [[ -f "$(tulan_k8s_site_env_path)" ]]; then
+    echo "  站点域名: ${K8S_SITE_DOMAIN}"
+    [[ -n "${K8S_SITE_IP:-}" ]] && echo "  站点 IP:   ${K8S_SITE_IP}"
+  else
+    echo "  站点域名: (未生成，请先 brew k8s ca)"
+  fi
   echo "  数据目录: ${TULAN_K8S_RANCHER_DATA}"
   echo "  镜像:     ${TULAN_K8S_RANCHER_IMAGE}"
   echo "  镜像源:   ${TULAN_K8S_REGISTRY_MIRROR}"
