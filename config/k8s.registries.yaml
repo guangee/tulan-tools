@@ -1,0 +1,13 @@
+# Docker / K8s 镜像源模板（install 时写入 CERT_OUT/registries.yaml）
+# 可通过 TULAN_K8S_REGISTRY_MIRROR 覆盖 docker.io 镜像
+
+mirrors:
+  docker.io:
+    endpoint:
+      - "https://hub.coding-space.cn"
+  registry.k8s.io:
+    endpoint:
+      - "https://registry.aliyuncs.com/google_containers"
+  gcr.io:
+    endpoint:
+      - "https://registry.aliyuncs.com/google_containers"

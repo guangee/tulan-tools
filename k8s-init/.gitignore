@@ -1,0 +1,10 @@
+*
+!*/
+!*.sh
+!**/*.sh
+!.gitignore
+!README.md
+!registries.yaml
+!gpu.md
+!blocks.py
+!rancher-migrate-scripts/*

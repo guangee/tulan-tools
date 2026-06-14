@@ -1,0 +1,14 @@
+# Docker Hub 统一走局域网镜像（RKE2 / containerd）
+mirrors:
+  docker.io:
+    endpoint:
+      - "https://hub.local.tulan.wang"
+  nvcr.io:
+    endpoint:
+      - "https://4a4d884718cb51c64f048575c7f469a2.d.1ms.run"
+  registry.k8s.io:
+    endpoint:
+      - "https://a48d27d2b567a437b795e95ef4033d9b.d.1ms.run"
+  gcr.io:
+    endpoint:
+      - "https://dcf89efd0dde51013c30a6c673abb641.d.1ms.run"

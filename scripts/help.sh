@@ -24,7 +24,7 @@ tulan-tools — 个人开发工具集
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
-  brew conda / vim / time / fonts / mirrors  环境安装
+  brew conda / vim / time / fonts / mirrors / k8s  环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -37,6 +37,7 @@ tulan-tools — 个人开发工具集
   brew help time
   brew help fonts
   brew help mirrors
+  brew help k8s
 EOF
 }
 
@@ -152,6 +153,24 @@ brew mirrors — 国内镜像配置（系统源 + pip / npm / Go）
 EOF
 }
 
+help_k8s() {
+  cat <<EOF
+brew k8s — Rancher 单机 K8s 快捷安装（k8s-init）
+
+  brew k8s ca                        生成自签证书
+  brew k8s install                   安装 Rancher（Docker）
+  brew k8s password                  获取 Bootstrap 初始密码
+  brew k8s upgrade                   升级 Rancher 版本
+  brew k8s clean                     清理 K8s/Rancher（危险）
+  brew k8s sync-registries -f nodes.txt   同步镜像源到节点
+  brew k8s shell-init                配置 kubectl/crictl 别名
+  brew k8s status                    查看状态
+
+脚本目录: ${TULAN_HOME}/k8s-init/
+详细说明: ${TULAN_HOME}/k8s-init/README.md
+EOF
+}
+
 main() {
   case "${1:-}" in
     ""|-h|--help) usage ;;
@@ -163,9 +182,10 @@ main() {
     time|timezone|ntp) help_time ;;
     fonts|font|cjk) help_fonts ;;
     mirrors|mirror) help_mirrors ;;
+    k8s|k8s-init|rancher) help_k8s ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors"
+      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors, k8s"
       exit 1
       ;;
   esac

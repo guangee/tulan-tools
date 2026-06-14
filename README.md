@@ -131,6 +131,20 @@ brew mirrors   # pip / npm / Go 国内镜像；--repo 切换系统软件源
 
 `brew mirrors` 配置 pip（阿里云 PyPI）、npm（npmmirror）、Go（goproxy.cn）国内镜像。使用 `brew mirrors --repo` 可将 Debian / Ubuntu / CentOS 系统软件源切换为阿里云镜像，并在 `state/repo-backup/` 保留备份；`brew mirrors restore --repo` 可还原为原版源。
 
+## K8s / Rancher 单机安装
+
+基于 `k8s-init` 脚本，通过 Docker 部署 Rancher（内置 k3s）：
+
+```bash
+brew k8s ca          # 生成自签证书（/etc/certs）
+brew k8s install     # 安装 Rancher（需 Docker + sudo）
+brew k8s password    # 获取初始 Bootstrap 密码
+brew k8s status
+brew help k8s
+```
+
+脚本目录：`~/.tulan-tools/k8s-init/`，详细说明见该目录下 `README.md`。
+
 ## Docker 测试镜像
 
 `docker/` 目录提供 Ubuntu 22.04/24.04/26.04、Debian 12、CentOS 7.8/7.9 的 Dockerfile，用于验证安装与 `brew time` / `brew mirrors`：
