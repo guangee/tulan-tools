@@ -182,7 +182,8 @@ help_zsh() {
   cat <<EOF
 brew zsh — zsh 历史指令提示（Oh My Zsh + zsh-autosuggestions）
 
-  brew zsh                         安装插件并加入 ~/.zshrc plugins
+  brew zsh                         安装插件并加入 ~/.zshrc plugins（已配置则跳过）
+  brew zsh --refresh               强制更新已安装的插件仓库
   brew zsh status                  查看 zsh / Oh My Zsh 状态
 
   未检测到 Oh My Zsh 时自动跳过，不修改配置

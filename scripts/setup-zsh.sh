@@ -22,6 +22,7 @@ usage() {
 
 选项:
   --repo URL        插件仓库，默认 ${TULAN_ZSH_AUTOSUGGESTIONS_REPO}
+  --refresh         已安装时仍拉取插件更新（默认跳过重复配置）
   --debug           显示调试信息
   -h, --help        显示帮助
 
@@ -45,6 +46,7 @@ while [[ $# -gt 0 ]]; do
       export TULAN_ZSH_AUTOSUGGESTIONS_REPO="$2"
       shift 2
       ;;
+    --refresh) export TULAN_ZSH_REFRESH=true; shift ;;
     --debug) export TULAN_DEBUG=true; shift ;;
     -h|--help|help) usage; exit 0 ;;
     *)
