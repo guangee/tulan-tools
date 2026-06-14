@@ -60,14 +60,25 @@ remove_ca_files() {
 }
 
 maybe_remove_site_env() {
-  local domain="$1" env_domain=""
-  [[ -f "${CERT_OUT}/site.env" ]] || return 0
-  # shellcheck source=/dev/null
-  source "${CERT_OUT}/site.env"
-  env_domain="${K8S_SITE_DOMAIN:-}"
-  if [[ "$domain" == "$env_domain" ]]; then
-    rm -f "${CERT_OUT}/site.env"
-    log "已移除 site.env"
+  local domain="$1" env_domain="" rancher_domain=""
+  [[ -f "${CERT_OUT}/site.env" ]] || true
+  if [[ -f "${CERT_OUT}/site.env" ]]; then
+    # shellcheck source=/dev/null
+    source "${CERT_OUT}/site.env"
+    env_domain="${K8S_SITE_DOMAIN:-}"
+    if [[ "$domain" == "$env_domain" ]]; then
+      rm -f "${CERT_OUT}/site.env"
+      log "已移除 site.env"
+    fi
+  fi
+  if [[ -f "${CERT_OUT}/rancher.env" ]]; then
+    # shellcheck source=/dev/null
+    source "${CERT_OUT}/rancher.env"
+    rancher_domain="${K8S_SITE_DOMAIN:-}"
+    if [[ "$domain" == "$rancher_domain" ]]; then
+      rm -f "${CERT_OUT}/rancher.env"
+      log "已移除 rancher.env（部署记录）"
+    fi
   fi
 }
 
@@ -107,13 +118,13 @@ main() {
   if [[ "$K8S_CLEAN_INCLUDE_CA" == true ]]; then
     log "清理 CA"
     remove_ca_files
-    rm -f "${CERT_OUT}/site.env"
+    rm -f "${CERT_OUT}/site.env" "${CERT_OUT}/rancher.env"
   else
     # 若无剩余站点证书，一并清理 CA
     if [[ -z "$(list_cert_domains)" ]] && has_ca_files; then
       log "已无站点证书，一并清理 CA"
       remove_ca_files
-      rm -f "${CERT_OUT}/site.env"
+      rm -f "${CERT_OUT}/site.env" "${CERT_OUT}/rancher.env"
     fi
   fi
 

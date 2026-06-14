@@ -7,8 +7,10 @@
 ```bash
 brew k8s ca          # 交互生成证书（自动检测局域网 IP，询问域名）
 brew k8s ca -d rancher.local.example.com   # 指定域名
+brew k8s install     # 交互选择证书并安装（写入 rancher.env）
+brew k8s install -d rancher.local.example.com
+brew k8s upgrade     # 升级，自动沿用 rancher.env 中的证书
 brew k8s ca-clean    # 清理自签证书
-brew k8s install     # 安装 Rancher
 brew k8s password    # 获取初始密码
 brew k8s status
 brew help k8s        # 完整子命令列表
@@ -24,7 +26,8 @@ brew help k8s        # 完整子命令列表
 - `get-init-password.sh`：从 Rancher 容器日志提取首次登录密码（Bootstrap Password）。
 - `clean.sh`：清理 Rancher/k3s/rke2 相关进程、容器、网络与数据目录（高风险操作）。
 - `registries.yaml`：k3s 容器运行时镜像仓库配置（会被 `install.sh` 覆盖）。
-- `site.env`：由 `ca.sh` 生成，记录 `K8S_SITE_DOMAIN` 与 `K8S_SITE_IP`，供 `install.sh` 读取。
+- `site.env`：由 `ca.sh` 生成，记录最近一次生成的证书域名与 IP。
+- `rancher.env`：由 `install.sh` 写入、`upgrade.sh` 更新，记录当前 Rancher 部署使用的证书与镜像等信息。
 
 ## 前置条件
 
@@ -41,7 +44,7 @@ brew help k8s        # 完整子命令列表
 brew k8s ca
 ```
 
-2. 安装并启动 Rancher：
+2. 安装并启动 Rancher（多套证书时会提示选择，并写入 `rancher.env`）：
 
 ```bash
 brew k8s install

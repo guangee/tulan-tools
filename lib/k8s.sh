@@ -73,6 +73,26 @@ tulan_k8s_site_env_path() {
   echo "${TULAN_K8S_CERT_OUT}/site.env"
 }
 
+tulan_k8s_rancher_env_path() {
+  echo "${TULAN_K8S_CERT_OUT}/rancher.env"
+}
+
+tulan_k8s_list_usable_cert_domains() {
+  local domain
+  while read -r domain; do
+    [[ -f "${TULAN_K8S_CERT_OUT}/${domain}.crt" && -f "${TULAN_K8S_CERT_OUT}/${domain}.key" ]] && echo "$domain"
+  done < <(tulan_k8s_list_cert_domains)
+}
+
+tulan_k8s_load_rancher_config() {
+  local env_file
+  env_file="$(tulan_k8s_rancher_env_path)"
+  if [[ -f "$env_file" ]]; then
+    # shellcheck source=/dev/null
+    source "$env_file"
+  fi
+}
+
 tulan_k8s_load_site_config() {
   local env_file
   env_file="$(tulan_k8s_site_env_path)"
@@ -238,6 +258,14 @@ tulan_k8s_confirm_ca_clean() {
         [[ "$domain" == "$env_domain" ]] && echo "  配置: site.env"
       done
     fi
+    if [[ -f "$(tulan_k8s_rancher_env_path)" ]]; then
+      # shellcheck source=/dev/null
+      source "$(tulan_k8s_rancher_env_path)"
+      env_domain="${K8S_SITE_DOMAIN:-}"
+      for domain in ${K8S_CLEAN_DOMAINS:-}; do
+        [[ "$domain" == "$env_domain" ]] && echo "  配置: rancher.env（部署记录）"
+      done
+    fi
     [[ "$show_ca" == true ]] && tulan_k8s_has_ca_files && echo "  CA: ca.crt / ca.key"
   fi
 
@@ -250,6 +278,108 @@ tulan_k8s_confirm_ca_clean() {
   echo ""
   read -r -p "确认清理? [y/N]: " confirm
   [[ "$confirm" =~ ^[yY]$ ]] || { tulan_log "已取消"; return 1; }
+}
+
+tulan_k8s_resolve_site_ip_for_domain() {
+  local domain="$1" ip=""
+  if [[ -f "$(tulan_k8s_site_env_path)" ]]; then
+    # shellcheck source=/dev/null
+    source "$(tulan_k8s_site_env_path)"
+    [[ "${K8S_SITE_DOMAIN:-}" == "$domain" ]] && ip="${K8S_SITE_IP:-}"
+  fi
+  echo "${ip:-$(tulan_k8s_detect_lan_ip 2>/dev/null || true)}"
+}
+
+tulan_k8s_prompt_install_cert() {
+  local -a domains=()
+  local deployed_domain="" choice i default_idx domain
+
+  if [[ -n "${K8S_SITE_DOMAIN:-}" ]]; then
+    tulan_k8s_validate_domain "$K8S_SITE_DOMAIN" || return 1
+    if [[ ! -f "${TULAN_K8S_CERT_OUT}/${K8S_SITE_DOMAIN}.crt" ]] \
+      || [[ ! -f "${TULAN_K8S_CERT_OUT}/${K8S_SITE_DOMAIN}.key" ]]; then
+      tulan_error "缺少证书: ${K8S_SITE_DOMAIN}（${TULAN_K8S_CERT_OUT}）"
+      return 1
+    fi
+    K8S_SITE_IP="$(tulan_k8s_resolve_site_ip_for_domain "$K8S_SITE_DOMAIN")"
+    export K8S_SITE_DOMAIN K8S_SITE_IP
+    return 0
+  fi
+
+  mapfile -t domains < <(tulan_k8s_list_usable_cert_domains)
+  if [[ ${#domains[@]} -eq 0 ]]; then
+    tulan_error "未发现可用证书，请先执行: brew k8s ca"
+    return 1
+  fi
+
+  deployed_domain=""
+  tulan_k8s_load_rancher_config
+  deployed_domain="${K8S_SITE_DOMAIN:-}"
+
+  if [[ ${#domains[@]} -eq 1 ]]; then
+    domain="${domains[0]}"
+    echo ""
+    echo "Rancher 安装 — 使用证书: ${domain}"
+    echo "  目录: ${TULAN_K8S_CERT_OUT}"
+    echo ""
+  else
+    echo ""
+    echo "可用证书（${TULAN_K8S_CERT_OUT}）"
+    echo "────────────────────────────────────"
+    default_idx=1
+    for i in "${!domains[@]}"; do
+      active=""
+      if [[ -n "$deployed_domain" && "${domains[$i]}" == "$deployed_domain" ]]; then
+        active=" ← 上次部署"
+        default_idx=$((i + 1))
+      fi
+      echo "  [$((i + 1))] ${domains[$i]}${active}"
+    done
+    echo ""
+    read -r -p "请选择 Rancher 使用的证书 [1-${#domains[@]}] (默认 ${default_idx}): " choice
+    choice="${choice:-$default_idx}"
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#domains[@]} )); then
+      domain="${domains[$((choice - 1))]}"
+    elif [[ -f "${TULAN_K8S_CERT_OUT}/${choice}.crt" && -f "${TULAN_K8S_CERT_OUT}/${choice}.key" ]]; then
+      domain="$choice"
+    else
+      tulan_error "无效选择: ${choice}"
+      return 1
+    fi
+    echo ""
+    echo "  已选: ${domain}"
+    echo ""
+  fi
+
+  export K8S_SITE_DOMAIN="$domain"
+  export K8S_SITE_IP
+  K8S_SITE_IP="$(tulan_k8s_resolve_site_ip_for_domain "$domain")"
+}
+
+tulan_k8s_require_rancher_config() {
+  tulan_k8s_load_rancher_config
+  if [[ -z "${K8S_SITE_DOMAIN:-}" ]]; then
+    tulan_k8s_load_site_config
+  fi
+  if [[ -z "${K8S_SITE_DOMAIN:-}" ]]; then
+    tulan_error "未找到 Rancher 部署记录（$(tulan_k8s_rancher_env_path)）"
+    tulan_log "请先执行 brew k8s install 并选择证书"
+    return 1
+  fi
+  if [[ ! -f "${TULAN_K8S_CERT_OUT}/${K8S_SITE_DOMAIN}.crt" ]] \
+    || [[ ! -f "${TULAN_K8S_CERT_OUT}/${K8S_SITE_DOMAIN}.key" ]]; then
+    tulan_error "部署记录中的证书不存在: ${K8S_SITE_DOMAIN}"
+    return 1
+  fi
+  [[ -f "${TULAN_K8S_CERT_OUT}/ca.crt" ]] || {
+    tulan_error "缺少 CA 证书: ${TULAN_K8S_CERT_OUT}/ca.crt"
+    return 1
+  }
+  export K8S_SITE_DOMAIN K8S_SITE_IP
+  export RANCHER_DATA="${RANCHER_DATA:-${TULAN_K8S_RANCHER_DATA}}"
+  export CONTAINER_NAME="${CONTAINER_NAME:-${TULAN_K8S_CONTAINER}}"
+  export HTTP_PORT_MAP="${HTTP_PORT_MAP:-${TULAN_K8S_HTTP_PORT}}"
+  export HTTPS_PORT_MAP="${HTTPS_PORT_MAP:-${TULAN_K8S_HTTPS_PORT}}"
 }
 
 tulan_k8s_prompt_ca_params() {
@@ -289,7 +419,14 @@ tulan_k8s_prompt_ca_params() {
 }
 
 tulan_k8s_export_env() {
-  tulan_k8s_load_site_config
+  if [[ -n "${K8S_SITE_DOMAIN:-}" ]]; then
+    export K8S_SITE_DOMAIN K8S_SITE_IP
+  else
+    tulan_k8s_load_rancher_config
+    if [[ -z "${K8S_SITE_DOMAIN:-}" ]]; then
+      tulan_k8s_load_site_config
+    fi
+  fi
   export CERT_OUT="$TULAN_K8S_CERT_OUT"
   export RANCHER_DATA="$TULAN_K8S_RANCHER_DATA"
   export RANCHER_IMAGE="$TULAN_K8S_RANCHER_IMAGE"
@@ -342,12 +479,20 @@ tulan_k8s_show_status() {
   echo "────────────────────────────────────"
   echo "  脚本目录: $(tulan_k8s_dir)"
   echo "  证书目录: ${TULAN_K8S_CERT_OUT}"
-  tulan_k8s_load_site_config
-  if [[ -f "$(tulan_k8s_site_env_path)" ]]; then
-    echo "  站点域名: ${K8S_SITE_DOMAIN}"
-    [[ -n "${K8S_SITE_IP:-}" ]] && echo "  站点 IP:   ${K8S_SITE_IP}"
+  tulan_k8s_load_rancher_config
+  if [[ -f "$(tulan_k8s_rancher_env_path)" ]]; then
+    echo "  部署证书: ${K8S_SITE_DOMAIN}"
+    [[ -n "${K8S_SITE_IP:-}" ]] && echo "  证书 IP:   ${K8S_SITE_IP}"
+    [[ -n "${RANCHER_IMAGE:-}" ]] && echo "  已装镜像: ${RANCHER_IMAGE}"
+    [[ -n "${INSTALLED_AT:-}" ]] && echo "  安装时间: ${INSTALLED_AT}"
   else
-    echo "  站点域名: (未生成，请先 brew k8s ca)"
+    tulan_k8s_load_site_config
+    if [[ -f "$(tulan_k8s_site_env_path)" ]]; then
+      echo "  最近证书: ${K8S_SITE_DOMAIN}（未 install，见 site.env）"
+      [[ -n "${K8S_SITE_IP:-}" ]] && echo "  证书 IP:   ${K8S_SITE_IP}"
+    else
+      echo "  部署证书: (未安装，请先 brew k8s ca && brew k8s install)"
+    fi
   fi
   echo "  数据目录: ${TULAN_K8S_RANCHER_DATA}"
   echo "  镜像:     ${TULAN_K8S_RANCHER_IMAGE}"

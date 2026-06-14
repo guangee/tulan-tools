@@ -162,9 +162,10 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s ca-clean                  交互选择要清理的域名证书
   brew k8s ca-clean -d <domain>      清理指定域名证书
   brew k8s ca-clean -a               清理全部域名证书及 CA
-  brew k8s install                   安装 Rancher（Docker）
+  brew k8s install                   安装 Rancher（交互选择证书）
+  brew k8s install -d <domain>       指定证书安装
+  brew k8s upgrade                   升级 Rancher（沿用 rancher.env 证书）
   brew k8s password                  获取 Bootstrap 初始密码
-  brew k8s upgrade                   升级 Rancher 版本
   brew k8s clean                     清理 K8s/Rancher（危险）
   brew k8s sync-registries -f nodes.txt   同步镜像源到节点
   brew k8s shell-init                配置 kubectl/crictl 别名

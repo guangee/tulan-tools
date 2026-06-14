@@ -5,7 +5,8 @@
 #
 # 可选变量:
 #   CERT_OUT=/etc/certs
-#   K8S_SITE_DOMAIN=k8s.local.example.com
+#   K8S_SITE_DOMAIN=k8s.local.example.com   （由 brew k8s install 选择后传入）
+#   K8S_SITE_IP=192.168.1.100
 #   RANCHER_IMAGE=rancher/rancher:v2.8.5
 #   REGISTRY_MIRROR=https://hub.local.tulan.wang
 #   RANCHER_DATA=/opt/rancher-data
@@ -17,6 +18,7 @@ CERT_OUT="${CERT_OUT:-/etc/certs}"
 RANCHER_IMAGE="${RANCHER_IMAGE:-rancher/rancher:v2.8.5}"
 REGISTRY_MIRROR="${REGISTRY_MIRROR:-https://hub.local.tulan.wang}"
 RANCHER_DATA="${RANCHER_DATA:-/opt/rancher-data}"
+CONTAINER_NAME="${CONTAINER_NAME:-rancher}"
 HTTP_PORT_MAP="${HTTP_PORT_MAP:-8080:80}"
 HTTPS_PORT_MAP="${HTTPS_PORT_MAP:-8443:443}"
 
@@ -32,15 +34,46 @@ require_root() {
 }
 
 load_site_config() {
-  if [[ -f "${CERT_OUT}/site.env" ]]; then
-    # shellcheck source=/dev/null
-    source "${CERT_OUT}/site.env"
+  local selected="${K8S_SITE_DOMAIN:-}"
+  local selected_ip="${K8S_SITE_IP:-}"
+
+  if [[ -z "$selected" ]]; then
+    if [[ -f "${CERT_OUT}/rancher.env" ]]; then
+      # shellcheck source=/dev/null
+      source "${CERT_OUT}/rancher.env"
+    elif [[ -f "${CERT_OUT}/site.env" ]]; then
+      # shellcheck source=/dev/null
+      source "${CERT_OUT}/site.env"
+    fi
   fi
-  K8S_SITE_DOMAIN="${K8S_SITE_DOMAIN:-k8s.local.tulan.wang}"
+
+  K8S_SITE_DOMAIN="${selected:-${K8S_SITE_DOMAIN:-k8s.local.tulan.wang}}"
+  K8S_SITE_IP="${selected_ip:-${K8S_SITE_IP:-}}"
 
   if [[ ! -f "${CERT_OUT}/${K8S_SITE_DOMAIN}.crt" && -f "${CERT_OUT}/k8s.local.tulan.wang.crt" ]]; then
     K8S_SITE_DOMAIN="k8s.local.tulan.wang"
   fi
+}
+
+write_rancher_env() {
+  local ts
+  ts="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S')"
+  cat > "${CERT_OUT}/rancher.env" <<EOF
+# brew k8s install 写入，upgrade 读取
+K8S_SITE_DOMAIN=${K8S_SITE_DOMAIN}
+K8S_SITE_IP=${K8S_SITE_IP:-}
+CERT_OUT=${CERT_OUT}
+RANCHER_IMAGE=${RANCHER_IMAGE}
+RANCHER_DATA=${RANCHER_DATA}
+CONTAINER_NAME=${CONTAINER_NAME}
+HTTP_PORT_MAP=${HTTP_PORT_MAP}
+HTTPS_PORT_MAP=${HTTPS_PORT_MAP}
+REGISTRY_MIRROR=${REGISTRY_MIRROR}
+INSTALLED_AT=${ts}
+UPDATED_AT=${ts}
+EOF
+  chmod 644 "${CERT_OUT}/rancher.env"
+  log "已记录部署配置: ${CERT_OUT}/rancher.env"
 }
 
 prepare_rancher_files() {
@@ -77,13 +110,13 @@ main() {
   prepare_rancher_files
 
   log "删除同名旧容器（如果存在）"
-  docker rm -f rancher >/dev/null 2>&1 || true
+  docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
 
   log "拉取镜像 ${RANCHER_IMAGE}"
   docker pull "${RANCHER_IMAGE}"
 
-  log "启动 Rancher（站点: ${K8S_SITE_DOMAIN}）"
-  docker run -d --name rancher --restart=unless-stopped \
+  log "启动 Rancher（证书: ${K8S_SITE_DOMAIN}，镜像: ${RANCHER_IMAGE}）"
+  docker run -d --name "${CONTAINER_NAME}" --restart=unless-stopped \
     -p "${HTTP_PORT_MAP}" -p "${HTTPS_PORT_MAP}" \
     -v "${RANCHER_DATA}:/var/lib/rancher" \
     -v "${CERT_OUT}/registries.yaml:/etc/rancher/k3s/registries.yaml:ro" \
@@ -93,8 +126,10 @@ main() {
     --privileged \
     "${RANCHER_IMAGE}"
 
+  write_rancher_env
+
   log "当前容器状态："
-  docker ps --filter name=rancher
+  docker ps --filter "name=${CONTAINER_NAME}"
   log "完成。请通过 https://${K8S_SITE_DOMAIN} 访问（按端口映射调整端口）。"
 }
 

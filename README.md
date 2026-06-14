@@ -136,9 +136,9 @@ brew mirrors   # pip / npm / Go 国内镜像；--repo 切换系统软件源
 基于 `scripts/k8s` 脚本，通过 Docker 部署 Rancher（内置 k3s）：
 
 ```bash
-brew k8s ca          # 交互生成自签证书（自动检测局域网 IP，询问域名）
-brew k8s ca-clean    # 清理自签证书
-brew k8s install     # 安装 Rancher（需 Docker + sudo）
+brew k8s ca          # 交互生成自签证书
+brew k8s install     # 交互选择证书并安装（写入 rancher.env）
+brew k8s upgrade     # 升级时自动沿用 rancher.env 中的证书
 brew k8s password    # 获取初始 Bootstrap 密码
 brew k8s status
 brew help k8s

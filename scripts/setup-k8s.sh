@@ -20,7 +20,9 @@ usage() {
 用法: brew k8s [子命令] [选项/参数]
 
 子命令:
-  install           安装并启动 Rancher（Docker，默认）
+  brew k8s install                   安装 Rancher（交互选择证书，写入 rancher.env）
+  brew k8s install -d <domain>       指定证书安装
+  brew k8s upgrade                   升级 Rancher（自动使用 rancher.env 中的证书）
   ca                生成自签 CA 与站点证书（交互式输入域名，自动检测局域网 IP）
   ca-clean          清理自签 CA 与站点证书（不清理 Rancher 容器）
   password          从容器日志获取 Bootstrap 初始密码
@@ -39,6 +41,9 @@ ca-clean 选项:
   -d, --domain <name>   指定要清理的域名证书
   -a, --all             清理全部域名证书及 CA
   -y, --yes             跳过确认
+
+install / upgrade 选项:
+  -d, --domain <name>   install 时指定证书域名（跳过选择）
 
 环境变量:
   TULAN_K8S_CERT_OUT          证书目录，默认 /etc/certs
@@ -100,6 +105,8 @@ done
 main() {
   case "$ACTION" in
     install)
+      tulan_k8s_require_linux || exit 1
+      tulan_k8s_prompt_install_cert || exit 1
       tulan_require_privilege || exit 1
       tulan_k8s_run install.sh
       ;;
@@ -133,6 +140,9 @@ main() {
       tulan_k8s_run get-init-password.sh
       ;;
     upgrade)
+      tulan_k8s_require_linux || exit 1
+      tulan_k8s_require_rancher_config || exit 1
+      tulan_log "升级将沿用证书: ${K8S_SITE_DOMAIN}（$(tulan_k8s_rancher_env_path)）"
       tulan_require_privilege || exit 1
       tulan_k8s_run upgrade.sh
       ;;
