@@ -131,6 +131,7 @@ brew time      # 东八区时区 + 国内 NTP 测速同步（需 sudo）
 brew fonts     # 中文字体 + fontconfig + zh_CN locale（需 sudo）
 brew mirrors   # pip / npm / Go 国内镜像；--repo 切换系统软件源
 brew docker    # Docker daemon.json：镜像加速、日志轮转
+brew zsh       # zsh 历史指令提示（需 Oh My Zsh）
 ```
 
 `brew time` 会探测 `config/ntp.servers.cn` 中的国内 NTP 源，自动选用延迟最低的服务器，并将系统时区设为 `Asia/Shanghai`（东八区）。可用 `brew time probe` 仅查看测速结果。
@@ -138,6 +139,8 @@ brew docker    # Docker daemon.json：镜像加速、日志轮转
 `brew fonts` 会安装 Noto CJK 与文泉驿字体，写入 `config/fonts.cn.conf` 到 fontconfig，并生成 `zh_CN.UTF-8` locale，确保终端与 GUI 常见汉字可正常显示。
 
 `brew mirrors` 配置 pip（阿里云 PyPI）、npm（npmmirror）、Go（goproxy.cn）国内镜像。使用 `brew mirrors --repo` 可将 Debian / Ubuntu / CentOS 系统软件源切换为阿里云镜像，并在 `state/repo-backup/` 保留备份；`brew mirrors restore --repo` 可还原为原版源。
+
+`brew zsh` 在检测到 Oh My Zsh 已配置时，克隆 `zsh-autosuggestions` 并加入 `~/.zshrc` 的 `plugins`；未安装 zsh / Oh My Zsh 时自动跳过。
 
 ## K8s / Rancher 单机安装
 

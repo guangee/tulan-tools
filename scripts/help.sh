@@ -24,7 +24,7 @@ tulan-tools — 个人开发工具集
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
-  brew conda / vim / time / fonts / mirrors / docker / k8s  环境安装
+  brew conda / vim / time / fonts / mirrors / docker / zsh / k8s  环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -38,6 +38,7 @@ tulan-tools — 个人开发工具集
   brew help fonts
   brew help mirrors
   brew help docker
+  brew help zsh
   brew help k8s
 EOF
 }
@@ -177,6 +178,19 @@ brew docker — Docker 守护进程配置（daemon.json）
 EOF
 }
 
+help_zsh() {
+  cat <<EOF
+brew zsh — zsh 历史指令提示（Oh My Zsh + zsh-autosuggestions）
+
+  brew zsh                         安装插件并加入 ~/.zshrc plugins
+  brew zsh status                  查看 zsh / Oh My Zsh 状态
+
+  未检测到 Oh My Zsh 时自动跳过，不修改配置
+  插件路径: \${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
+  仓库: https://git.tulan.wang/github/zsh-autosuggestions.git
+EOF
+}
+
 help_k8s() {
   cat <<EOF
 brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
@@ -212,10 +226,11 @@ main() {
     fonts|font|cjk) help_fonts ;;
     mirrors|mirror) help_mirrors ;;
     docker|dockerd|docker-config) help_docker ;;
+    zsh|oh-my-zsh|autosuggestions) help_zsh ;;
     k8s|k8s-init|rancher) help_k8s ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors, docker, k8s"
+      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors, docker, zsh, k8s"
       exit 1
       ;;
   esac
