@@ -10,30 +10,34 @@ tulan_zsh_rc_path() {
   echo "${ZDOTDIR:-${HOME}}/.zshrc"
 }
 
-tulan_zsh_omz_dir() {
-  local zsh_dir="${ZSH:-}"
-  if [[ -z "$zsh_dir" && -f "$(tulan_zsh_rc_path)" ]]; then
-    zsh_dir="$(grep -E '^[[:space:]]*(export[[:space:]]+)?ZSH=' "$(tulan_zsh_rc_path)" 2>/dev/null | head -1 \
-      | sed -E 's/^[[:space:]]*(export[[:space:]]+)?ZSH=//' \
-      | tr -d "\"'" \
-      | sed "s#^\$HOME#${HOME}#")"
+tulan_zsh_read_rc_var() {
+  local name="$1" default="${2:-}" rc line value
+  rc="$(tulan_zsh_rc_path)"
+  if [[ -f "$rc" ]]; then
+    line="$(grep -E "^[[:space:]]*(export[[:space:]]+)?${name}=" "$rc" 2>/dev/null | head -1 || true)"
+    if [[ -n "$line" ]]; then
+      value="$(sed -E "s/^[[:space:]]*(export[[:space:]]+)?${name}=//" <<< "$line" | tr -d "\"'" | sed "s#^\$HOME#${HOME}#")"
+      echo "$value"
+      return 0
+    fi
   fi
+  echo "$default"
+}
+
+tulan_zsh_omz_dir() {
+  local zsh_dir
+  zsh_dir="$(tulan_zsh_read_rc_var ZSH "")"
   if [[ -z "$zsh_dir" ]]; then
-    zsh_dir="${HOME}/.oh-my-zsh"
+    zsh_dir="${ZSH:-${HOME}/.oh-my-zsh}"
   fi
   echo "$zsh_dir"
 }
 
 tulan_zsh_custom_dir() {
-  local custom="${ZSH_CUSTOM:-}"
-  if [[ -z "$custom" && -f "$(tulan_zsh_rc_path)" ]]; then
-    custom="$(grep -E '^[[:space:]]*(export[[:space:]]+)?ZSH_CUSTOM=' "$(tulan_zsh_rc_path)" 2>/dev/null | head -1 \
-      | sed -E 's/^[[:space:]]*(export[[:space:]]+)?ZSH_CUSTOM=//' \
-      | tr -d "\"'" \
-      | sed "s#^\$HOME#${HOME}#")"
-  fi
+  local custom
+  custom="$(tulan_zsh_read_rc_var ZSH_CUSTOM "")"
   if [[ -z "$custom" ]]; then
-    custom="$(tulan_zsh_omz_dir)/custom"
+    custom="${ZSH_CUSTOM:-$(tulan_zsh_omz_dir)/custom}"
   fi
   echo "$custom"
 }
@@ -46,25 +50,134 @@ tulan_zsh_is_configured() {
   command -v zsh &>/dev/null || return 1
   [[ -f "$(tulan_zsh_rc_path)" ]] || return 1
   [[ -d "$(tulan_zsh_omz_dir)" ]] || return 1
-  grep -q 'oh-my-zsh' "$(tulan_zsh_rc_path)" 2>/dev/null \
+  grep -qE '(oh-my-zsh|oh-my-zsh\.sh)' "$(tulan_zsh_rc_path)" 2>/dev/null \
     || [[ -f "$(tulan_zsh_omz_dir)/oh-my-zsh.sh" ]]
 }
 
-tulan_zsh_plugin_enabled() {
-  python3 - "$(tulan_zsh_rc_path)" "${TULAN_ZSH_AUTOSUGGESTIONS_PLUGIN}" <<'PY'
+tulan_zsh_python_plugins() {
+  python3 - "$@" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-text = Path(sys.argv[1]).read_text()
-plugin = sys.argv[2]
-for match in re.finditer(r'plugins=\(\s*(.*?)\s*\)', text, re.S):
-    items = re.split(r'\s+', match.group(1).strip())
-    items = [x for x in items if x and not x.startswith('#')]
-    if plugin in items:
+cmd = sys.argv[1]
+rc_path = Path(sys.argv[2])
+plugin = sys.argv[3] if len(sys.argv) > 3 else "zsh-autosuggestions"
+text = rc_path.read_text() if rc_path.exists() else ""
+
+
+def split_plugins(inner: str) -> list[str]:
+    items = []
+    for line in inner.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        code = stripped.split("#", 1)[0].strip()
+        if not code:
+            continue
+        items.extend(re.split(r"\s+", code))
+    if not items and inner.strip() and not inner.strip().startswith("#"):
+        items = [x for x in re.split(r"\s+", inner.strip()) if x and not x.startswith("#")]
+    return items
+
+
+def find_plugins_block(content: str):
+    for match in re.finditer(r"(?m)^(?P<prefix>[ \t]*(?:export[ \t]+)?)plugins=\(", content):
+        start = match.end() - 1
+        depth = 0
+        i = start
+        while i < len(content):
+            ch = content[i]
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    inner = content[start + 1 : i]
+                    prefix = match.group("prefix")
+                    return match.start(), i + 1, inner, prefix
+            i += 1
+    return None
+
+
+def list_plugins(content: str) -> list[str]:
+    block = find_plugins_block(content)
+    if not block:
+        return []
+    return split_plugins(block[2])
+
+
+def render_plugins(prefix: str, inner: str, items: list[str]) -> str:
+    export_kw = "export " if "export" in prefix else ""
+    if "\n" in inner or re.search(r"(?m)^\s*\S", inner):
+        body = "\n".join(f"  {x}" for x in items) + "\n"
+        return f"{export_kw}plugins=(\n{body})"
+    return f"{export_kw}plugins=({' '.join(items)})"
+
+
+def dedupe(items: list[str]) -> list[str]:
+    seen = set()
+    out = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
+
+
+if cmd == "enabled":
+    sys.exit(0 if plugin in list_plugins(text) else 1)
+
+if cmd == "add":
+    block = find_plugins_block(text)
+    if block:
+        start, end, inner, prefix = block
+        items = split_plugins(inner)
+        if plugin in items:
+            print("skip")
+            sys.exit(0)
+        items.append(plugin)
+        new_block = render_plugins(prefix, inner, items)
+        text = text[:start] + new_block + text[end:]
+        rc_path.write_text(text)
+        print("added")
         sys.exit(0)
-sys.exit(1)
+
+    anchor = re.search(r"(?m)^[ \t]*source[ \t]+\$ZSH/oh-my-zsh\.sh", text)
+    block_text = f"plugins=({plugin})\n\n"
+    if anchor:
+        text = text[: anchor.start()] + block_text + text[anchor.start() :]
+    else:
+        marker = f"# tulan-tools: {plugin}"
+        if marker in text:
+            print("skip")
+            sys.exit(0)
+        text = text.rstrip() + f"\n\n{marker}\nplugins=({plugin})\n"
+    rc_path.write_text(text)
+    print("added")
+    sys.exit(0)
+
+if cmd == "dedupe":
+    block = find_plugins_block(text)
+    if not block:
+        sys.exit(1)
+    start, end, inner, prefix = block
+    items = split_plugins(inner)
+    new_items = dedupe(items)
+    if new_items == items:
+        sys.exit(1)
+    new_block = render_plugins(prefix, inner, new_items)
+    text = text[:start] + new_block + text[end:]
+    rc_path.write_text(text)
+    sys.exit(0)
+
+sys.exit(2)
 PY
+}
+
+tulan_zsh_plugin_enabled() {
+  tulan_zsh_python_plugins enabled "$(tulan_zsh_rc_path)" "${TULAN_ZSH_AUTOSUGGESTIONS_PLUGIN}"
 }
 
 tulan_zsh_autosuggestions_installed() {
@@ -115,59 +228,7 @@ tulan_zsh_enable_autosuggestions_plugin() {
     return 0
   fi
 
-  result="$(python3 - "$rc" "$plugin" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-rc_path = Path(sys.argv[1])
-plugin = sys.argv[2]
-text = rc_path.read_text()
-
-def plugins_blocks(content):
-    return list(re.finditer(r'plugins=\(\s*(.*?)\s*\)', content, re.S))
-
-def split_plugins(inner):
-    items = []
-    for line in inner.splitlines():
-        line = line.split('#', 1)[0].strip()
-        if not line:
-            continue
-        items.extend(re.split(r'\s+', line))
-    return [x for x in items if x]
-
-blocks = plugins_blocks(text)
-for block in blocks:
-    if plugin in split_plugins(block.group(1)):
-        print("skip")
-        sys.exit(0)
-
-match = blocks[0] if blocks else None
-if match:
-    items = split_plugins(match.group(1))
-    items.append(plugin)
-    new_inner = ' '.join(items)
-    if '\n' in match.group(1):
-        new_inner = match.group(1).rstrip() + f"\n  {plugin}\n"
-    new_block = f"plugins=({new_inner})"
-    text = text[: match.start()] + new_block + text[match.end() :]
-    rc_path.write_text(text)
-    print("added")
-    sys.exit(0)
-
-anchor = re.search(r'^\s*source\s+\$ZSH/oh-my-zsh\.sh', text, re.M)
-block = f"plugins=({plugin})\n\n"
-if anchor:
-    text = text[: anchor.start()] + block + text[anchor.start() :]
-else:
-    if re.search(rf'#\s*tulan-tools:\s*{re.escape(plugin)}', text):
-        print("skip")
-        sys.exit(0)
-    text = text.rstrip() + f"\n\n# tulan-tools: {plugin}\nplugins=({plugin})\n"
-rc_path.write_text(text)
-print("added")
-PY
-)"
+  result="$(tulan_zsh_python_plugins add "$rc" "$plugin")"
 
   case "$result" in
     skip)
@@ -176,57 +237,20 @@ PY
     added)
       tulan_log "已在 ~/.zshrc 的 plugins 中加入 ${plugin}"
       ;;
+    *)
+      tulan_error "未能写入 ~/.zshrc plugins"
+      return 1
+      ;;
   esac
+
+  if ! tulan_zsh_plugin_enabled; then
+    tulan_error "写入后仍未在 plugins 中检测到 ${plugin}，请检查 ~/.zshrc 格式"
+    return 1
+  fi
 }
 
 tulan_zsh_dedupe_plugins() {
-  python3 - "$(tulan_zsh_rc_path)" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-rc_path = Path(sys.argv[1])
-text = rc_path.read_text()
-changed = False
-
-def split_plugins(inner):
-    items = []
-    for line in inner.splitlines():
-        line = line.split('#', 1)[0].strip()
-        if not line:
-            continue
-        items.extend(re.split(r'\s+', line))
-    return [x for x in items if x]
-
-def dedupe(items):
-    seen = set()
-    out = []
-    for item in items:
-        if item in seen:
-            continue
-        seen.add(item)
-        out.append(item)
-    return out
-
-def repl(match):
-    global changed
-    inner = match.group(1)
-    items = split_plugins(inner)
-    new_items = dedupe(items)
-    if new_items == items:
-        return match.group(0)
-    changed = True
-    if '\n' in inner:
-        body = '\n'.join(f"  {x}" for x in new_items) + '\n'
-        return f"plugins=({body})"
-    return f"plugins=({' '.join(new_items)})"
-
-text, n = re.subn(r'plugins=\(\s*(.*?)\s*\)', repl, text, count=0, flags=re.S)
-if changed:
-    rc_path.write_text(text)
-    sys.exit(0)
-sys.exit(1)
-PY
+  tulan_zsh_python_plugins dedupe "$(tulan_zsh_rc_path)" "${TULAN_ZSH_AUTOSUGGESTIONS_PLUGIN}"
 }
 
 tulan_zsh_configure_autosuggestions() {
@@ -236,7 +260,8 @@ tulan_zsh_configure_autosuggestions() {
     return 0
   fi
 
-  if tulan_zsh_autosuggestions_ready && [[ "${TULAN_ZSH_REFRESH:-false}" != true ]]; then
+  if tulan_zsh_plugin_enabled && tulan_zsh_autosuggestions_installed \
+    && [[ "${TULAN_ZSH_REFRESH:-false}" != true ]]; then
     tulan_log "zsh-autosuggestions 已配置（插件目录 + ~/.zshrc plugins），跳过"
     tulan_zsh_dedupe_plugins >/dev/null 2>&1 || true
     return 0
@@ -253,7 +278,7 @@ tulan_zsh_configure_autosuggestions() {
 }
 
 tulan_zsh_show_status() {
-  local rc omz custom plugin_dir
+  local rc omz custom plugin_dir plugins_list
 
   rc="$(tulan_zsh_rc_path)"
   omz="$(tulan_zsh_omz_dir)"
@@ -273,6 +298,33 @@ tulan_zsh_show_status() {
   echo ""
   echo "  zsh-autosuggestions:"
   echo "    插件目录: $([[ -d $plugin_dir ]] && echo "$plugin_dir" || echo "(未克隆)")"
-  echo "    plugins:  $(tulan_zsh_plugin_enabled && echo "已启用" || echo "未启用")"
+  if tulan_zsh_plugin_enabled; then
+    plugins_list="$(python3 - "$rc" <<'PY'
+import re, sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text()
+for m in re.finditer(r"(?m)^[ \t]*(?:export[ \t]+)?plugins=\(", text):
+    start = m.end()-1
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == '(': depth += 1
+        elif text[i] == ')':
+            depth -= 1
+            if depth == 0:
+                inner = text[start+1:i]
+                items = []
+                for line in inner.splitlines():
+                    s = line.strip()
+                    if not s or s.startswith('#'): continue
+                    items.extend(s.split('#',1)[0].split())
+                print(', '.join(items))
+                break
+    break
+PY
+)"
+    echo "    plugins:  已启用 (${plugins_list})"
+  else
+    echo "    plugins:  未启用"
+  fi
   echo "    仓库:     ${TULAN_ZSH_AUTOSUGGESTIONS_REPO}"
 }
