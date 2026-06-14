@@ -24,7 +24,7 @@ tulan-tools — 个人开发工具集
   brew use <工具> <版本>       切换二进制 / Java / Node 版本
   brew remove <名称>           移除已安装项
   brew update                  更新 tulan-tools
-  brew conda / vim / time / fonts / mirrors / docker / zsh / k8s  环境安装
+  brew conda / vim / time / fonts / mirrors / docker / zsh / firewall / k8s  环境安装
 
 自定义配置:
   编辑 ${TULAN_HOME}/lib/aliases.sh
@@ -39,6 +39,7 @@ tulan-tools — 个人开发工具集
   brew help mirrors
   brew help docker
   brew help zsh
+  brew help firewall
   brew help k8s
 EOF
 }
@@ -192,6 +193,23 @@ brew zsh — zsh 历史指令提示（Oh My Zsh + zsh-autosuggestions）
 EOF
 }
 
+help_firewall() {
+  cat <<EOF
+brew firewall — 防火墙端口开放/关闭（ufw / firewalld）
+
+  brew firewall status                   查看防火墙状态
+  brew firewall open <port>              开放端口（默认 tcp）
+  brew firewall open 8443/tcp
+  brew firewall close <port>             关闭端口
+  brew firewall disable                  关闭全部防火墙
+  brew firewall disable --restart-docker -y   关防火墙并重启 Docker
+  brew firewall enable                   重新启用防火墙
+
+  支持: ufw（Debian/Ubuntu）、firewalld（CentOS/RHEL）
+  需要 sudo
+EOF
+}
+
 help_k8s() {
   cat <<EOF
 brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
@@ -228,10 +246,11 @@ main() {
     mirrors|mirror) help_mirrors ;;
     docker|dockerd|docker-config) help_docker ;;
     zsh|oh-my-zsh|autosuggestions) help_zsh ;;
+    firewall|fw|ufw) help_firewall ;;
     k8s|k8s-init|rancher) help_k8s ;;
     *)
       echo "未知主题: $1"
-      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors, docker, zsh, k8s"
+      echo "可用主题: install, list, update, conda, vim, time, fonts, mirrors, docker, zsh, firewall, k8s"
       exit 1
       ;;
   esac

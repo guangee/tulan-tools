@@ -19,7 +19,7 @@ brew — 图蓝工具集（tulan-tools）
   install <名称>...   安装（默认最新版）
   use <工具> <版本>   切换二进制版本
   remove <名称>       移除已安装项
-  conda / vim / time / fonts / mirrors / docker / zsh / k8s  环境安装
+  conda / vim / time / fonts / mirrors / docker / zsh / firewall / k8s  环境安装
 
 示例:
   brew list
@@ -100,6 +100,10 @@ main() {
     zsh|oh-my-zsh|autosuggestions)
       shift
       exec "${TULAN_HOME}/scripts/setup-zsh.sh" "$@"
+      ;;
+    firewall|fw|ufw)
+      shift
+      exec "${TULAN_HOME}/scripts/setup-firewall.sh" "$@"
       ;;
     k8s|k8s-init|rancher)
       shift
