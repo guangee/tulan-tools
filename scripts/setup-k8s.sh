@@ -140,6 +140,7 @@ password 选项:
   brew k8s node-clean -y               清理节点注册数据后重新注册
   brew k8s node-clean --keep-server -y Server 主机兼节点时仅清 node 数据
   brew k8s images                      查看 Docker + containerd 镜像
+  brew k8s gen-pull                    生成 containerd 手工拉取脚本（供另一台机器）
   brew k8s sync-registries -f nodes.txt
   REGISTRY_MIRROR=https://hub.example.com brew k8s install
 EOF
@@ -167,6 +168,7 @@ while [[ $# -gt 0 ]]; do
     fix-dns|dns-fix) ACTION="fix-dns"; shift ;;
     node-clean|clean-node) ACTION="node-clean"; shift ;;
     images|list-images|imgs) ACTION="images"; shift ;;
+    gen-pull|gen-pull-images|pull-gen) ACTION="gen-pull"; shift ;;
     legacy-run|run) ACTION="legacy-run"; shift ;;
     -h|--help|help) usage; exit 0 ;;
     -d|--domain)
@@ -394,6 +396,10 @@ main() {
     images)
       tulan_k8s_require_linux || exit 1
       tulan_k8s_run_user list-images.sh "${EXTRA_ARGS[@]}"
+      ;;
+    gen-pull)
+      tulan_k8s_require_linux || exit 1
+      tulan_k8s_run_user gen-containerd-pull.sh "${EXTRA_ARGS[@]}"
       ;;
     legacy-run)
       tulan_require_privilege || exit 1
