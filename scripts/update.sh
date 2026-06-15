@@ -67,6 +67,7 @@ refresh_bin_index() {
   else
     tulan_log "bin 索引刷新失败，将使用本地缓存"
   fi
+  tulan_rancher_versions_refresh "$force" 2>/dev/null || true
 }
 
 do_update() {

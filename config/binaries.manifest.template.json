@@ -4,6 +4,7 @@
   "repository": "guangee/tulan-tools",
   "branch": "bin",
   "manifest_file": "binaries.manifest.json",
+  "rancher_versions_file": "k8s.rancher.versions.json",
   "github_proxy": "https://gh.coding-space.cn/",
   "tools": {
     "kubectl": {

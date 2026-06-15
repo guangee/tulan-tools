@@ -10,8 +10,7 @@ brew k8s ca -d rancher.local.example.com   # 指定域名
 brew k8s install     # 交互选择证书与端口并安装（写入 rancher.env）
 brew k8s install -d rancher.local.example.com
 brew k8s install --https-port 9443   # 指定 HTTPS 端口（默认 8443）
-brew k8s sync-versions   # 从 Docker Hub 同步 vX.Y.Z 版本列表
-brew k8s upgrade     # 交互选择升级版本，沿用 rancher.env 证书与端口
+brew k8s upgrade     # 交互选择升级版本（版本列表随 brew update 同步）
 brew k8s upgrade -V v2.13.3
 brew k8s ports       # 修改已部署实例的端口（重建容器，数据不变）
 brew k8s ports --https-port 9443 -y
@@ -34,8 +33,8 @@ brew help k8s        # 完整子命令列表
 - `registries.yaml`：k3s 容器运行时镜像仓库配置（会被 `install.sh` 覆盖）。
 - `site.env`：由 `ca.sh` 生成，记录最近一次生成的证书域名与 IP。
 - `rancher.env`：由 `install.sh` 写入、`upgrade.sh` / `ports.sh` 更新，记录当前 Rancher 部署使用的证书、端口映射与镜像等信息。
-- `config/k8s.rancher.versions`：`brew k8s upgrade` 可选版本列表（首项为默认推荐）。
-- `sync-rancher-versions.py`：从 Docker Hub 拉取 `vX.Y.Z` 标签并写入上述文件（`brew k8s sync-versions`）。
+- `config/k8s.rancher.versions.json`：bin 分支上的 Rancher 版本索引（CI 生成，`brew update` 拉取）。
+- `sync-rancher-versions.py`：CI/开发用，从 Docker Hub 同步 `vX.Y.Z`（同一 vX.Y 最多 3 个 patch）。
 
 ## 前置条件
 
@@ -135,18 +134,15 @@ brew k8s ports --https-port 9443 -y
 
 ## 同步可升级版本
 
-从 [Docker Hub rancher/rancher tags](https://hub.docker.com/r/rancher/rancher/tags) 拉取镜像标签，**仅保留 `vX.Y.Z` 稳定版本**（自动排除 `-head`、`-alpha`、`-amd64` 等）：
+Rancher 可升级版本在 **CI 构建 bin 分支**时从 [Docker Hub](https://hub.docker.com/r/rancher/rancher/tags) 自动同步，写入 `k8s.rancher.versions.json`（仅 `vX.Y.Z`，同一 `vX.Y` 最多 3 个 patch）。
+
+客户端执行 `brew update` 时会与二进制索引一并拉取到 `~/.tulan-tools/state/k8s.rancher.versions.json`，**无需手动 sync-versions**。
+
+开发/CI 可手动运行：
 
 ```bash
-brew k8s sync-versions              # 写入 ~/.tulan-tools/config/k8s.rancher.versions
-brew k8s sync-versions --limit 30   # 只保留最新 30 个
-brew k8s sync-versions --dry-run    # 预览，不写文件
-```
-
-也可直接运行脚本：
-
-```bash
-python3 scripts/k8s/sync-rancher-versions.py --output /etc/certs/k8s.rancher.versions
+python3 scripts/k8s/sync-rancher-versions.py --format json --max-per-minor 3 -o k8s.rancher.versions.json
+brew k8s sync-versions   # 写入本地 state 缓存（开发调试用）
 ```
 
 ## 清理与重装

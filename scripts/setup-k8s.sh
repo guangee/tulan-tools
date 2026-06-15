@@ -34,7 +34,7 @@ usage() {
   ports             修改已部署 Rancher 的 HTTP/HTTPS 端口
   clean             清理 Rancher/K3s/RKE2 组件与数据（危险）
   sync-registries   同步 registries.yaml 到节点清单（见 scripts/k8s/sync-registries.sh -h）
-  sync-versions     从 Docker Hub 同步 Rancher 可升级版本列表
+  sync-versions     开发用：手动同步 Rancher 版本到本地 state
   shell-init        配置 crictl/kubectl 别名（写入 ~/.zshrc）
   status            查看 Rancher 容器与配置
   legacy-run        旧版 run-k8s.sh（Rancher v2.5.17，容器名 k8s）
@@ -65,7 +65,8 @@ install / upgrade / ports 选项:
   TULAN_K8S_HTTP_PORT         默认 8080:80
   TULAN_K8S_HTTPS_PORT        默认 8443:443
   TULAN_K8S_UPGRADE_DEFAULT     默认升级镜像，默认 rancher/rancher:v2.13.3
-  TULAN_K8S_VERSIONS_FILE       可选版本列表，默认 config/k8s.rancher.versions
+  TULAN_K8S_VERSIONS_FILE       本地 fallback，默认 config/k8s.rancher.versions
+                                （正常由 brew update 缓存 state/k8s.rancher.versions.json）
 
 说明:
   脚本目录: ${TULAN_HOME}/scripts/k8s/

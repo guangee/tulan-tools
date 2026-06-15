@@ -627,8 +627,53 @@ tulan_k8s_prompt_ca_params() {
   echo ""
 }
 
+tulan_k8s_versions_cache_path() {
+  echo "$(tulan_get_home)/state/k8s.rancher.versions.json"
+}
+
 tulan_k8s_versions_file() {
-  echo "${TULAN_K8S_VERSIONS_FILE:-$(tulan_get_home)/config/k8s.rancher.versions}"
+  local cache fallback
+  cache="$(tulan_k8s_versions_cache_path)"
+  if [[ -f "$cache" ]]; then
+    echo "$cache"
+    return 0
+  fi
+  fallback="${TULAN_K8S_VERSIONS_FILE:-$(tulan_get_home)/config/k8s.rancher.versions}"
+  if [[ -f "$fallback" ]]; then
+    echo "$fallback"
+    return 0
+  fi
+  json_fallback="$(tulan_get_home)/config/k8s.rancher.versions.json"
+  if [[ -f "$json_fallback" ]]; then
+    echo "$json_fallback"
+    return 0
+  fi
+  echo "$cache"
+}
+
+tulan_k8s_read_versions_from_file() {
+  local f="$1"
+  if [[ ! -f "$f" ]]; then
+    return 1
+  fi
+  if [[ "$f" == *.json ]]; then
+    python3 -c "
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as fh:
+    data = json.load(fh)
+for tag in data.get('tags') or []:
+    print(tag)
+" "$f"
+    return 0
+  fi
+  local line tag
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%%#*}"
+    line="${line// /}"
+    [[ -n "$line" ]] || continue
+    tag="$(tulan_k8s_normalize_version_tag "$line")"
+    echo "$tag"
+  done < "$f"
 }
 
 tulan_k8s_normalize_version_tag() {
@@ -652,16 +697,10 @@ tulan_k8s_tag_from_image() {
 }
 
 tulan_k8s_list_upgrade_versions() {
-  local f line tag
+  local f
   f="$(tulan_k8s_versions_file)"
   if [[ -f "$f" ]]; then
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      line="${line%%#*}"
-      line="${line// /}"
-      [[ -n "$line" ]] || continue
-      tag="$(tulan_k8s_normalize_version_tag "$line")"
-      echo "$tag"
-    done < "$f"
+    tulan_k8s_read_versions_from_file "$f"
     return 0
   fi
   tulan_k8s_tag_from_image "${TULAN_K8S_UPGRADE_DEFAULT}"
@@ -712,7 +751,7 @@ tulan_k8s_prompt_upgrade_image() {
   echo "  也可直接输入版本号（如 v2.10.0 或 rancher/rancher:v2.10.0）"
   echo ""
   echo "  版本列表: $(tulan_k8s_versions_file)"
-  echo "  更新列表: brew k8s sync-versions  （从 Docker Hub 拉取 vX.Y.Z）"
+  echo "  更新列表: brew update（随 bin 索引同步）"
   echo ""
   read -r -p "请选择升级目标 [1-${#versions[@]}] (默认 ${default_idx}): " choice
   choice="${choice:-$default_idx}"

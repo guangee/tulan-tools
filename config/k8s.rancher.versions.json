@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "updated_at": "",
+  "source": "https://hub.docker.com/r/rancher/rancher/tags",
+  "image": "rancher/rancher",
+  "tag_pattern": "vX.Y.Z",
+  "max_per_minor": 3,
+  "tags": [
+    "v2.13.3",
+    "v2.9.3",
+    "v2.8.5"
+  ]
+}

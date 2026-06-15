@@ -78,7 +78,27 @@ def fetch_tags_from_registry(page_size: int, max_pages: int, timeout: int) -> li
     return tags
 
 
-def collect_semver_tags(raw_tags: list[str]) -> list[str]:
+def minor_key(tag: str) -> tuple[int, int]:
+    major, minor, _patch = version_key(tag)
+    return major, minor
+
+
+def filter_max_per_minor(tags: list[str], max_per_minor: int) -> list[str]:
+    if max_per_minor <= 0:
+        return tags
+    counts: dict[tuple[int, int], int] = {}
+    kept: list[str] = []
+    for tag in tags:
+        key = minor_key(tag)
+        count = counts.get(key, 0)
+        if count >= max_per_minor:
+            continue
+        counts[key] = count + 1
+        kept.append(tag)
+    return kept
+
+
+def collect_semver_tags(raw_tags: list[str], max_per_minor: int = 0) -> list[str]:
     seen: set[str] = set()
     stable: list[str] = []
     for name in raw_tags:
@@ -89,10 +109,15 @@ def collect_semver_tags(raw_tags: list[str]) -> list[str]:
         seen.add(name)
         stable.append(name)
     stable.sort(key=version_key, reverse=True)
-    return stable
+    return filter_max_per_minor(stable, max_per_minor)
 
 
-def fetch_semver_tags(page_size: int, max_pages: int, timeout: int) -> list[str]:
+def fetch_semver_tags(
+    page_size: int,
+    max_pages: int,
+    timeout: int,
+    max_per_minor: int = 0,
+) -> list[str]:
     errors: list[str] = []
     for name, fetcher in (
         ("Docker Hub API", fetch_tags_from_hub),
@@ -100,9 +125,12 @@ def fetch_semver_tags(page_size: int, max_pages: int, timeout: int) -> list[str]
     ):
         try:
             raw = fetcher(page_size, max_pages, timeout)
-            stable = collect_semver_tags(raw)
+            stable = collect_semver_tags(raw, max_per_minor)
             if stable:
-                print(f"[sync-rancher-versions] 已从 {name} 获取 {len(stable)} 个 vX.Y.Z 版本", file=sys.stderr)
+                print(
+                    f"[sync-rancher-versions] 已从 {name} 获取 {len(stable)} 个 vX.Y.Z 版本",
+                    file=sys.stderr,
+                )
                 return stable
             errors.append(f"{name}: 未找到 vX.Y.Z 标签")
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
@@ -111,12 +139,26 @@ def fetch_semver_tags(page_size: int, max_pages: int, timeout: int) -> list[str]
     raise RuntimeError("无法从 Docker Hub 拉取 Rancher 版本\n  - " + "\n  - ".join(errors))
 
 
-def render_versions_file(tags: list[str]) -> str:
+def render_versions_json(tags: list[str], max_per_minor: int) -> str:
+    payload = {
+        "version": 1,
+        "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source": "https://hub.docker.com/r/rancher/rancher/tags",
+        "image": "rancher/rancher",
+        "tag_pattern": "vX.Y.Z",
+        "max_per_minor": max_per_minor,
+        "tags": tags,
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+
+
+def render_versions_file(tags: list[str], max_per_minor: int) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     lines = [
-        "# 由 brew k8s sync-versions 自动生成",
+        "# 由 CI / brew k8s sync-versions 自动生成",
         "# 来源: https://hub.docker.com/r/rancher/rancher/tags",
         "# 仅保留 vX.Y.Z 稳定版本（排除 -head、-alpha、-amd64 等）",
+        f"# 同一 vX.Y 最多保留 {max_per_minor} 个 patch",
         f"# 更新时间: {ts}",
         "",
     ]
@@ -136,10 +178,22 @@ def main() -> int:
         help="输出文件（默认: <tulan-home>/config/k8s.rancher.versions）",
     )
     parser.add_argument(
+        "--format",
+        choices=("json", "text"),
+        default="json",
+        help="输出格式（默认 json，供 bin 分支缓存）",
+    )
+    parser.add_argument(
+        "--max-per-minor",
+        type=int,
+        default=3,
+        help="同一 vX.Y 最多保留几个 patch 版本（默认 3，0 表示不限制）",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
-        default=50,
-        help="最多保留多少个版本（0 表示全部，默认 50）",
+        default=0,
+        help="最多保留多少个版本（0 表示不限制，默认 0）",
     )
     parser.add_argument(
         "--page-size",
@@ -170,7 +224,12 @@ def main() -> int:
         print("page-size 需在 1-1000 之间", file=sys.stderr)
         return 1
 
-    tags = fetch_semver_tags(args.page_size, args.max_pages, args.timeout)
+    tags = fetch_semver_tags(
+        args.page_size,
+        args.max_pages,
+        args.timeout,
+        args.max_per_minor,
+    )
     if args.limit > 0:
         tags = tags[: args.limit]
 
@@ -178,7 +237,12 @@ def main() -> int:
         print("未找到任何 vX.Y.Z 版本", file=sys.stderr)
         return 1
 
-    content = render_versions_file(tags)
+    if args.format == "json":
+        content = render_versions_json(tags, args.max_per_minor)
+        default_name = "k8s.rancher.versions.json"
+    else:
+        content = render_versions_file(tags, args.max_per_minor)
+        default_name = "k8s.rancher.versions"
 
     if args.dry_run:
         sys.stdout.write(content)
@@ -189,7 +253,7 @@ def main() -> int:
         tulan_home = Path.home() / ".tulan-tools"
         if (Path.cwd() / "lib" / "common.sh").exists():
             tulan_home = Path.cwd()
-        output = tulan_home / "config" / "k8s.rancher.versions"
+        output = tulan_home / "config" / default_name
 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(content, encoding="utf-8")

@@ -8,6 +8,7 @@ TULAN_MANIFEST_TTL="${TULAN_MANIFEST_TTL:-86400}"
 TULAN_MANIFEST_DEFAULT_REPO="${TULAN_GITHUB_REPO:-guangee/tulan-tools}"
 TULAN_MANIFEST_DEFAULT_BRANCH="bin"
 TULAN_MANIFEST_DEFAULT_FILE="binaries.manifest.json"
+TULAN_RANCHER_VERSIONS_FILE="k8s.rancher.versions.json"
 TULAN_MANIFEST_PROXY_DEFAULT="https://gh.coding-space.cn/"
 
 tulan_manifest_cache_path() {
@@ -108,6 +109,62 @@ tulan_manifest_refresh() {
   mv "${cache}.tmp" "$cache"
   date +%s > "$(tulan_manifest_cache_ts_path)"
   tulan_log "索引已缓存: ${cache}"
+}
+
+tulan_rancher_versions_cache_path() {
+  echo "$(tulan_get_home)/state/${TULAN_RANCHER_VERSIONS_FILE}"
+}
+
+tulan_rancher_versions_cache_ts_path() {
+  echo "$(tulan_get_home)/state/rancher-versions-fetched-at"
+}
+
+tulan_rancher_versions_remote_url() {
+  local repo="${1:-$(tulan_manifest_default_repo)}"
+  local branch="${2:-${TULAN_MANIFEST_DEFAULT_BRANCH}}"
+  echo "https://raw.githubusercontent.com/${repo}/${branch}/${TULAN_RANCHER_VERSIONS_FILE}"
+}
+
+tulan_rancher_versions_cache_expired() {
+  local ts_file now last
+  ts_file="$(tulan_rancher_versions_cache_ts_path)"
+  [[ -f "$ts_file" ]] || return 0
+  last="$(cat "$ts_file")"
+  now="$(date +%s)"
+  (( now - last >= TULAN_MANIFEST_TTL ))
+}
+
+# 从 bin 分支拉取 Rancher 可升级版本列表
+tulan_rancher_versions_refresh() {
+  local force="${1:-false}"
+  local cache proxy url repo
+
+  cache="$(tulan_rancher_versions_cache_path)"
+  repo="$(tulan_manifest_default_repo)"
+
+  if [[ "$force" != true ]] && [[ -f "$cache" ]] && ! tulan_rancher_versions_cache_expired; then
+    return 0
+  fi
+
+  url="$(tulan_rancher_versions_remote_url "$repo")"
+  proxy="$(tulan_manifest_proxy)"
+  mkdir -p "$(dirname "$cache")"
+
+  if [[ -n "$proxy" ]]; then
+    tulan_log "刷新 Rancher 版本索引: $(tulan_proxy_url "$url" "$proxy")"
+  else
+    tulan_log "刷新 Rancher 版本索引: ${url}"
+  fi
+
+  if ! tulan_curl_download "$url" "${cache}.tmp" "$proxy"; then
+    [[ -f "$cache" ]] && { tulan_log "使用本地缓存 Rancher 版本列表"; return 0; }
+    tulan_log "Rancher 版本索引不可用（可稍后 brew update 重试）"
+    return 0
+  fi
+
+  mv "${cache}.tmp" "$cache"
+  date +%s > "$(tulan_rancher_versions_cache_ts_path)"
+  tulan_log "Rancher 版本已缓存: ${cache}"
 }
 
 # 解析 JSON 字段（依赖 python3）
