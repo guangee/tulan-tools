@@ -263,6 +263,14 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s node-status -v              附带 journal 日志
   brew k8s node-pull                   查看镜像拉取进度与 registry 网络
   brew k8s node-pull -f                持续跟踪 agent 拉取日志
+  brew k8s node-restart master -y      重启 master（rke2-server）
+  brew k8s node-restart worker -y      重启 worker（rke2-agent）
+  brew k8s node-watch                  持续监控节点状态/镜像
+  brew k8s node-watch -i 3             每 3 秒刷新
+  brew k8s node-restart master -y      重启 master（rke2-server）
+  brew k8s node-restart worker -y      重启 worker（rke2-agent）
+  brew k8s node-watch                  持续监控节点状态/镜像
+  brew k8s node-watch -i 3             每 3 秒刷新
   brew k8s fix-dns                     修复节点 DNS（测速 + 自动配置）
   brew k8s fix-dns -y
   brew k8s node-clean                  清理节点注册数据（便于重新注册）
