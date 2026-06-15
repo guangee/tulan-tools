@@ -35,7 +35,7 @@ usage() {
   brew k8s upgrade -V v2.13.3        指定版本升级
   ca                生成自签 CA 与站点证书（交互式输入域名，自动检测局域网 IP）
   ca-clean          清理自签 CA 与站点证书（不清理 Rancher 容器）
-  password          从容器日志获取 Bootstrap 初始密码
+  password          Bootstrap 初始密码 / 设置或重置管理员密码
   upgrade           升级 Rancher 镜像版本
   ports             修改已部署 Rancher 的 HTTP/HTTPS 端口
   clean             清理 Rancher/K3s/RKE2 组件与数据（危险，含 Server）
@@ -78,10 +78,15 @@ register-url 选项:
   --set                 将 Rancher server-url 设为内网地址
 
 register-command 选项:
-  -c, --cluster <name>  指定集群名（默认列出全部）
+  -c, --cluster <name>  指定集群名（UI 显示名如 prod 或 c-m-xxx 均可）
   --from-url <url>      额外替换此外网 URL（如 nginx 入口与证书域名不同）
   --refresh             删除并重建 registration token 后再输出
   --format text|json|command  text=对比展示, command=仅一行命令
+
+password 选项:
+  --set <密码>          设置 Rancher 管理员密码（至少 8 位）
+  --reset               交互式 reset-password
+  -y, --yes             --set 时跳过确认
 
 环境变量:
   TULAN_K8S_CERT_OUT          证书目录，默认 /etc/certs
@@ -114,6 +119,8 @@ register-command 选项:
   brew k8s upgrade
   brew k8s upgrade -V v2.13.3
   brew k8s password
+  brew k8s password --set 'YourPassword' -y
+  brew k8s password --reset
   brew k8s register-url                查看内网节点注册地址
   brew k8s register-url --format url   仅输出内网 URL
   brew k8s register-url --set -y       将 Rancher server-url 改为内网
@@ -272,7 +279,12 @@ main() {
       tulan_k8s_run ca-clean.sh
       ;;
     password)
-      tulan_k8s_run get-init-password.sh
+      tulan_k8s_require_linux || exit 1
+      export PASSWORD_ASSUME_YES="$NODE_CLEAN_ASSUME_YES"
+      if [[ " ${EXTRA_ARGS[*]:-} " == *" --set "* || " ${EXTRA_ARGS[*]:-} " == *" --reset "* ]]; then
+        tulan_require_privilege || exit 1
+      fi
+      tulan_k8s_run get-init-password.sh "${EXTRA_ARGS[@]}"
       ;;
     upgrade)
       tulan_k8s_require_linux || exit 1

@@ -247,6 +247,8 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s upgrade -V v2.13.3        指定版本升级
   brew k8s upgrade --image rancher/rancher:v2.13.3
   brew k8s password                  获取 Bootstrap 初始密码
+  brew k8s password --set '密码' -y  设置 Rancher 管理员密码
+  brew k8s password --reset          交互式重置管理员密码
   brew k8s clean                     清理 K8s/Rancher（危险）
   brew k8s sync-registries -f nodes.txt   同步镜像源到节点
   brew k8s shell-init                配置 kubectl/crictl 别名
@@ -263,10 +265,6 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s node-status -v              附带 journal 日志
   brew k8s node-pull                   查看镜像拉取进度与 registry 网络
   brew k8s node-pull -f                持续跟踪 agent 拉取日志
-  brew k8s node-restart master -y      重启 master（rke2-server）
-  brew k8s node-restart worker -y      重启 worker（rke2-agent）
-  brew k8s node-watch                  持续监控节点状态/镜像
-  brew k8s node-watch -i 3             每 3 秒刷新
   brew k8s node-restart master -y      重启 master（rke2-server）
   brew k8s node-restart worker -y      重启 worker（rke2-agent）
   brew k8s node-watch                  持续监控节点状态/镜像

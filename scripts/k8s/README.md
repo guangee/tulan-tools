@@ -15,7 +15,9 @@ brew k8s upgrade -V v2.13.3
 brew k8s ports       # 修改已部署实例的端口（重建容器，数据不变）
 brew k8s ports --https-port 9443 -y
 brew k8s ca-clean    # 清理自签证书
-brew k8s password    # 获取初始密码
+brew k8s password    # 获取 Bootstrap 初始密码
+brew k8s password --set 'YourPassword' -y   # 设置管理员密码
+brew k8s password --reset                    # 交互式重置
 brew k8s register-url   # 内网节点注册地址（比 nginx 外网更稳定）
 brew k8s register-command   # 内网版注册命令（server-url 已改但 UI 仍显示外网时用）
 brew k8s node-status        # 在节点上查看注册状态
@@ -298,7 +300,7 @@ brew k8s clean
 
 - 证书域名不匹配：确保访问地址与 `site.env` 中的 `K8S_SITE_DOMAIN` 一致。
 - 镜像拉取失败：检查 `registries.yaml` 与网络连通性，必要时切回官方仓库。
-- 无法获取初始密码：可执行 `docker exec -it rancher reset-password` 重置管理员密码。
+- 无法获取初始密码：`brew k8s password`；设置指定密码：`brew k8s password --set '密码' -y`；或 `brew k8s password --reset`。
 
 ## 安全建议
 
