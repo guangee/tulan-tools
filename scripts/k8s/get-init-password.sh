@@ -42,16 +42,52 @@ require_docker_container() {
     echo "未检测到 docker 命令。"
     exit 1
   fi
-  if ! docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
+  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq "${CONTAINER_NAME}"; then
+    if [[ "${EUID:-$(id -u)}" -ne 0 ]] && command -v sudo >/dev/null 2>&1; then
+      if ! sudo docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq "${CONTAINER_NAME}"; then
+        echo "Rancher 容器未运行: ${CONTAINER_NAME}"
+        exit 1
+      fi
+      return 0
+    fi
     echo "Rancher 容器未运行: ${CONTAINER_NAME}"
     exit 1
+  fi
+}
+
+has_tty() {
+  [[ -t 0 && -t 1 ]]
+}
+
+# 交互式 docker 必须保留 TTY；普通 sudo 会断开终端导致 reset-password 不等待输入
+run_docker() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    docker "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    if has_tty; then
+      sudo -t docker "$@"
+    else
+      sudo docker "$@"
+    fi
+  else
+    docker "$@"
+  fi
+}
+
+run_docker_stdin() {
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+    docker "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo docker "$@"
+  else
+    docker "$@"
   fi
 }
 
 get_bootstrap_password() {
   local password_line
   password_line="$(
-    docker logs "${CONTAINER_NAME}" 2>&1 \
+    run_docker logs "${CONTAINER_NAME}" 2>&1 \
       | sed -n 's/.*Bootstrap Password:[[:space:]]*//p' \
       | tail -n 1
   )"
@@ -73,6 +109,10 @@ confirm_set_password() {
   if [[ "$PASSWORD_ASSUME_YES" == true ]]; then
     return 0
   fi
+  if ! has_tty; then
+    echo "当前无交互终端，请使用 -y 跳过确认: brew k8s password --set '密码' -y" >&2
+    exit 1
+  fi
   echo ""
   echo "将把 Rancher 管理员密码设置为指定值（容器: ${CONTAINER_NAME}）。"
   read -r -p "确认继续? [y/N]: " confirm
@@ -92,8 +132,8 @@ set_admin_password() {
   confirm_set_password || { echo "已取消"; exit 0; }
 
   echo "正在设置 Rancher 管理员密码..."
-  # reset-password 从 stdin 读取新密码（需 TTY 时可能两次确认，-i 非交互）
-  if printf '%s\n' "$pass" | docker exec -i "${CONTAINER_NAME}" reset-password 2>&1; then
+  # reset-password 从 stdin 读取新密码；勿用 sudo -t，避免与管道 stdin 冲突
+  if printf '%s\n' "$pass" | run_docker_stdin exec -i "${CONTAINER_NAME}" reset-password 2>&1; then
     echo ""
     echo "管理员密码已更新。"
     echo "请使用 Rancher UI 登录（用户名一般为 admin 或 reset-password 输出中的 user-xxxxx）。"
@@ -108,8 +148,15 @@ set_admin_password() {
 }
 
 reset_password_interactive() {
+  if ! has_tty; then
+    echo "当前环境无交互终端（TTY），reset-password 无法等待你输入密码。" >&2
+    echo "请在本机 SSH/终端中执行，或使用:" >&2
+    echo "  brew k8s password --set '你的密码' -y" >&2
+    echo "  docker exec -it ${CONTAINER_NAME} reset-password" >&2
+    exit 1
+  fi
   echo "进入容器交互 reset-password（按提示输入新密码）..."
-  docker exec -it "${CONTAINER_NAME}" reset-password
+  run_docker exec -it "${CONTAINER_NAME}" reset-password
 }
 
 parse_args() {

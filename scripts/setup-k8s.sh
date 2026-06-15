@@ -281,10 +281,13 @@ main() {
     password)
       tulan_k8s_require_linux || exit 1
       export PASSWORD_ASSUME_YES="$NODE_CLEAN_ASSUME_YES"
-      if [[ " ${EXTRA_ARGS[*]:-} " == *" --set "* || " ${EXTRA_ARGS[*]:-} " == *" --reset "* ]]; then
+      if [[ " ${EXTRA_ARGS[*]:-} " == *" --set "* ]]; then
         tulan_require_privilege || exit 1
+        tulan_k8s_run get-init-password.sh "${EXTRA_ARGS[@]}"
+      else
+        # --reset / 读 Bootstrap 需保留 TTY，勿经 sudo env bash 包裹
+        tulan_k8s_run_user get-init-password.sh "${EXTRA_ARGS[@]}"
       fi
-      tulan_k8s_run get-init-password.sh "${EXTRA_ARGS[@]}"
       ;;
     upgrade)
       tulan_k8s_require_linux || exit 1
