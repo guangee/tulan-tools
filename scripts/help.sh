@@ -211,6 +211,23 @@ brew firewall — 防火墙端口开放/关闭（多后端兼容）
 EOF
 }
 
+help_dns() {
+  cat <<EOF
+brew dns — 自动测速并修复系统 DNS
+
+  brew dns fix                         测速 + 修复（默认，需 sudo）
+  brew dns fix -y                      跳过确认
+  brew dns status                      查看当前 DNS / 诊断
+  brew dns probe                       仅测速公共 DNS
+  brew dns fix --no-probe --servers 223.5.5.5 223.6.6.6 -y
+
+  自动识别 systemd-resolved / NetworkManager / netplan
+  可修复 [::1]:53、127.0.0.53 等无效 DNS 导致的镜像拉取失败
+  K8s 节点可用: brew k8s fix-dns（同 fix）
+  需要 sudo
+EOF
+}
+
 help_k8s() {
   cat <<EOF
 brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
@@ -246,6 +263,8 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s node-status -v              附带 journal 日志
   brew k8s node-pull                   查看镜像拉取进度与 registry 网络
   brew k8s node-pull -f                持续跟踪 agent 拉取日志
+  brew k8s fix-dns                     修复节点 DNS（测速 + 自动配置）
+  brew k8s fix-dns -y
   brew k8s node-clean                  清理节点注册数据（便于重新注册）
   brew k8s node-clean -y               跳过确认
   brew k8s images                      查看 Docker + containerd 已拉取镜像
@@ -269,6 +288,7 @@ main() {
     docker|dockerd|docker-config) help_docker ;;
     zsh|oh-my-zsh|autosuggestions) help_zsh ;;
     firewall|fw|ufw) help_firewall ;;
+    dns|resolv|nameserver) help_dns ;;
     k8s|k8s-init|rancher) help_k8s ;;
     *)
       echo "未知主题: $1"
