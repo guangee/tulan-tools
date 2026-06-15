@@ -217,8 +217,14 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --set)
-      REGISTER_URL_SET=true
-      shift
+      if [[ "$ACTION" == "password" ]]; then
+        [[ $# -ge 2 ]] || { tulan_error "缺少 --set 密码参数"; exit 1; }
+        EXTRA_ARGS+=("--set" "$2")
+        shift 2
+      else
+        REGISTER_URL_SET=true
+        shift
+      fi
       ;;
     -c|--cluster)
       [[ $# -ge 2 ]] || { tulan_error "缺少 --cluster 参数"; exit 1; }
