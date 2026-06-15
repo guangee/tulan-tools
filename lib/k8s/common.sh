@@ -66,6 +66,16 @@ tulan_k8s_site_env_path() {
 tulan_k8s_rancher_env_path() {
   echo "${TULAN_K8S_CERT_OUT}/rancher.env"
 }
+
+tulan_k8s_load_rancher_config() {
+  local env_file
+  env_file="$(tulan_k8s_rancher_env_path)"
+  if [[ -f "$env_file" ]]; then
+    # shellcheck source=/dev/null
+    source "$env_file"
+  fi
+}
+
 tulan_k8s_load_site_config() {
   local env_file
   env_file="$(tulan_k8s_site_env_path)"
