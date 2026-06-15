@@ -26,6 +26,7 @@ brew k8s node-restart worker -y   # 重启 worker rke2-agent
 brew k8s node-watch         # 持续监控节点状态
 brew k8s fix-dns -y         # 修复 DNS（节点解析失败时用）
 brew k8s node-clean         # 清理节点 agent/rke2，便于重新注册
+brew k8s node-clean --keep-server -y  # Server 主机兼节点
 brew k8s images             # 查看 Docker + containerd 已拉取镜像
 brew k8s status
 brew help k8s        # 完整子命令列表
@@ -171,9 +172,10 @@ sudo /var/lib/rancher/rke2/bin/crictl --runtime-endpoint unix:///run/rancher/rke
 ```bash
 brew k8s node-clean        # 交互确认
 brew k8s node-clean -y       # 跳过确认
+brew k8s node-clean --keep-server -y  # Server 主机兼节点（保留 Rancher 容器）
 ```
 
-会卸载 `rancher-system-agent`、`rke2`/`k3s` 及 `/etc/rancher` 等节点数据，**不会**删除 Rancher Server 容器或 `/etc/certs`。
+会卸载 `rancher-system-agent`、`rke2`/`k3s` 及主机 `/etc/rancher`、`/var/lib/rancher` 等节点数据，**不会**删除 Rancher Server 容器、`/opt/rancher-data` 或 `/etc/certs`。Server 主机同时作为集群节点时请使用 `--keep-server`。
 
 清理后：
 

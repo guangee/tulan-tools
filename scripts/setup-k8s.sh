@@ -23,6 +23,7 @@ REGISTER_URL_SET=false
 REGISTER_CMD_CLUSTER=""
 REGISTER_CMD_REFRESH=false
 NODE_CLEAN_ASSUME_YES=false
+NODE_CLEAN_KEEP_SERVER=false
 
 usage() {
   cat <<EOF
@@ -70,6 +71,9 @@ install / upgrade / ports 选项:
   -V, --version <tag>    upgrade 时指定目标版本（如 v2.13.3）
   --image <name>        upgrade 时指定完整镜像
   -y, --yes             ports/register-url --set/node-clean/node-restart 时跳过确认
+
+node-clean 选项:
+  --keep-server         Server 主机同时作为节点时：仅清 agent/rke2，保留 Rancher 容器
 
 register-url 选项:
   --lan                 输出内网地址（默认）
@@ -134,6 +138,7 @@ password 选项:
   brew k8s node-watch                  持续监控节点状态/镜像
   brew k8s fix-dns -y                  修复节点 DNS
   brew k8s node-clean -y               清理节点注册数据后重新注册
+  brew k8s node-clean --keep-server -y Server 主机兼节点时仅清 node 数据
   brew k8s images                      查看 Docker + containerd 镜像
   brew k8s sync-registries -f nodes.txt
   REGISTRY_MIRROR=https://hub.example.com brew k8s install
@@ -238,6 +243,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --refresh)
       REGISTER_CMD_REFRESH=true
+      shift
+      ;;
+    --keep-server|--node-only)
+      NODE_CLEAN_KEEP_SERVER=true
       shift
       ;;
     -v|--verbose)
@@ -378,6 +387,7 @@ main() {
     node-clean)
       tulan_k8s_require_linux || exit 1
       export TULAN_K8S_NODE_CLEAN_YES="$NODE_CLEAN_ASSUME_YES"
+      export TULAN_K8S_NODE_CLEAN_KEEP_SERVER="$NODE_CLEAN_KEEP_SERVER"
       tulan_require_privilege || exit 1
       tulan_k8s_run node-clean.sh
       ;;

@@ -273,6 +273,7 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s fix-dns -y
   brew k8s node-clean                  清理节点注册数据（便于重新注册）
   brew k8s node-clean -y               跳过确认
+  brew k8s node-clean --keep-server -y Server 主机兼节点时仅清 node 数据
   brew k8s images                      查看 Docker + containerd 已拉取镜像
 
 脚本目录: ${TULAN_HOME}/scripts/k8s/
