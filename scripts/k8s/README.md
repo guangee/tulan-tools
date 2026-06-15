@@ -19,6 +19,7 @@ brew k8s password    # 获取初始密码
 brew k8s register-url   # 内网节点注册地址（比 nginx 外网更稳定）
 brew k8s register-command   # 内网版注册命令（server-url 已改但 UI 仍显示外网时用）
 brew k8s node-status        # 在节点上查看注册状态（system-agent + rke2/k3s）
+brew k8s images             # 查看 Docker + containerd 已拉取镜像
 brew k8s status
 brew help k8s        # 完整子命令列表
 ```
@@ -133,6 +134,32 @@ sudo /var/lib/rancher/rke2/bin/crictl --runtime-endpoint unix:///run/rancher/rke
 ```
 
 注册成功时上述服务一般为 **active**，Rancher UI 节点状态为 **Active**。
+
+## 查看已拉取镜像（Docker + containerd）
+
+Rancher 节点上通常 **Docker**（旧组件/手动拉取）与 **containerd**（k3s/RKE2 运行时）并存：
+
+```bash
+brew k8s images
+```
+
+手动命令：
+
+```bash
+# Docker
+docker images
+sudo docker images
+
+# containerd — RKE2 agent
+sudo /var/lib/rancher/rke2/bin/crictl \
+  --runtime-endpoint unix:///run/rancher/rke2/agent/containerd/containerd.sock images
+
+# containerd — k3s
+sudo crictl --runtime-endpoint unix:///run/k3s/containerd/containerd.sock images
+
+# 或用 ctr
+sudo ctr --address unix:///run/containerd/containerd.sock -n k8s.io images ls
+```
 
 ## install.sh 可选参数
 

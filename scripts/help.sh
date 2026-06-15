@@ -244,6 +244,7 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s register-command --from-url https://nginx.example.com  额外替换 nginx 入口
   brew k8s node-status                 在节点上查看注册/Agent 状态
   brew k8s node-status -v              附带 journal 日志
+  brew k8s images                      查看 Docker + containerd 已拉取镜像
 
 脚本目录: ${TULAN_HOME}/scripts/k8s/
 详细说明: ${TULAN_HOME}/scripts/k8s/README.md
