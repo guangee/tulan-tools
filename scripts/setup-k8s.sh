@@ -22,7 +22,7 @@ REGISTER_URL_FORMAT="text"
 REGISTER_URL_SET=false
 REGISTER_CMD_CLUSTER=""
 REGISTER_CMD_REFRESH=false
-K8S_REGISTER_EXTRA_FROM_URL=""
+NODE_CLEAN_ASSUME_YES=false
 
 usage() {
   cat <<EOF
@@ -38,7 +38,7 @@ usage() {
   password          从容器日志获取 Bootstrap 初始密码
   upgrade           升级 Rancher 镜像版本
   ports             修改已部署 Rancher 的 HTTP/HTTPS 端口
-  clean             清理 Rancher/K3s/RKE2 组件与数据（危险）
+  clean             清理 Rancher/K3s/RKE2 组件与数据（危险，含 Server）
   sync-registries   同步 registries.yaml 到节点清单（见 scripts/k8s/sync-registries.sh -h）
   sync-versions     开发用：手动同步 Rancher 版本到本地 state
   shell-init        配置 crictl/kubectl 别名（写入 ~/.zshrc）
@@ -46,6 +46,7 @@ usage() {
   register-url      查看/设置节点注册用的内网 Rancher 地址
   register-command  输出内网版节点注册命令（替换 UI 中的外网域名）
   node-status       在节点上查看注册/Agent 状态（system-agent + rke2/k3s）
+  node-clean        清理节点注册数据，便于重新注册（不含 Rancher Server）
   images            查看本机 Docker + containerd 已拉取镜像
   legacy-run        旧版 run-k8s.sh（Rancher v2.5.17，容器名 k8s）
 
@@ -64,7 +65,7 @@ install / upgrade / ports 选项:
   --http-port <port>    指定 HTTP 宿主机端口
   -V, --version <tag>    upgrade 时指定目标版本（如 v2.13.3）
   --image <name>        upgrade 时指定完整镜像
-  -y, --yes             ports/register-url --set 时跳过确认
+  -y, --yes             ports/register-url --set/node-clean 时跳过确认
 
 register-url 选项:
   --lan                 输出内网地址（默认）
@@ -115,6 +116,7 @@ register-command 选项:
   brew k8s register-command            内网版节点注册命令（替换 UI 外网域名）
   brew k8s register-command --format command -c mycluster
   brew k8s node-status                 在节点上查看注册状态
+  brew k8s node-clean -y               清理节点注册数据后重新注册
   brew k8s images                      查看 Docker + containerd 镜像
   brew k8s sync-registries -f nodes.txt
   REGISTRY_MIRROR=https://hub.example.com brew k8s install
@@ -137,6 +139,7 @@ while [[ $# -gt 0 ]]; do
     register-url|reg-url|server-url|node-url) ACTION="register-url"; shift ;;
     register-command|reg-cmd|register-cmd) ACTION="register-command"; shift ;;
     node-status|node|check-node) ACTION="node-status"; shift ;;
+    node-clean|clean-node) ACTION="node-clean"; shift ;;
     images|list-images|imgs) ACTION="images"; shift ;;
     legacy-run|run) ACTION="legacy-run"; shift ;;
     -h|--help|help) usage; exit 0 ;;
@@ -176,6 +179,7 @@ while [[ $# -gt 0 ]]; do
     -y|--yes)
       CA_ASSUME_YES=true
       PORTS_ASSUME_YES=true
+      NODE_CLEAN_ASSUME_YES=true
       shift
       ;;
     --lan|--internal)
@@ -318,6 +322,12 @@ main() {
     node-status)
       tulan_k8s_require_linux || exit 1
       tulan_k8s_run_user node-status.sh "${EXTRA_ARGS[@]}"
+      ;;
+    node-clean)
+      tulan_k8s_require_linux || exit 1
+      export TULAN_K8S_NODE_CLEAN_YES="$NODE_CLEAN_ASSUME_YES"
+      tulan_require_privilege || exit 1
+      tulan_k8s_run node-clean.sh
       ;;
     images)
       tulan_k8s_require_linux || exit 1

@@ -18,7 +18,8 @@ brew k8s ca-clean    # 清理自签证书
 brew k8s password    # 获取初始密码
 brew k8s register-url   # 内网节点注册地址（比 nginx 外网更稳定）
 brew k8s register-command   # 内网版注册命令（server-url 已改但 UI 仍显示外网时用）
-brew k8s node-status        # 在节点上查看注册状态（system-agent + rke2/k3s）
+brew k8s node-status        # 在节点上查看注册状态
+brew k8s node-clean         # 清理节点 agent/rke2，便于重新注册
 brew k8s images             # 查看 Docker + containerd 已拉取镜像
 brew k8s status
 brew help k8s        # 完整子命令列表
@@ -32,7 +33,8 @@ brew help k8s        # 完整子命令列表
 - `ca-clean.sh`：清理自签 CA 与站点证书（不删除 Rancher 容器与数据）。
 - `install.sh`：启动 Rancher 容器（默认 `rancher/rancher:v2.8.5`），挂载证书与镜像源配置。
 - `ports.sh`：修改已部署 Rancher 的 HTTP/HTTPS 端口（重建容器，保留数据与证书）。
-- `get-init-password.sh`：从 Rancher 容器日志提取首次登录密码（Bootstrap Password）。
+- `node-status.sh`：在节点上查看 rancher-system-agent / rke2 / k3s 注册状态。
+- `node-clean.sh`：清理节点 agent/rke2 注册数据，便于重新注册（不含 Rancher Server）。
 - `clean.sh`：清理 Rancher/k3s/rke2 相关进程、容器、网络与数据目录（高风险操作）。
 - `registries.yaml`：k3s 容器运行时镜像仓库配置（会被 `install.sh` 覆盖）。
 - `site.env`：由 `ca.sh` 生成，记录最近一次生成的证书域名与 IP。
@@ -134,6 +136,25 @@ sudo /var/lib/rancher/rke2/bin/crictl --runtime-endpoint unix:///run/rancher/rke
 ```
 
 注册成功时上述服务一般为 **active**，Rancher UI 节点状态为 **Active**。
+
+## 清理节点并重新注册
+
+在 **worker/bootstrap 节点**上（不是 Rancher Server）：
+
+```bash
+brew k8s node-clean        # 交互确认
+brew k8s node-clean -y       # 跳过确认
+```
+
+会卸载 `rancher-system-agent`、`rke2`/`k3s` 及 `/etc/rancher` 等节点数据，**不会**删除 Rancher Server 容器或 `/etc/certs`。
+
+清理后：
+
+1. 在 Rancher UI 删除失败节点（若仍存在）
+2. `brew k8s register-command --format command -c <集群名>`
+3. 在节点上执行新的注册命令
+
+整台 Server 重装仍用 `brew k8s clean`（危险）。
 
 ## 查看已拉取镜像（Docker + containerd）
 
