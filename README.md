@@ -154,6 +154,7 @@ brew k8s ca          # 交互生成自签证书
 brew k8s install     # 交互选择证书与端口并安装（写入 rancher.env）
 brew k8s install --https-port 9443
 brew k8s upgrade     # 升级时自动沿用 rancher.env 中的证书与端口
+brew k8s ports       # 修改已部署实例的 HTTP/HTTPS 端口
 brew k8s password    # 获取初始 Bootstrap 密码
 brew k8s status
 brew help k8s

@@ -223,6 +223,8 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s install                   安装 Rancher（交互选择证书与端口）
   brew k8s install -d <domain>       指定证书安装
   brew k8s install --https-port 9443 指定 HTTPS 端口（默认 8443）
+  brew k8s ports                     修改已部署实例的 HTTP/HTTPS 端口
+  brew k8s ports --https-port 9443 -y  非交互修改 HTTPS 端口
   brew k8s upgrade                   升级 Rancher（沿用 rancher.env 证书与端口）
   brew k8s password                  获取 Bootstrap 初始密码
   brew k8s clean                     清理 K8s/Rancher（危险）

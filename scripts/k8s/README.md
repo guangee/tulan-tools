@@ -11,6 +11,8 @@ brew k8s install     # 交互选择证书与端口并安装（写入 rancher.env
 brew k8s install -d rancher.local.example.com
 brew k8s install --https-port 9443   # 指定 HTTPS 端口（默认 8443）
 brew k8s upgrade     # 升级，自动沿用 rancher.env 中的证书与端口
+brew k8s ports       # 修改已部署实例的端口（重建容器，数据不变）
+brew k8s ports --https-port 9443 -y
 brew k8s ca-clean    # 清理自签证书
 brew k8s password    # 获取初始密码
 brew k8s status
@@ -24,11 +26,12 @@ brew help k8s        # 完整子命令列表
 - `ca.sh`：生成 CA 与站点证书，自动写入 `site.env`（域名与 IP），并将 CA 安装到系统信任链。
 - `ca-clean.sh`：清理自签 CA 与站点证书（不删除 Rancher 容器与数据）。
 - `install.sh`：启动 Rancher 容器（默认 `rancher/rancher:v2.8.5`），挂载证书与镜像源配置。
+- `ports.sh`：修改已部署 Rancher 的 HTTP/HTTPS 端口（重建容器，保留数据与证书）。
 - `get-init-password.sh`：从 Rancher 容器日志提取首次登录密码（Bootstrap Password）。
 - `clean.sh`：清理 Rancher/k3s/rke2 相关进程、容器、网络与数据目录（高风险操作）。
 - `registries.yaml`：k3s 容器运行时镜像仓库配置（会被 `install.sh` 覆盖）。
 - `site.env`：由 `ca.sh` 生成，记录最近一次生成的证书域名与 IP。
-- `rancher.env`：由 `install.sh` 写入、`upgrade.sh` 更新，记录当前 Rancher 部署使用的证书、端口映射与镜像等信息。
+- `rancher.env`：由 `install.sh` 写入、`upgrade.sh` / `ports.sh` 更新，记录当前 Rancher 部署使用的证书、端口映射与镜像等信息。
 
 ## 前置条件
 
@@ -117,6 +120,13 @@ kubectl get pods -A
 
 ```bash
 docker restart rancher
+```
+
+修改 HTTP/HTTPS 端口（保留数据与证书，会短暂中断）：
+
+```bash
+brew k8s ports
+brew k8s ports --https-port 9443 -y
 ```
 
 ## 清理与重装
