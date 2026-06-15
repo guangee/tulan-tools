@@ -29,6 +29,8 @@ brew k8s fix-dns -y         # 修复 DNS（节点解析失败时用）
 brew k8s node-clean         # 清理节点 agent/rke2，便于重新注册
 brew k8s node-clean --keep-server -y  # Server 主机兼节点
 brew k8s images             # 查看 Docker + containerd 已拉取镜像
+brew k8s kubeconfig --list  # 列出集群
+brew k8s kubeconfig -c prod # 获取 prod 集群 kubeconfig
 brew k8s status
 brew help k8s        # 完整子命令列表
 ```
@@ -44,6 +46,7 @@ brew help k8s        # 完整子命令列表
 - `node-status.sh`：在节点上查看 rancher-system-agent / rke2 / k3s 注册状态。
 - `node-pull.sh`：在节点上查看镜像拉取日志、registry 连通性与出站连接。
 - `node-ports.sh`：在节点上排查 RKE2 关键端口与防火墙/安全组线索。
+- `get-kubeconfig.sh`：获取指定下游集群 kubeconfig（Rancher API generateKubeconfig）。
 - `node-clean.sh`：清理节点 agent/rke2 注册数据，便于重新注册（不含 Rancher Server）。
 - `clean.sh`：清理 Rancher/k3s/rke2 相关进程、容器、网络与数据目录（高风险操作）。
 - `registries.yaml`：k3s 容器运行时镜像仓库配置（会被 `install.sh` 覆盖）。

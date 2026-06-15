@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from tulan_tools.docker.daemon import build_daemon_json
+from tulan_tools.k8s.kubeconfig import find_clusters, resolve_cluster_id
 from tulan_tools.k8s.register import build_register_results
 from tulan_tools.k8s.versions import filter_versions_ge, read_versions_from_json
 from tulan_tools.manifest import (
@@ -129,6 +130,26 @@ class K8sVersionTests(unittest.TestCase):
         filtered = filter_versions_ge("v2.10.1", ["v2.10.0", "v2.10.1", "v2.11.0"])
         self.assertEqual(filtered, ["v2.10.1", "v2.11.0"])
         path.unlink(missing_ok=True)
+
+
+class K8sKubeconfigTests(unittest.TestCase):
+    def test_resolve_by_display_name(self) -> None:
+        data = {
+            "items": [
+                {
+                    "metadata": {"name": "c-m-abc"},
+                    "spec": {"displayName": "prod"},
+                    "status": {},
+                },
+                {
+                    "metadata": {"name": "c-m-xyz"},
+                    "spec": {"displayName": "staging"},
+                    "status": {},
+                },
+            ]
+        }
+        self.assertEqual(resolve_cluster_id(data, "prod"), "c-m-abc")
+        self.assertEqual(len(find_clusters(data, "c-m-xyz")), 1)
 
 
 if __name__ == "__main__":

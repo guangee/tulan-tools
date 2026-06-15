@@ -277,6 +277,8 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s node-clean -y               跳过确认
   brew k8s node-clean --keep-server -y Server 主机兼节点时仅清 node 数据
   brew k8s images                      查看 Docker + containerd 已拉取镜像
+  brew k8s kubeconfig --list           列出 Rancher 集群
+  brew k8s kubeconfig -c <名> -o ~/.kube/prod.yaml  导出 kubeconfig
 
 脚本目录: ${TULAN_HOME}/scripts/k8s/
 详细说明: ${TULAN_HOME}/scripts/k8s/README.md

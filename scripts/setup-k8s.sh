@@ -54,6 +54,7 @@ usage() {
   fix-dns           修复节点 DNS（同 brew dns fix）
   node-clean        清理节点注册数据，便于重新注册（不含 Rancher Server）
   images            查看本机 Docker + containerd 已拉取镜像
+  kubeconfig        获取指定集群的 kubeconfig
   legacy-run        旧版 run-k8s.sh（Rancher v2.5.17，容器名 k8s）
 
 ca 选项:
@@ -144,6 +145,8 @@ password 选项:
   brew k8s node-clean --keep-server -y Server 主机兼节点时仅清 node 数据
   brew k8s images                      查看 Docker + containerd 镜像
   brew k8s gen-pull                    生成 containerd 手工拉取脚本（供另一台机器）
+  brew k8s kubeconfig --list           列出 Rancher 集群
+  brew k8s kubeconfig -c <集群名>      获取集群 kubeconfig（stdout 或 -o 文件）
   brew k8s sync-registries -f nodes.txt
   REGISTRY_MIRROR=https://hub.example.com brew k8s install
 EOF
@@ -173,6 +176,7 @@ while [[ $# -gt 0 ]]; do
     node-clean|clean-node) ACTION="node-clean"; shift ;;
     images|list-images|imgs) ACTION="images"; shift ;;
     gen-pull|gen-pull-images|pull-gen) ACTION="gen-pull"; shift ;;
+    kubeconfig|cluster-config|get-kubeconfig) ACTION="kubeconfig"; shift ;;
     legacy-run|run) ACTION="legacy-run"; shift ;;
     -h|--help|help) usage; exit 0 ;;
     -d|--domain)
@@ -408,6 +412,14 @@ main() {
     gen-pull)
       tulan_k8s_require_linux || exit 1
       tulan_k8s_run_user gen-containerd-pull.sh "${EXTRA_ARGS[@]}"
+      ;;
+    kubeconfig)
+      tulan_k8s_require_linux || exit 1
+      tulan_k8s_require_docker || exit 1
+      if [[ -n "$REGISTER_CMD_CLUSTER" ]]; then
+        EXTRA_ARGS=(--cluster "$REGISTER_CMD_CLUSTER" "${EXTRA_ARGS[@]}")
+      fi
+      tulan_k8s_run_user get-kubeconfig.sh "${EXTRA_ARGS[@]}"
       ;;
     legacy-run)
       tulan_require_privilege || exit 1

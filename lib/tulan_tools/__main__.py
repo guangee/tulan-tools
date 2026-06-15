@@ -131,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         return fn(args)
 
     if module == "k8s":
+        from .k8s import kubeconfig as k8s_kubeconfig
         from .k8s import register as k8s_register
         from .k8s import versions as k8s_versions
 
@@ -142,6 +143,9 @@ def main(argv: list[str] | None = None) -> int:
             "read-versions": k8s_versions.cmd_read_versions,
             "filter-ge": k8s_versions.cmd_filter_ge,
             "cluster-display": k8s_register.cmd_cluster_display,
+            "list-clusters": k8s_kubeconfig.cmd_list_clusters,
+            "resolve-cluster": k8s_kubeconfig.cmd_resolve_cluster,
+            "kubeconfig": k8s_kubeconfig.cmd_kubeconfig,
             "list-tokens": k8s_register.cmd_list_tokens,
             "tokens-delete": k8s_register.cmd_tokens_delete,
             "register-command": k8s_register.cmd_register_command,
