@@ -659,10 +659,26 @@ tulan_k8s_read_versions_from_file() {
   if [[ "$f" == *.json ]]; then
     python3 -c "
 import json, sys
+
+def ver_key(tag: str) -> tuple[int, int, int]:
+    tag = tag.strip()
+    if tag.startswith('v'):
+        tag = tag[1:]
+    parts = tag.split('.')
+    while len(parts) < 3:
+        parts.append('0')
+    return tuple(int(p) for p in parts[:3])
+
 with open(sys.argv[1], encoding='utf-8') as fh:
     data = json.load(fh)
+
+min_raw = (data.get('min_version') or 'v2.8.5').strip()
+min_key = ver_key(min_raw)
+
 for tag in data.get('tags') or []:
-    print(tag)
+    tag = str(tag).strip()
+    if tag and ver_key(tag) >= min_key:
+        print(tag)
 " "$f"
     return 0
   fi

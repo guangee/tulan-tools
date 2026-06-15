@@ -52,6 +52,7 @@ jobs:
 
           if python3 scripts/k8s/sync-rancher-versions.py \
             --format json \
+            --min-version v2.8.5 \
             --max-per-minor 3 \
             --output "${BIN_REPO}/k8s.rancher.versions.json"; then
             echo "Rancher 版本列表已写入 bin 分支"

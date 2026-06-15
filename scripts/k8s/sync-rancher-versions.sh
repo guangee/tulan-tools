@@ -18,7 +18,7 @@ if [[ ! -f "$PY" ]]; then
 fi
 
 if [[ $# -eq 0 ]]; then
-  set -- --format json --max-per-minor 3 \
+  set -- --format json --min-version v2.8.5 --max-per-minor 3 \
     --output "$(tulan_get_home)/state/k8s.rancher.versions.json"
 fi
 
