@@ -115,7 +115,7 @@ main() {
   log "拉取镜像 ${RANCHER_IMAGE}"
   docker pull "${RANCHER_IMAGE}"
 
-  log "启动 Rancher（证书: ${K8S_SITE_DOMAIN}，镜像: ${RANCHER_IMAGE}）"
+  log "启动 Rancher（证书: ${K8S_SITE_DOMAIN}，端口: ${HTTP_PORT_MAP}, ${HTTPS_PORT_MAP}，镜像: ${RANCHER_IMAGE}）"
   docker run -d --name "${CONTAINER_NAME}" --restart=unless-stopped \
     -p "${HTTP_PORT_MAP}" -p "${HTTPS_PORT_MAP}" \
     -v "${RANCHER_DATA}:/var/lib/rancher" \
@@ -130,7 +130,7 @@ main() {
 
   log "当前容器状态："
   docker ps --filter "name=${CONTAINER_NAME}"
-  log "完成。请通过 https://${K8S_SITE_DOMAIN} 访问（按端口映射调整端口）。"
+  log "完成。请通过 https://${K8S_SITE_DOMAIN}:${HTTPS_PORT_MAP%%:*} 访问。"
 }
 
 main "$@"

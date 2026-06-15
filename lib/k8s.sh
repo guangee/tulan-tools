@@ -290,6 +290,84 @@ tulan_k8s_resolve_site_ip_for_domain() {
   echo "${ip:-$(tulan_k8s_detect_lan_ip 2>/dev/null || true)}"
 }
 
+tulan_k8s_host_port_from_map() {
+  local map="${1:-}"
+  [[ -n "$map" ]] || return 1
+  echo "${map%%:*}"
+}
+
+tulan_k8s_validate_port() {
+  local port="$1"
+  if [[ ! "$port" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+    tulan_error "无效端口: ${port}（有效范围 1-65535）"
+    return 1
+  fi
+}
+
+tulan_k8s_set_http_port() {
+  local port="$1"
+  tulan_k8s_validate_port "$port" || return 1
+  export HTTP_PORT_MAP="${port}:80"
+}
+
+tulan_k8s_set_https_port() {
+  local port="$1"
+  tulan_k8s_validate_port "$port" || return 1
+  export HTTPS_PORT_MAP="${port}:443"
+}
+
+tulan_k8s_port_in_use() {
+  local port="$1"
+  if command -v ss &>/dev/null; then
+    ss -ltn "sport = :${port}" 2>/dev/null | grep -q ":${port}" && return 0
+  elif command -v netstat &>/dev/null; then
+    netstat -ltn 2>/dev/null | grep -q ":${port} " && return 0
+  fi
+  return 1
+}
+
+tulan_k8s_prompt_install_ports() {
+  local default_http default_https http_port https_port input
+
+  if [[ -n "${HTTP_PORT_MAP:-}" && -n "${HTTPS_PORT_MAP:-}" ]]; then
+    return 0
+  fi
+
+  tulan_k8s_load_rancher_config
+  default_http="$(tulan_k8s_host_port_from_map "${HTTP_PORT_MAP:-${TULAN_K8S_HTTP_PORT}}")"
+  default_https="$(tulan_k8s_host_port_from_map "${HTTPS_PORT_MAP:-${TULAN_K8S_HTTPS_PORT}}")"
+
+  echo ""
+  echo "Rancher 端口映射（宿主机 → 容器）"
+  echo "────────────────────────────────────"
+  echo "  HTTP  默认: ${default_http} → 80"
+  echo "  HTTPS 默认: ${default_https} → 443"
+  echo ""
+
+  read -r -p "HTTPS 宿主机端口 [${default_https}]: " input
+  https_port="${input:-$default_https}"
+  tulan_k8s_validate_port "$https_port" || return 1
+
+  read -r -p "HTTP 宿主机端口 [${default_http}]: " input
+  http_port="${input:-$default_http}"
+  tulan_k8s_validate_port "$http_port" || return 1
+
+  if tulan_k8s_port_in_use "$https_port"; then
+    tulan_log "警告: 端口 ${https_port} 可能已被占用"
+  fi
+  if tulan_k8s_port_in_use "$http_port"; then
+    tulan_log "警告: 端口 ${http_port} 可能已被占用"
+  fi
+
+  export HTTP_PORT_MAP="${http_port}:80"
+  export HTTPS_PORT_MAP="${https_port}:443"
+
+  echo ""
+  echo "  HTTP:  ${HTTP_PORT_MAP}"
+  echo "  HTTPS: ${HTTPS_PORT_MAP}"
+  echo ""
+}
+
 tulan_k8s_prompt_install_cert() {
   local -a domains=()
   local deployed_domain="" choice i default_idx domain
@@ -431,9 +509,9 @@ tulan_k8s_export_env() {
   export RANCHER_DATA="$TULAN_K8S_RANCHER_DATA"
   export RANCHER_IMAGE="$TULAN_K8S_RANCHER_IMAGE"
   export REGISTRY_MIRROR="$TULAN_K8S_REGISTRY_MIRROR"
-  export CONTAINER_NAME="$TULAN_K8S_CONTAINER"
-  export HTTP_PORT_MAP="$TULAN_K8S_HTTP_PORT"
-  export HTTPS_PORT_MAP="$TULAN_K8S_HTTPS_PORT"
+  export CONTAINER_NAME="${CONTAINER_NAME:-$TULAN_K8S_CONTAINER}"
+  export HTTP_PORT_MAP="${HTTP_PORT_MAP:-$TULAN_K8S_HTTP_PORT}"
+  export HTTPS_PORT_MAP="${HTTPS_PORT_MAP:-$TULAN_K8S_HTTPS_PORT}"
   export K8S_REGISTRIES_TEMPLATE
   K8S_REGISTRIES_TEMPLATE="$(tulan_get_home)/config/k8s.registries.yaml"
 }
@@ -484,6 +562,8 @@ tulan_k8s_show_status() {
     echo "  部署证书: ${K8S_SITE_DOMAIN}"
     [[ -n "${K8S_SITE_IP:-}" ]] && echo "  证书 IP:   ${K8S_SITE_IP}"
     [[ -n "${RANCHER_IMAGE:-}" ]] && echo "  已装镜像: ${RANCHER_IMAGE}"
+    [[ -n "${HTTP_PORT_MAP:-}" ]] && echo "  HTTP 端口:  ${HTTP_PORT_MAP}"
+    [[ -n "${HTTPS_PORT_MAP:-}" ]] && echo "  HTTPS 端口: ${HTTPS_PORT_MAP}"
     [[ -n "${INSTALLED_AT:-}" ]] && echo "  安装时间: ${INSTALLED_AT}"
   else
     tulan_k8s_load_site_config

@@ -7,9 +7,10 @@
 ```bash
 brew k8s ca          # 交互生成证书（自动检测局域网 IP，询问域名）
 brew k8s ca -d rancher.local.example.com   # 指定域名
-brew k8s install     # 交互选择证书并安装（写入 rancher.env）
+brew k8s install     # 交互选择证书与端口并安装（写入 rancher.env）
 brew k8s install -d rancher.local.example.com
-brew k8s upgrade     # 升级，自动沿用 rancher.env 中的证书
+brew k8s install --https-port 9443   # 指定 HTTPS 端口（默认 8443）
+brew k8s upgrade     # 升级，自动沿用 rancher.env 中的证书与端口
 brew k8s ca-clean    # 清理自签证书
 brew k8s password    # 获取初始密码
 brew k8s status
@@ -27,7 +28,7 @@ brew help k8s        # 完整子命令列表
 - `clean.sh`：清理 Rancher/k3s/rke2 相关进程、容器、网络与数据目录（高风险操作）。
 - `registries.yaml`：k3s 容器运行时镜像仓库配置（会被 `install.sh` 覆盖）。
 - `site.env`：由 `ca.sh` 生成，记录最近一次生成的证书域名与 IP。
-- `rancher.env`：由 `install.sh` 写入、`upgrade.sh` 更新，记录当前 Rancher 部署使用的证书与镜像等信息。
+- `rancher.env`：由 `install.sh` 写入、`upgrade.sh` 更新，记录当前 Rancher 部署使用的证书、端口映射与镜像等信息。
 
 ## 前置条件
 
@@ -44,10 +45,18 @@ brew help k8s        # 完整子命令列表
 brew k8s ca
 ```
 
-2. 安装并启动 Rancher（多套证书时会提示选择，并写入 `rancher.env`）：
+2. 安装并启动 Rancher（多套证书时会提示选择；安装前可配置 HTTP/HTTPS 端口，并写入 `rancher.env`）：
 
 ```bash
 brew k8s install
+# HTTPS 宿主机端口 [8443]: 9443
+# HTTP 宿主机端口 [8080]:
+```
+
+非交互指定端口：
+
+```bash
+brew k8s install --https-port 9443
 ```
 
 3. 获取初始密码：
@@ -58,7 +67,7 @@ brew k8s password
 
 4. 浏览器访问：
 
-- `https://<你的域名>:8443`（默认端口映射，域名见 `/etc/certs/site.env`）
+- `https://<你的域名>:<HTTPS端口>`（默认 HTTPS 8443，实际端口见 `/etc/certs/rancher.env` 中的 `HTTPS_PORT_MAP`）
 - 如使用了默认 hosts/DNS 且做了反向代理，也可按实际入口访问
 
 ## install.sh 可选参数

@@ -44,6 +44,8 @@ ca-clean 选项:
 
 install / upgrade 选项:
   -d, --domain <name>   install 时指定证书域名（跳过选择）
+  --https-port <port>   install 时指定 HTTPS 宿主机端口（默认 8443）
+  --http-port <port>    install 时指定 HTTP 宿主机端口（默认 8080）
 
 环境变量:
   TULAN_K8S_CERT_OUT          证书目录，默认 /etc/certs
@@ -66,6 +68,7 @@ install / upgrade 选项:
   brew k8s ca-clean -d rancher.local.example.com
   brew k8s ca-clean -a
   brew k8s install
+  brew k8s install --https-port 9443
   brew k8s password
   brew k8s sync-registries -f nodes.txt
   REGISTRY_MIRROR=https://hub.example.com brew k8s install
@@ -95,6 +98,16 @@ while [[ $# -gt 0 ]]; do
       export K8S_SITE_IP="$2"
       shift 2
       ;;
+    --https-port)
+      [[ $# -ge 2 ]] || { tulan_error "缺少 --https-port 参数"; exit 1; }
+      tulan_k8s_set_https_port "$2" || exit 1
+      shift 2
+      ;;
+    --http-port)
+      [[ $# -ge 2 ]] || { tulan_error "缺少 --http-port 参数"; exit 1; }
+      tulan_k8s_set_http_port "$2" || exit 1
+      shift 2
+      ;;
     -y|--yes) CA_ASSUME_YES=true; shift ;;
     -a|--all) CA_CLEAN_ALL=true; shift ;;
     -*) EXTRA_ARGS+=("$1"); shift ;;
@@ -107,6 +120,7 @@ main() {
     install)
       tulan_k8s_require_linux || exit 1
       tulan_k8s_prompt_install_cert || exit 1
+      tulan_k8s_prompt_install_ports || exit 1
       tulan_require_privilege || exit 1
       tulan_k8s_run install.sh
       ;;

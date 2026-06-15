@@ -99,6 +99,7 @@ main() {
   check_files
 
   log "使用部署证书: ${K8S_SITE_DOMAIN}（来自 rancher.env）"
+  log "端口映射: ${HTTP_PORT_MAP}, ${HTTPS_PORT_MAP}"
   log "目标镜像: ${RANCHER_IMAGE}"
   log "拉取新镜像"
   docker pull "${RANCHER_IMAGE}"
