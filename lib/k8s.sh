@@ -12,6 +12,7 @@ TULAN_K8S_REGISTRY_MIRROR="${TULAN_K8S_REGISTRY_MIRROR:-${TULAN_DOCKER_REGISTRY_
 TULAN_K8S_CONTAINER="${TULAN_K8S_CONTAINER:-rancher}"
 TULAN_K8S_HTTP_PORT="${TULAN_K8S_HTTP_PORT:-8080:80}"
 TULAN_K8S_HTTPS_PORT="${TULAN_K8S_HTTPS_PORT:-8443:443}"
+TULAN_K8S_UPGRADE_DEFAULT="${TULAN_K8S_UPGRADE_DEFAULT:-rancher/rancher:v2.13.3}"
 
 tulan_k8s_dir() {
   echo "$TULAN_K8S_DIR"
@@ -626,6 +627,117 @@ tulan_k8s_prompt_ca_params() {
   echo ""
 }
 
+tulan_k8s_versions_file() {
+  echo "${TULAN_K8S_VERSIONS_FILE:-$(tulan_get_home)/config/k8s.rancher.versions}"
+}
+
+tulan_k8s_normalize_version_tag() {
+  local tag="$1"
+  tag="${tag#rancher/rancher:}"
+  tag="${tag#rancher/rancher/}"
+  [[ "$tag" == v* ]] || tag="v${tag}"
+  echo "$tag"
+}
+
+tulan_k8s_image_from_tag() {
+  local tag
+  tag="$(tulan_k8s_normalize_version_tag "$1")"
+  echo "rancher/rancher:${tag}"
+}
+
+tulan_k8s_tag_from_image() {
+  local image="${1:-}"
+  image="${image##*:}"
+  tulan_k8s_normalize_version_tag "${image:-unknown}"
+}
+
+tulan_k8s_list_upgrade_versions() {
+  local f line tag
+  f="$(tulan_k8s_versions_file)"
+  if [[ -f "$f" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line%%#*}"
+      line="${line// /}"
+      [[ -n "$line" ]] || continue
+      tag="$(tulan_k8s_normalize_version_tag "$line")"
+      echo "$tag"
+    done < "$f"
+    return 0
+  fi
+  tulan_k8s_tag_from_image "${TULAN_K8S_UPGRADE_DEFAULT}"
+}
+
+tulan_k8s_resolve_current_image() {
+  local image=""
+  tulan_k8s_load_rancher_config
+  image="${RANCHER_IMAGE:-}"
+  if [[ -z "$image" ]] && command -v docker &>/dev/null; then
+    image="$(docker inspect -f '{{.Config.Image}}' "${CONTAINER_NAME:-${TULAN_K8S_CONTAINER}}" 2>/dev/null || true)"
+  fi
+  echo "${image:-unknown}"
+}
+
+tulan_k8s_prompt_upgrade_image() {
+  local -a versions=()
+  local current_image current_tag choice i target_image target_tag default_idx=1
+
+  if [[ -n "${RANCHER_UPGRADE_IMAGE:-}" ]]; then
+    return 0
+  fi
+
+  mapfile -t versions < <(tulan_k8s_list_upgrade_versions)
+  if [[ ${#versions[@]} -eq 0 ]]; then
+    export RANCHER_UPGRADE_IMAGE="${TULAN_K8S_UPGRADE_DEFAULT}"
+    return 0
+  fi
+
+  current_image="$(tulan_k8s_resolve_current_image)"
+  current_tag="$(tulan_k8s_tag_from_image "$current_image")"
+
+  echo ""
+  echo "Rancher 升级"
+  echo "────────────────────────────────────"
+  echo "  当前版本: ${current_image}"
+  echo ""
+  echo "  可选升级版本:"
+  for i in "${!versions[@]}"; do
+    if [[ "$i" -eq 0 ]]; then
+      echo "  [$((i + 1))] ${versions[$i]}  (推荐)"
+    elif [[ "${versions[$i]}" == "$current_tag" ]]; then
+      echo "  [$((i + 1))] ${versions[$i]}  ← 当前"
+    else
+      echo "  [$((i + 1))] ${versions[$i]}"
+    fi
+  done
+  echo "  也可直接输入版本号（如 v2.10.0 或 rancher/rancher:v2.10.0）"
+  echo ""
+  read -r -p "请选择升级目标 [1-${#versions[@]}] (默认 ${default_idx}): " choice
+  choice="${choice:-$default_idx}"
+
+  if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#versions[@]} )); then
+    target_tag="${versions[$((choice - 1))]}"
+    target_image="$(tulan_k8s_image_from_tag "$target_tag")"
+  elif [[ "$choice" == rancher/rancher:* ]]; then
+    target_image="$choice"
+    target_tag="$(tulan_k8s_tag_from_image "$target_image")"
+  elif [[ -n "$choice" ]]; then
+    target_tag="$(tulan_k8s_normalize_version_tag "$choice")"
+    target_image="$(tulan_k8s_image_from_tag "$target_tag")"
+  else
+    tulan_error "无效选择: ${choice}"
+    return 1
+  fi
+
+  if [[ "$target_tag" == "$current_tag" ]]; then
+    tulan_log "目标版本与当前相同，将重新部署该版本"
+  fi
+
+  export RANCHER_UPGRADE_IMAGE="$target_image"
+  echo ""
+  echo "  升级目标: ${RANCHER_UPGRADE_IMAGE}"
+  echo ""
+}
+
 tulan_k8s_export_env() {
   tulan_k8s_load_rancher_config
   if [[ -z "${K8S_SITE_DOMAIN:-}" ]]; then
@@ -677,6 +789,7 @@ tulan_k8s_run() {
     HTTPS_PORT_MAP="${HTTPS_PORT_MAP}" \
     REGISTRY_MIRROR="${REGISTRY_MIRROR}" \
     INSTALLED_AT="${INSTALLED_AT:-}" \
+    RANCHER_UPGRADE_IMAGE="${RANCHER_UPGRADE_IMAGE:-}" \
     K8S_REGISTRIES_TEMPLATE="${K8S_REGISTRIES_TEMPLATE:-}" \
     bash "$path" "$@"
 }
