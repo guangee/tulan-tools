@@ -56,21 +56,7 @@ EOF
 
 load_defaults_if_needed() {
   if [[ -f "$TULAN_DOCKER_DEFAULTS_FILE" ]]; then
-    eval "$(python3 - "$TULAN_DOCKER_DEFAULTS_FILE" <<'PY'
-import json, sys
-from pathlib import Path
-
-data = json.loads(Path(sys.argv[1]).read_text())
-mirrors = data.get("registry-mirrors") or []
-if mirrors:
-    print(f"export TULAN_DOCKER_REGISTRY_MIRROR={mirrors[0]!r}")
-print(f"export TULAN_DOCKER_LOG_DRIVER={data.get('log-driver', 'json-file')!r}")
-opts = data.get("log-opts") or {}
-print(f"export TULAN_DOCKER_LOG_MAX_SIZE={opts.get('max-size', '10m')!r}")
-print(f"export TULAN_DOCKER_LOG_MAX_FILE={opts.get('max-file', '3')!r}")
-print(f"export TULAN_DOCKER_LOG_COMPRESS={opts.get('compress', 'true')!r}")
-PY
-)"
+    eval "$(tulan_python docker load-defaults "$TULAN_DOCKER_DEFAULTS_FILE")"
   fi
 }
 

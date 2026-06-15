@@ -657,29 +657,7 @@ tulan_k8s_read_versions_from_file() {
     return 1
   fi
   if [[ "$f" == *.json ]]; then
-    python3 -c "
-import json, sys
-
-def ver_key(tag: str) -> tuple[int, int, int]:
-    tag = tag.strip()
-    if tag.startswith('v'):
-        tag = tag[1:]
-    parts = tag.split('.')
-    while len(parts) < 3:
-        parts.append('0')
-    return tuple(int(p) for p in parts[:3])
-
-with open(sys.argv[1], encoding='utf-8') as fh:
-    data = json.load(fh)
-
-min_raw = (data.get('min_version') or 'v2.8.5').strip()
-min_key = ver_key(min_raw)
-
-for tag in data.get('tags') or []:
-    tag = str(tag).strip()
-    if tag and ver_key(tag) >= min_key:
-        print(tag)
-" "$f"
+    tulan_python k8s read-versions "$f"
     return 0
   fi
   local line tag
@@ -725,28 +703,7 @@ tulan_k8s_list_upgrade_versions() {
 # 仅保留 >= 当前版本的 tag（用于 upgrade 交互列表）
 tulan_k8s_filter_upgrade_versions_ge() {
   local current_tag="$1"
-  TULAN_K8S_FILTER_CURRENT_TAG="$current_tag" python3 -c '
-import os, sys
-
-def ver_key(tag: str) -> tuple[int, int, int]:
-    tag = tag.strip()
-    if tag.startswith("v"):
-        tag = tag[1:]
-    parts = tag.split(".")
-    while len(parts) < 3:
-        parts.append("0")
-    return tuple(int(p) for p in parts[:3])
-
-current = os.environ.get("TULAN_K8S_FILTER_CURRENT_TAG", "").strip()
-cur_key = None if not current or current == "unknown" else ver_key(current)
-
-for line in sys.stdin:
-    tag = line.strip()
-    if not tag:
-        continue
-    if cur_key is None or ver_key(tag) >= cur_key:
-        print(tag)
-'
+  tulan_python k8s filter-ge --current "$current_tag"
 }
 
 tulan_k8s_resolve_current_image() {
@@ -1063,21 +1020,8 @@ tulan_k8s_confirm_refresh_registration_tokens() {
 }
 
 tulan_k8s_cluster_display_json() {
-  tulan_k8s_rancher_kubectl get clusters.management.cattle.io -o json 2>/dev/null | python3 -c '
-import json, sys
-try:
-    data = json.load(sys.stdin)
-except json.JSONDecodeError:
-    print("{}")
-    sys.exit(0)
-out = {}
-for item in data.get("items") or []:
-    cid = (item.get("metadata") or {}).get("name") or ""
-    dname = ((item.get("spec") or {}).get("displayName") or "").strip()
-    if cid:
-        out[cid] = dname or cid
-print(json.dumps(out, ensure_ascii=False))
-' 2>/dev/null || echo "{}"
+  tulan_k8s_rancher_kubectl get clusters.management.cattle.io -o json 2>/dev/null \
+    | tulan_python k8s cluster-display 2>/dev/null || echo "{}"
 }
 
 tulan_k8s_list_registration_clusters() {
@@ -1086,35 +1030,7 @@ tulan_k8s_list_registration_clusters() {
     json="$(tulan_k8s_rancher_kubectl get clusterregistrationtokens.management.cattle.io -A -o json 2>/dev/null)" || return 1
   fi
   display_json="$(tulan_k8s_cluster_display_json)"
-  K8S_REGISTER_JSON="$json" K8S_CLUSTER_DISPLAY_JSON="$display_json" python3 <<'PY'
-import json, os, sys
-data = json.loads(os.environ["K8S_REGISTER_JSON"])
-display = json.loads(os.environ.get("K8S_CLUSTER_DISPLAY_JSON") or "{}")
-items = data.get("items") or []
-if not items:
-    print("  (无任何 ClusterRegistrationToken，请先在 UI 创建/导入集群)")
-    sys.exit(0)
-seen = set()
-for item in items:
-    ns = item["metadata"]["namespace"]
-    name = item["metadata"]["name"]
-    cluster = item.get("spec", {}).get("clusterName") or ns
-    key = (ns, name, cluster)
-    if key in seen:
-        continue
-    seen.add(key)
-    dname = display.get(cluster) or display.get(ns) or ""
-    label = f"{cluster}"
-    if dname and dname != cluster:
-        label = f"{cluster} (UI: {dname})"
-    if cluster == "local" or ns == "local":
-        label += " [Rancher 内置 local 集群]"
-    status = item.get("status") or {}
-    ready = "有命令" if any(status.get(f) for f in (
-        "insecureNodeCommand", "nodeCommand", "insecureCommand", "command")) else "无命令"
-    hint = " ← worker 用这个" if name == "default-token" and cluster != "local" else ""
-    print(f"  {label}  token={name}  ({ready}){hint}")
-PY
+  printf '%s' "$json" | tulan_python k8s list-tokens --display-json "$display_json"
 }
 
 tulan_k8s_refresh_registration_tokens() {
@@ -1139,33 +1055,9 @@ tulan_k8s_refresh_registration_tokens() {
     tulan_k8s_rancher_kubectl delete clusterregistrationtoken "$name" -n "$ns" --wait=false
     count=$((count + 1))
   done < <(
-    K8S_REGISTER_JSON="$json" \
-    K8S_REGISTER_CLUSTER="$cluster" \
-    K8S_CLUSTER_DISPLAY_JSON="$display_json" \
-    python3 <<'PY'
-import json, os, sys
-data = json.loads(os.environ["K8S_REGISTER_JSON"])
-cluster_filter = os.environ.get("K8S_REGISTER_CLUSTER", "")
-display = json.loads(os.environ.get("K8S_CLUSTER_DISPLAY_JSON") or "{}")
-
-def cluster_match(cluster, ns, name):
-    if not cluster_filter:
-        return True
-    keys = {cluster_filter, cluster, ns, name}
-    for cid, dname in display.items():
-        if cluster_filter in (cid, dname):
-            keys.update({cid, dname})
-    targets = {cluster, ns, name}
-    return bool(keys & targets)
-
-for item in data.get("items", []):
-    ns = item["metadata"]["namespace"]
-    name = item["metadata"]["name"]
-    cluster = item.get("spec", {}).get("clusterName") or ns
-    if not cluster_match(cluster, ns, name):
-        continue
-    print(f"{ns}\t{name}")
-PY
+    printf '%s' "$json" | tulan_python k8s tokens-delete \
+      --cluster "$cluster" \
+      --display-json "$display_json"
   )
 
   if (( count == 0 )); then
@@ -1214,141 +1106,16 @@ tulan_k8s_print_register_command() {
   local display_json
   display_json="$(tulan_k8s_cluster_display_json)"
 
-  K8S_REGISTER_JSON="$json" \
-  K8S_REGISTER_CLUSTER="$cluster" \
-  K8S_CLUSTER_DISPLAY_JSON="$display_json" \
-  K8S_REGISTER_LAN="$REGISTER_URL_LAN" \
-  K8S_REGISTER_PUBLIC="$REGISTER_URL_PUBLIC" \
-  K8S_REGISTER_CURRENT="$REGISTER_URL_CURRENT" \
-  K8S_REGISTER_DOMAIN="$REGISTER_URL_DOMAIN" \
-  K8S_REGISTER_PORT="$REGISTER_URL_HTTPS_PORT" \
-  K8S_REGISTER_EXTRA_FROM="${K8S_REGISTER_EXTRA_FROM_URL:-}" \
-  K8S_REGISTER_FORMAT="$format" \
-  python3 <<'PY'
-import json, os, re, sys
-
-data = json.loads(os.environ["K8S_REGISTER_JSON"])
-cluster_filter = os.environ.get("K8S_REGISTER_CLUSTER", "")
-display = json.loads(os.environ.get("K8S_CLUSTER_DISPLAY_JSON") or "{}")
-lan = os.environ["K8S_REGISTER_LAN"].rstrip("/")
-public = os.environ.get("K8S_REGISTER_PUBLIC", "")
-current = os.environ.get("K8S_REGISTER_CURRENT", "")
-domain = os.environ.get("K8S_REGISTER_DOMAIN", "")
-port = os.environ.get("K8S_REGISTER_PORT", "")
-extra = os.environ.get("K8S_REGISTER_EXTRA_FROM", "")
-fmt = os.environ.get("K8S_REGISTER_FORMAT", "text")
-
-replacements = []
-for u in [public, current, extra, f"https://{domain}:{port}" if domain and port else "", f"https://{domain}" if domain else ""]:
-    u = (u or "").rstrip("/")
-    if u and u != lan and u not in replacements:
-        replacements.append(u)
-
-def rewrite(text: str) -> str:
-    if not text:
-        return text
-    out = text
-    for u in replacements:
-        out = out.replace(u, lan)
-    if domain:
-        out = re.sub(rf"https://{re.escape(domain)}(?=[/:?'\s\"]|$)", lan, out)
-    return out
-
-fields = [
-    ("insecureNodeCommand", "节点注册（自签证书，推荐）"),
-    ("nodeCommand", "节点注册"),
-    ("insecureCommand", "集群导入（自签证书）"),
-    ("command", "集群导入"),
-    ("insecureWindowsNodeCommand", "Windows 节点（自签）"),
-    ("windowsNodeCommand", "Windows 节点"),
-]
-
-def cluster_match(cluster, ns, name):
-    if not cluster_filter:
-        return True
-    keys = {cluster_filter, cluster, ns, name}
-    for cid, dname in display.items():
-        if cluster_filter in (cid, dname):
-            keys.update({cid, dname})
-    targets = {cluster, ns, name}
-    return bool(keys & targets)
-
-def display_label(cluster_id):
-    dname = display.get(cluster_id) or ""
-    if dname and dname != cluster_id:
-        return f"{cluster_id} (UI: {dname})"
-    return cluster_id
-
-results = []
-seen = set()
-for item in data.get("items", []):
-    ns = item["metadata"]["namespace"]
-    name = item["metadata"]["name"]
-    cluster = item.get("spec", {}).get("clusterName") or ns
-    if not cluster_match(cluster, ns, name):
-        continue
-    # system token 用于集群导入，节点注册优先 default-token
-    if name == "system" and cluster_filter:
-        has_default = any(
-            (it.get("spec", {}).get("clusterName") or it["metadata"]["namespace"]) == cluster
-            and it["metadata"]["name"] == "default-token"
-            for it in data.get("items", [])
-        )
-        if has_default:
-            continue
-    status = item.get("status") or {}
-    for field, label in fields:
-        raw = (status.get(field) or "").strip()
-        if not raw:
-            continue
-        fixed = rewrite(raw)
-        key = (cluster, field, fixed)
-        if key in seen:
-            continue
-        seen.add(key)
-        results.append({
-            "cluster": cluster,
-            "cluster_label": display_label(cluster),
-            "namespace": ns,
-            "token": name,
-            "field": field,
-            "label": label,
-            "raw": raw,
-            "command": fixed,
-            "rewritten": raw != fixed,
-        })
-
-if not results:
-    print("NO_TOKENS", file=sys.stderr)
-    sys.exit(2)
-
-if fmt == "json":
-    print(json.dumps(results, ensure_ascii=False, indent=2))
-    sys.exit(0)
-
-if fmt == "command":
-    for prefer in ("insecureNodeCommand", "nodeCommand", "insecureCommand", "command"):
-        for r in results:
-            if r["field"] == prefer:
-                print(r["command"])
-                sys.exit(0)
-    print(results[0]["command"])
-    sys.exit(0)
-
-print("Rancher 节点注册命令（已替换为内网地址）")
-print(f"内网 server: {lan}")
-if current and current.rstrip('/') != lan:
-    print(f"说明: UI 可能仍显示 {current}，因 token 创建时写入了外网域名")
-print("────────────────────────────────────")
-for r in results:
-    print(f"集群: {r['cluster_label']} — {r['label']} (token: {r['token']})")
-    if r["rewritten"]:
-        print(f"  原 UI 命令: {r['raw']}")
-        print(f"  内网命令:   {r['command']}")
-    else:
-        print(f"  {r['command']}")
-    print()
-PY
+  printf '%s' "$json" | tulan_python k8s register-command \
+    --display-json "$display_json" \
+    --cluster "$cluster" \
+    --lan "$REGISTER_URL_LAN" \
+    --public "$REGISTER_URL_PUBLIC" \
+    --current "$REGISTER_URL_CURRENT" \
+    --domain "$REGISTER_URL_DOMAIN" \
+    --port "$REGISTER_URL_HTTPS_PORT" \
+    --extra-from "${K8S_REGISTER_EXTRA_FROM_URL:-}" \
+    --format "$format"
   rc=$?
   if (( rc == 2 )); then
     tulan_error "未找到 ClusterRegistrationToken${cluster:+（过滤: ${cluster}）}"

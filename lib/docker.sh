@@ -29,39 +29,11 @@ tulan_docker_require_linux() {
 }
 
 tulan_docker_latest_version() {
-  python3 - <<'PY'
-import re
-import urllib.request
-
-url = "https://download.docker.com/linux/static/stable/x86_64/"
-req = urllib.request.Request(url, headers={"User-Agent": "tulan-tools"})
-with urllib.request.urlopen(req, timeout=60) as resp:
-    html = resp.read().decode()
-vers = []
-for v in re.findall(r"docker-(\d+\.\d+\.\d+)\.tgz", html):
-    if v not in vers:
-        vers.append(v)
-if not vers:
-    raise SystemExit(1)
-print(vers[-1])
-PY
+  tulan_python docker latest
 }
 
 tulan_docker_recent_versions() {
-  python3 - <<'PY'
-import re
-import urllib.request
-
-url = "https://download.docker.com/linux/static/stable/x86_64/"
-req = urllib.request.Request(url, headers={"User-Agent": "tulan-tools"})
-with urllib.request.urlopen(req, timeout=60) as resp:
-    html = resp.read().decode()
-vers = []
-for v in re.findall(r"docker-(\d+\.\d+\.\d+)\.tgz", html):
-    if v not in vers:
-        vers.append(v)
-print(" ".join(vers[-8:]))
-PY
+  tulan_python docker recent
 }
 
 tulan_docker_upstream_url() {
@@ -102,43 +74,20 @@ tulan_docker_link_binaries() {
 tulan_docker_register() {
   local version="$1" docker_dir="$2" source="${3:-upstream}"
 
-  python3 - "$version" "$docker_dir" "$source" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys, time
-from pathlib import Path
-
-version, docker_dir, source, reg_path = sys.argv[1:5]
-reg = Path(reg_path)
-reg.parent.mkdir(parents=True, exist_ok=True)
-data = json.loads(reg.read_text()) if reg.exists() else {}
-entry = data.setdefault("docker", {"install_name": "docker", "active": "", "versions": {}})
-entry["install_name"] = "docker"
-entry["versions"][version] = {
-    "source": source,
-    "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    "docker_root": docker_dir,
-}
-entry["active"] = version
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  tulan_python docker register \
+    --version "$version" \
+    --docker-dir "$docker_dir" \
+    --source "$source" \
+    --reg-path "$(tulan_binary_registry_path)"
 }
 
 tulan_docker_activate() {
   local version="$1"
   local docker_dir
 
-  docker_dir="$(python3 - "$version" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-
-version, reg_path = sys.argv[1:3]
-data = json.loads(Path(reg_path).read_text())
-entry = data.get("docker", {})
-info = entry.get("versions", {}).get(version)
-if not info:
-    sys.exit(1)
-print(info.get("docker_root", ""))
-PY
-)" || {
+  docker_dir="$(tulan_python docker docker-root \
+    --version "$version" \
+    --reg-path "$(tulan_binary_registry_path)")" || {
     tulan_error "版本未安装: docker ${version}"
     return 1
   }
@@ -150,18 +99,10 @@ PY
 
   tulan_docker_link_binaries "$version" "$docker_dir"
 
-  python3 - "$version" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-
-version, reg_path = sys.argv[1:3]
-reg = Path(reg_path)
-data = json.loads(reg.read_text())
-if version not in data.get("docker", {}).get("versions", {}):
-    sys.exit(1)
-data["docker"]["active"] = version
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  tulan_python registry activate \
+    --tool docker \
+    --version "$version" \
+    --reg-path "$(tulan_binary_registry_path)"
 
   tulan_log "已切换 docker -> ${version}"
 }
@@ -206,20 +147,7 @@ tulan_docker_post_install() {
 
 tulan_docker_load_defaults() {
   if [[ -f "$TULAN_DOCKER_DEFAULTS_FILE" ]]; then
-    python3 - "$TULAN_DOCKER_DEFAULTS_FILE" <<'PY'
-import json, sys
-from pathlib import Path
-
-data = json.loads(Path(sys.argv[1]).read_text())
-mirrors = data.get("registry-mirrors") or []
-if mirrors:
-    print(f"export TULAN_DOCKER_REGISTRY_MIRROR={mirrors[0]!r}")
-print(f"export TULAN_DOCKER_LOG_DRIVER={data.get('log-driver', 'json-file')!r}")
-opts = data.get("log-opts") or {}
-print(f"export TULAN_DOCKER_LOG_MAX_SIZE={opts.get('max-size', '10m')!r}")
-print(f"export TULAN_DOCKER_LOG_MAX_FILE={opts.get('max-file', '3')!r}")
-print(f"export TULAN_DOCKER_LOG_COMPRESS={opts.get('compress', 'true')!r}")
-PY
+    tulan_python docker load-defaults "$TULAN_DOCKER_DEFAULTS_FILE"
   fi
 }
 
@@ -250,61 +178,25 @@ tulan_docker_latest_backup() {
 tulan_docker_save_state() {
   local mirror="$1" log_driver="$2" log_max_size="$3" log_max_file="$4" log_compress="$5"
   mkdir -p "$(dirname "$TULAN_DOCKER_STATE_FILE")"
-  python3 - "$mirror" "$log_driver" "$log_max_size" "$log_max_file" "$log_compress" \
-    "$TULAN_DOCKER_STATE_FILE" "$TULAN_DOCKER_DAEMON_PATH" <<'PY'
-import json, sys, time
-from pathlib import Path
-
-mirror, driver, max_size, max_file, compress, state_path, daemon_path = sys.argv[1:8]
-data = {
-    "registry_mirror": mirror,
-    "log_driver": driver,
-    "log_max_size": max_size,
-    "log_max_file": max_file,
-    "log_compress": compress,
-    "daemon_path": daemon_path,
-    "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-}
-Path(state_path).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  tulan_python docker save-state \
+    --mirror "$mirror" \
+    --log-driver "$log_driver" \
+    --log-max-size "$log_max_size" \
+    --log-max-file "$log_max_file" \
+    --log-compress "$log_compress" \
+    --state-path "$TULAN_DOCKER_STATE_FILE" \
+    --daemon-path "$TULAN_DOCKER_DAEMON_PATH"
 }
 
 tulan_docker_build_daemon_json() {
   local mirror="$1" log_driver="$2" log_max_size="$3" log_max_file="$4" log_compress="$5"
-  python3 - "$mirror" "$log_driver" "$log_max_size" "$log_max_file" "$log_compress" "$TULAN_DOCKER_DAEMON_PATH" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-mirror, driver, max_size, max_file, compress, daemon_path = sys.argv[1:7]
-path = Path(daemon_path)
-data = {}
-if path.exists():
-    try:
-        data = json.loads(path.read_text())
-    except json.JSONDecodeError:
-        data = {}
-
-mirrors = list(data.get("registry-mirrors") or [])
-if mirror and mirror not in mirrors:
-    mirrors.insert(0, mirror)
-elif mirror:
-    mirrors = [mirror] + [m for m in mirrors if m != mirror]
-if mirror:
-    data["registry-mirrors"] = mirrors
-
-data["log-driver"] = driver
-opts = dict(data.get("log-opts") or {})
-opts["max-size"] = max_size
-opts["max-file"] = str(max_file)
-if driver == "json-file":
-    opts["compress"] = str(compress).lower()
-elif "compress" in opts and driver != "json-file":
-    opts.pop("compress", None)
-data["log-opts"] = opts
-
-print(json.dumps(data, indent=2, ensure_ascii=False))
-PY
+  tulan_python docker build-daemon \
+    --mirror "$mirror" \
+    --log-driver "$log_driver" \
+    --log-max-size "$log_max_size" \
+    --log-max-file "$log_max_file" \
+    --log-compress "$log_compress" \
+    --daemon-path "$TULAN_DOCKER_DAEMON_PATH"
 }
 
 tulan_docker_apply_daemon_config() {
@@ -428,19 +320,7 @@ tulan_docker_show_config_status() {
   echo ""
 
   if [[ -f "$TULAN_DOCKER_STATE_FILE" ]]; then
-    python3 - "$TULAN_DOCKER_STATE_FILE" <<'PY'
-import json, sys
-from pathlib import Path
-
-data = json.loads(Path(sys.argv[1]).read_text())
-print("  最近配置（tulan-tools 写入）:")
-print(f"    镜像加速:   {data.get('registry_mirror', '-')}")
-print(f"    日志驱动:   {data.get('log_driver', '-')}")
-print(f"    单文件大小: {data.get('log_max_size', '-')}")
-print(f"    保留份数:   {data.get('log_max_file', '-')}")
-print(f"    压缩日志:   {data.get('log_compress', '-')}")
-print(f"    更新时间:   {data.get('updated_at', '-')}")
-PY
+    tulan_python docker show-state "$TULAN_DOCKER_STATE_FILE"
     echo ""
   fi
 
@@ -554,17 +434,7 @@ tulan_docker_show_versions() {
   fi
 
   if [[ -f "$(tulan_binary_registry_path)" ]]; then
-    installed="$(python3 - "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-data = json.loads(Path(sys.argv[1]).read_text())
-entry = data.get("docker", {})
-active = entry.get("active", "")
-versions = sorted(entry.get("versions", {}).keys())
-if versions:
-    print(", ".join(f"{v}{'*' if v == active else ''}" for v in versions))
-PY
-)"
+    installed="$(tulan_python registry versions-display --tool docker --reg-path "$(tulan_binary_registry_path)" 2>/dev/null || true)"
     if [[ -n "$installed" ]]; then
       echo "  本地已装（* 当前）: ${installed}"
     else
@@ -593,55 +463,10 @@ tulan_docker_uninstall() {
     return 1
   fi
 
-  python3 - "$version" "$reg" "$home" <<'PY'
-import json, shutil, sys
-from pathlib import Path
-
-version, reg_path, home = sys.argv[1:4]
-reg = Path(reg_path)
-home = Path(home)
-data = json.loads(reg.read_text())
-entry = data.get("docker")
-if not entry:
-    sys.exit(2)
-
-bin_names = [
-    "docker", "dockerd", "containerd", "runc", "ctr",
-    "docker-init", "docker-proxy", "containerd-shim", "containerd-shim-runc-v2",
-]
-versions = list(entry.get("versions", {}).keys())
-remove = [version] if version else versions
-for ver in remove:
-    cellar = home / "cellar" / "docker" / ver
-    if cellar.exists():
-        shutil.rmtree(cellar)
-    entry.get("versions", {}).pop(ver, None)
-
-remaining = list(entry.get("versions", {}).keys())
-if version and version != entry.get("active"):
-    pass
-elif remaining:
-    entry["active"] = sorted(remaining)[-1]
-    ver = entry["active"]
-    docker_root = Path(entry["versions"][ver]["docker_root"])
-    for name in bin_names:
-        if (docker_root / name).exists():
-            link = home / "bin" / name
-            link.parent.mkdir(parents=True, exist_ok=True)
-            if link.exists() or link.is_symlink():
-                link.unlink()
-            link.symlink_to(f"../cellar/docker/{ver}/docker/{name}")
-else:
-    entry["active"] = ""
-    for name in bin_names:
-        link = home / "bin" / name
-        if link.exists() or link.is_symlink():
-            link.unlink()
-    if not entry.get("versions"):
-        data.pop("docker", None)
-
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  tulan_python docker uninstall \
+    --version "$version" \
+    --reg-path "$reg" \
+    --home "$home"
 
   local rc=$?
   if [[ $rc -eq 2 ]]; then
