@@ -48,6 +48,7 @@ usage() {
   register-command  输出内网版节点注册命令（替换 UI 中的外网域名）
   node-status       在节点上查看注册/Agent 状态（system-agent + rke2/k3s）
   node-pull         在节点上查看镜像拉取进度与 registry 网络连通性
+  node-ports        在节点上排查 RKE2 端口连通性（安全组/防火墙线索）
   node-restart      重启 master/worker 节点 RKE2 服务
   node-watch        持续监控节点状态与镜像拉取进度
   fix-dns           修复节点 DNS（同 brew dns fix）
@@ -133,6 +134,8 @@ password 选项:
   brew k8s node-status                 在节点上查看注册状态
   brew k8s node-pull                   查看镜像拉取与 registry 网络
   brew k8s node-pull -f                持续跟踪拉取日志
+  brew k8s node-ports                  排查 6443/9345 等端口（安全组/防火墙）
+  brew k8s node-ports --host 10.0.0.12 指定 control plane 地址
   brew k8s node-restart master -y      重启 master（rke2-server）
   brew k8s node-restart worker -y      重启 worker（rke2-agent）
   brew k8s node-watch                  持续监控节点状态/镜像
@@ -163,6 +166,7 @@ while [[ $# -gt 0 ]]; do
     register-command|reg-cmd|register-cmd) ACTION="register-command"; shift ;;
     node-status|node|check-node) ACTION="node-status"; shift ;;
     node-pull|pull|pull-status|node-net) ACTION="node-pull"; shift ;;
+    node-ports|ports-check|check-ports) ACTION="node-ports"; shift ;;
     node-restart|restart-node) ACTION="node-restart"; shift ;;
     node-watch|watch|monitor) ACTION="node-watch"; shift ;;
     fix-dns|dns-fix) ACTION="fix-dns"; shift ;;
@@ -372,6 +376,10 @@ main() {
     node-pull)
       tulan_k8s_require_linux || exit 1
       tulan_k8s_run_user node-pull.sh "${EXTRA_ARGS[@]}"
+      ;;
+    node-ports)
+      tulan_k8s_require_linux || exit 1
+      tulan_k8s_run_user node-ports.sh "${EXTRA_ARGS[@]}"
       ;;
     node-restart)
       tulan_k8s_require_linux || exit 1

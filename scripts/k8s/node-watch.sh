@@ -201,6 +201,7 @@ usage() {
   brew k8s node-restart master -y
   brew k8s node-restart worker -y
   brew k8s node-pull -f            # 只看 agent 拉取日志
+  brew k8s node-ports              # 6443/9345 端口与安全组/防火墙线索
 EOF
 }
 

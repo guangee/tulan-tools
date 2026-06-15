@@ -265,6 +265,8 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s node-status -v              附带 journal 日志
   brew k8s node-pull                   查看镜像拉取进度与 registry 网络
   brew k8s node-pull -f                持续跟踪 agent 拉取日志
+  brew k8s node-ports                  排查 RKE2 端口（云安全组/防火墙线索）
+  brew k8s node-ports --host 10.0.0.12 指定 control plane 地址
   brew k8s node-restart master -y      重启 master（rke2-server）
   brew k8s node-restart worker -y      重启 worker（rke2-agent）
   brew k8s node-watch                  持续监控节点状态/镜像
