@@ -253,9 +253,10 @@ EOF
 }
 
 tulan_dns_split_by_family() {
-  local -a all=("$@")
   local -n _v4=$1
   local -n _v6=$2
+  shift 2
+  local -a all=("$@")
   local s
   _v4=()
   _v6=()
@@ -263,8 +264,10 @@ tulan_dns_split_by_family() {
     [[ -z "$s" ]] && continue
     if [[ "$s" == *:* ]]; then
       _v6+=("$s")
-    else
+    elif [[ "$s" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       _v4+=("$s")
+    else
+      tulan_log "跳过非 IPv4 地址: ${s}"
     fi
   done
 }
@@ -278,12 +281,21 @@ tulan_dns_apply_networkmanager() {
   ((${#v4[@]} > 0)) || { tulan_error "无有效 IPv4 DNS 地址"; return 1; }
 
   device="$(tulan_dns_default_iface || true)"
-  conn="$(nmcli -t -f NAME,DEVICE con show --active 2>/dev/null | awk -F: -v dev="$device" '$2==dev {print $1; exit}')"
+  if [[ -n "$device" ]]; then
+    conn="$(nmcli -g GENERAL.CONNECTION device show "$device" 2>/dev/null | head -n1 | tr -d '[:space:]')"
+  fi
+  [[ -z "$conn" || "$conn" == "--" ]] && \
+    conn="$(nmcli -t -f NAME,DEVICE con show --active 2>/dev/null | awk -F: -v dev="$device" '$2==dev {print $1; exit}')"
   [[ -z "$conn" ]] && conn="$(nmcli -t -f NAME con show --active 2>/dev/null | head -n1)"
   [[ -n "$conn" ]] || { tulan_error "未找到 NetworkManager 活动连接"; return 1; }
 
-  tulan_log "NetworkManager 连接: ${conn}"
-  nmcli con mod "$conn" ipv4.dns "${v4[*]}" ipv4.ignore-auto-dns yes
+  tulan_log "NetworkManager 连接: ${conn} (device: ${device:-?})"
+
+  nmcli con mod "$conn" ipv4.dns ""
+  nmcli con mod "$conn" ipv4.ignore-auto-dns yes
+  local dns_csv
+  dns_csv="$(IFS=,; echo "${v4[*]}")"
+  nmcli con mod "$conn" ipv4.dns "$dns_csv"
 
   ipv6_method="$(nmcli -g ipv6.method con show "$conn" 2>/dev/null || echo disabled)"
   case "$ipv6_method" in
