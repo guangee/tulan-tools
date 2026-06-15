@@ -46,6 +46,7 @@ usage() {
   register-url      查看/设置节点注册用的内网 Rancher 地址
   register-command  输出内网版节点注册命令（替换 UI 中的外网域名）
   node-status       在节点上查看注册/Agent 状态（system-agent + rke2/k3s）
+  node-pull         在节点上查看镜像拉取进度与 registry 网络连通性
   node-clean        清理节点注册数据，便于重新注册（不含 Rancher Server）
   images            查看本机 Docker + containerd 已拉取镜像
   legacy-run        旧版 run-k8s.sh（Rancher v2.5.17，容器名 k8s）
@@ -116,6 +117,8 @@ register-command 选项:
   brew k8s register-command            内网版节点注册命令（替换 UI 外网域名）
   brew k8s register-command --format command -c mycluster
   brew k8s node-status                 在节点上查看注册状态
+  brew k8s node-pull                   查看镜像拉取与 registry 网络
+  brew k8s node-pull -f                持续跟踪拉取日志
   brew k8s node-clean -y               清理节点注册数据后重新注册
   brew k8s images                      查看 Docker + containerd 镜像
   brew k8s sync-registries -f nodes.txt
@@ -139,6 +142,7 @@ while [[ $# -gt 0 ]]; do
     register-url|reg-url|server-url|node-url) ACTION="register-url"; shift ;;
     register-command|reg-cmd|register-cmd) ACTION="register-command"; shift ;;
     node-status|node|check-node) ACTION="node-status"; shift ;;
+    node-pull|pull|pull-status|node-net) ACTION="node-pull"; shift ;;
     node-clean|clean-node) ACTION="node-clean"; shift ;;
     images|list-images|imgs) ACTION="images"; shift ;;
     legacy-run|run) ACTION="legacy-run"; shift ;;
@@ -322,6 +326,10 @@ main() {
     node-status)
       tulan_k8s_require_linux || exit 1
       tulan_k8s_run_user node-status.sh "${EXTRA_ARGS[@]}"
+      ;;
+    node-pull)
+      tulan_k8s_require_linux || exit 1
+      tulan_k8s_run_user node-pull.sh "${EXTRA_ARGS[@]}"
       ;;
     node-clean)
       tulan_k8s_require_linux || exit 1

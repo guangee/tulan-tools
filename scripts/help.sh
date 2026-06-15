@@ -244,6 +244,8 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s register-command --from-url https://nginx.example.com  额外替换 nginx 入口
   brew k8s node-status                 在节点上查看注册/Agent 状态
   brew k8s node-status -v              附带 journal 日志
+  brew k8s node-pull                   查看镜像拉取进度与 registry 网络
+  brew k8s node-pull -f                持续跟踪 agent 拉取日志
   brew k8s node-clean                  清理节点注册数据（便于重新注册）
   brew k8s node-clean -y               跳过确认
   brew k8s images                      查看 Docker + containerd 已拉取镜像

@@ -19,6 +19,7 @@ brew k8s password    # 获取初始密码
 brew k8s register-url   # 内网节点注册地址（比 nginx 外网更稳定）
 brew k8s register-command   # 内网版注册命令（server-url 已改但 UI 仍显示外网时用）
 brew k8s node-status        # 在节点上查看注册状态
+brew k8s node-pull          # 查看镜像拉取进度与 registry 网络
 brew k8s node-clean         # 清理节点 agent/rke2，便于重新注册
 brew k8s images             # 查看 Docker + containerd 已拉取镜像
 brew k8s status
@@ -34,6 +35,7 @@ brew help k8s        # 完整子命令列表
 - `install.sh`：启动 Rancher 容器（默认 `rancher/rancher:v2.8.5`），挂载证书与镜像源配置。
 - `ports.sh`：修改已部署 Rancher 的 HTTP/HTTPS 端口（重建容器，保留数据与证书）。
 - `node-status.sh`：在节点上查看 rancher-system-agent / rke2 / k3s 注册状态。
+- `node-pull.sh`：在节点上查看镜像拉取日志、registry 连通性与出站连接。
 - `node-clean.sh`：清理节点 agent/rke2 注册数据，便于重新注册（不含 Rancher Server）。
 - `clean.sh`：清理 Rancher/k3s/rke2 相关进程、容器、网络与数据目录（高风险操作）。
 - `registries.yaml`：k3s 容器运行时镜像仓库配置（会被 `install.sh` 覆盖）。
@@ -120,6 +122,10 @@ brew k8s register-command --refresh -y -c mycluster  # 重建 token 后再输出
 ```bash
 brew k8s node-status
 brew k8s node-status -v    # 附带 systemd 日志
+
+brew k8s node-pull         # 拉取进度 + registry 网络探测
+brew k8s node-pull -f      # 持续跟踪（Ctrl+C 退出）
+brew k8s node-pull --since 5m
 ```
 
 手动排查常用命令：
