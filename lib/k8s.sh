@@ -1062,6 +1062,34 @@ tulan_k8s_confirm_refresh_registration_tokens() {
   [[ "$confirm" =~ ^[yY]$ ]]
 }
 
+tulan_k8s_list_registration_clusters() {
+  local json="${1:-}"
+  if [[ -z "$json" ]]; then
+    json="$(tulan_k8s_rancher_kubectl get clusterregistrationtokens.management.cattle.io -A -o json 2>/dev/null)" || return 1
+  fi
+  K8S_REGISTER_JSON="$json" python3 <<'PY'
+import json, os, sys
+data = json.loads(os.environ["K8S_REGISTER_JSON"])
+items = data.get("items") or []
+if not items:
+    print("  (无任何 ClusterRegistrationToken，请先在 UI 创建/导入集群)")
+    sys.exit(0)
+seen = set()
+for item in items:
+    ns = item["metadata"]["namespace"]
+    name = item["metadata"]["name"]
+    cluster = item.get("spec", {}).get("clusterName") or ns
+    key = (ns, name, cluster)
+    if key in seen:
+        continue
+    seen.add(key)
+    status = item.get("status") or {}
+    ready = "有命令" if any(status.get(f) for f in (
+        "insecureNodeCommand", "nodeCommand", "insecureCommand", "command")) else "无命令"
+    print(f"  集群名={cluster}  namespace={ns}  token={name}  ({ready})")
+PY
+}
+
 tulan_k8s_refresh_registration_tokens() {
   local cluster="${1:-}" json
   tulan_k8s_confirm_refresh_registration_tokens "$cluster" || {
@@ -1096,7 +1124,10 @@ PY
   )
 
   if (( count == 0 )); then
-    tulan_error "未找到匹配的 ClusterRegistrationToken"
+    tulan_error "未找到匹配的 ClusterRegistrationToken${cluster:+（过滤: ${cluster}）}"
+    tulan_log "当前 Rancher 中可用的 registration token："
+    tulan_k8s_list_registration_clusters "$json" || true
+    tulan_log "可省略 -c 查看全部，或使用上面「集群名 / token 名」之一"
     return 1
   fi
 
@@ -1244,8 +1275,10 @@ for r in results:
 PY
   rc=$?
   if (( rc == 2 )); then
-    tulan_error "未找到 ClusterRegistrationToken"
-    tulan_log "请先在 Rancher 创建/导入集群，或指定: brew k8s register-command -c <集群名>"
+    tulan_error "未找到 ClusterRegistrationToken${cluster:+（过滤: ${cluster}）}"
+    tulan_log "当前 Rancher 中可用的 registration token："
+    tulan_k8s_list_registration_clusters "$json" || true
+    tulan_log "请使用: brew k8s register-command -c <集群名>  （集群名见上方）"
     return 1
   fi
   return "$rc"
