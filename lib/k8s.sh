@@ -706,6 +706,33 @@ tulan_k8s_list_upgrade_versions() {
   tulan_k8s_tag_from_image "${TULAN_K8S_UPGRADE_DEFAULT}"
 }
 
+# 仅保留 >= 当前版本的 tag（用于 upgrade 交互列表）
+tulan_k8s_filter_upgrade_versions_ge() {
+  local current_tag="$1"
+  TULAN_K8S_FILTER_CURRENT_TAG="$current_tag" python3 -c '
+import os, sys
+
+def ver_key(tag: str) -> tuple[int, int, int]:
+    tag = tag.strip()
+    if tag.startswith("v"):
+        tag = tag[1:]
+    parts = tag.split(".")
+    while len(parts) < 3:
+        parts.append("0")
+    return tuple(int(p) for p in parts[:3])
+
+current = os.environ.get("TULAN_K8S_FILTER_CURRENT_TAG", "").strip()
+cur_key = None if not current or current == "unknown" else ver_key(current)
+
+for line in sys.stdin:
+    tag = line.strip()
+    if not tag:
+        continue
+    if cur_key is None or ver_key(tag) >= cur_key:
+        print(tag)
+'
+}
+
 tulan_k8s_resolve_current_image() {
   local image=""
   tulan_k8s_load_rancher_config
@@ -724,26 +751,28 @@ tulan_k8s_prompt_upgrade_image() {
     return 0
   fi
 
-  mapfile -t versions < <(tulan_k8s_list_upgrade_versions)
-  if [[ ${#versions[@]} -eq 0 ]]; then
-    export RANCHER_UPGRADE_IMAGE="${TULAN_K8S_UPGRADE_DEFAULT}"
-    return 0
-  fi
-
   current_image="$(tulan_k8s_resolve_current_image)"
   current_tag="$(tulan_k8s_tag_from_image "$current_image")"
+
+  mapfile -t versions < <(tulan_k8s_list_upgrade_versions | tulan_k8s_filter_upgrade_versions_ge "$current_tag")
+  if [[ ${#versions[@]} -eq 0 ]]; then
+    tulan_error "没有不低于当前版本 (${current_tag}) 的可选升级版本"
+    tulan_log "版本列表: $(tulan_k8s_versions_file)"
+    tulan_log "可指定更高版本: brew k8s upgrade -V vX.Y.Z"
+    return 1
+  fi
 
   echo ""
   echo "Rancher 升级"
   echo "────────────────────────────────────"
   echo "  当前版本: ${current_image}"
   echo ""
-  echo "  可选升级版本:"
+  echo "  可选升级版本（不含低于当前的旧版本）:"
   for i in "${!versions[@]}"; do
-    if [[ "$i" -eq 0 ]]; then
-      echo "  [$((i + 1))] ${versions[$i]}  (推荐)"
-    elif [[ "${versions[$i]}" == "$current_tag" ]]; then
+    if [[ "${versions[$i]}" == "$current_tag" ]]; then
       echo "  [$((i + 1))] ${versions[$i]}  ← 当前"
+    elif [[ "$i" -eq 0 ]]; then
+      echo "  [$((i + 1))] ${versions[$i]}  (推荐)"
     else
       echo "  [$((i + 1))] ${versions[$i]}"
     fi
