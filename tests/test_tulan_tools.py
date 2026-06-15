@@ -11,6 +11,7 @@ from tulan_tools.k8s.kubeconfig import (
     extract_token_from_kubeconfig,
     find_clusters,
     resolve_cluster_id,
+    rewrite_kubeconfig_servers,
 )
 from tulan_tools.k8s.register import build_register_results
 from tulan_tools.k8s.versions import filter_versions_ge, read_versions_from_json
@@ -171,6 +172,18 @@ users:
         self.assertEqual(certs[0], b"cert")
         self.assertEqual(certs[1], b"key")
         self.assertIsNone(extract_token_from_kubeconfig(sample))
+
+    def test_rewrite_server_to_lan(self) -> None:
+        raw = "clusters:\n- cluster:\n    server: https://irr-k8s.tulan.wang:60443\n"
+        out = rewrite_kubeconfig_servers(
+            raw,
+            "https://10.0.0.12:60443",
+            public="https://irr-k8s.tulan.wang:60443",
+            domain="irr-k8s.tulan.wang",
+            port="60443",
+        )
+        self.assertIn("https://10.0.0.12:60443", out)
+        self.assertNotIn("irr-k8s.tulan.wang", out)
 
 
 if __name__ == "__main__":

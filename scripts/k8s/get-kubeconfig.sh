@@ -11,6 +11,8 @@ set -euo pipefail
 _SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=../../lib/common.sh
 source "${_SCRIPT_ROOT}/lib/common.sh"
+# shellcheck source=../../lib/k8s.sh
+source "${_SCRIPT_ROOT}/lib/k8s.sh"
 
 KUBECONFIG_CLUSTER="${KUBECONFIG_CLUSTER:-}"
 KUBECONFIG_OUTPUT="${KUBECONFIG_OUTPUT:-}"
@@ -18,6 +20,10 @@ KUBECONFIG_LIST="${KUBECONFIG_LIST:-false}"
 KUBECONFIG_RANCHER_URL="${KUBECONFIG_RANCHER_URL:-}"
 KUBECONFIG_TIMEOUT="${KUBECONFIG_TIMEOUT:-30}"
 KUBECONFIG_VERBOSE="${KUBECONFIG_VERBOSE:-false}"
+KUBECONFIG_USE_PUBLIC="${KUBECONFIG_USE_PUBLIC:-false}"
+KUBECONFIG_LAN_URL="${KUBECONFIG_LAN_URL:-}"
+KUBECONFIG_PUBLIC_URL="${KUBECONFIG_PUBLIC_URL:-}"
+KUBECONFIG_CURRENT_URL="${KUBECONFIG_CURRENT_URL:-}"
 
 usage() {
   cat <<'EOF'
@@ -29,7 +35,8 @@ usage() {
   --list              列出所有集群（ID / 显示名 / 状态）
   -c, --cluster <名>  集群名：UI 显示名、c-m-xxx 或 local（必填，除非 --list）
   -o, --output <path> 写入文件（默认输出到 stdout）
-  --url <url>         Rancher API 地址（默认从 rancher.env / server-url 读取）
+  --url <url>         Rancher API 地址（默认用内网 IP，见 register-url）
+  --public            使用域名/外网地址（默认走内网 IP）
   --timeout <秒>      单步操作超时（默认 30）
   -v, --verbose       输出步骤与认证尝试细节（默认静默，仅报错或写入提示）
   -h, --help          显示帮助
@@ -42,7 +49,8 @@ usage() {
 说明:
   - 下游集群通过 Rancher /v3/clusters/{id}?action=generateKubeconfig 获取
   - local 集群直接导出容器内 /etc/rancher/k3s/k3s.yaml
-  - 认证优先 client 证书，其次 token；各 HTTP 请求均有超时
+  - 默认通过内网 IP 调用 Rancher API，并将 kubeconfig 中 server 地址替换为内网
+  - 使用域名请加 --public
 EOF
 }
 
@@ -84,6 +92,10 @@ parse_args() {
         KUBECONFIG_RANCHER_URL="${2:-}"
         shift 2
         ;;
+      --public)
+        KUBECONFIG_USE_PUBLIC=true
+        shift
+        ;;
       --timeout)
         KUBECONFIG_TIMEOUT="${2:-30}"
         shift 2
@@ -123,15 +135,54 @@ pick_rancher_api_url() {
     echo "$KUBECONFIG_RANCHER_URL"
     return 0
   fi
+  if [[ "${KUBECONFIG_USE_PUBLIC}" == true && -n "${KUBECONFIG_PUBLIC_URL:-}" ]]; then
+    echo "$KUBECONFIG_PUBLIC_URL"
+    return 0
+  fi
+  if [[ -n "${KUBECONFIG_LAN_URL:-}" ]]; then
+    echo "$KUBECONFIG_LAN_URL"
+    return 0
+  fi
   local domain="${K8S_SITE_DOMAIN:-}" port="${HTTPS_PORT_MAP%%:*}" url
   if [[ -n "$domain" && -n "$port" ]]; then
     echo "https://${domain}:${port}"
     return 0
   fi
-  url="$(rancher_kubectl get settings.management.cattle.io server-url \
-    -o jsonpath='{.value}' 2>/dev/null || rancher_kubectl get setting server-url \
-    -o jsonpath='{.value}' 2>/dev/null || true)"
+  url="$(tulan_k8s_rancher_read_server_url 2>/dev/null || true)"
   [[ -n "$url" ]] && echo "$url"
+}
+
+resolve_url_bundle() {
+  local lan_ip domain https_port
+  tulan_k8s_load_rancher_config 2>/dev/null || true
+  if [[ -z "${K8S_SITE_DOMAIN:-}" ]]; then
+    tulan_k8s_load_site_config 2>/dev/null || true
+  fi
+  domain="${K8S_SITE_DOMAIN:-}"
+  https_port="$(tulan_k8s_rancher_https_host_port 2>/dev/null || echo "${HTTPS_PORT_MAP%%:*}")"
+  lan_ip="$(tulan_k8s_resolve_lan_ip 2>/dev/null || true)"
+  if [[ -n "$lan_ip" && -n "$https_port" ]]; then
+    KUBECONFIG_LAN_URL="$(tulan_k8s_build_rancher_url "$lan_ip" "$https_port")"
+  fi
+  if [[ -n "$domain" && -n "$https_port" ]]; then
+    KUBECONFIG_PUBLIC_URL="$(tulan_k8s_build_rancher_url "$domain" "$https_port")"
+  fi
+  KUBECONFIG_CURRENT_URL="$(tulan_k8s_rancher_read_server_url 2>/dev/null || true)"
+}
+
+rewrite_kubeconfig_lan() {
+  local config="$1"
+  if [[ "${KUBECONFIG_USE_PUBLIC}" == true || -z "${KUBECONFIG_LAN_URL:-}" ]]; then
+    printf '%s' "$config"
+    return 0
+  fi
+  log_verbose "将 kubeconfig server 地址替换为内网: ${KUBECONFIG_LAN_URL}"
+  printf '%s' "$config" | tulan_python k8s rewrite-kubeconfig \
+    --lan "$KUBECONFIG_LAN_URL" \
+    --public "${KUBECONFIG_PUBLIC_URL:-}" \
+    --current "${KUBECONFIG_CURRENT_URL:-}" \
+    --domain "${K8S_SITE_DOMAIN:-}" \
+    --port "$(tulan_k8s_rancher_https_host_port 2>/dev/null || echo "${HTTPS_PORT_MAP%%:*}")"
 }
 
 write_output() {
@@ -301,6 +352,7 @@ main() {
   fi
 
   log_verbose "步骤 2/4: 解析集群名「${KUBECONFIG_CLUSTER}」"
+  resolve_url_bundle
   cluster_id="$(printf '%s' "$clusters_json" | tulan_python k8s resolve-cluster --cluster "$KUBECONFIG_CLUSTER")"
   log_verbose "匹配到集群 ID: ${cluster_id}"
 
@@ -308,9 +360,15 @@ main() {
     tulan_error "无法确定 Rancher API 地址，请使用 --url https://..."
     exit 1
   }
-  log_verbose "Rancher API: ${rancher_url}"
+  if [[ "${KUBECONFIG_USE_PUBLIC}" == true ]]; then
+    log_verbose "Rancher API（外网/域名）: ${rancher_url}"
+  else
+    log_verbose "Rancher API（内网）: ${rancher_url}"
+    [[ -n "${KUBECONFIG_PUBLIC_URL:-}" ]] && log_verbose "外网/域名（未使用）: ${KUBECONFIG_PUBLIC_URL}"
+  fi
 
   config="$(fetch_downstream_kubeconfig "$cluster_id" "$rancher_url" "$clusters_json")"
+  config="$(rewrite_kubeconfig_lan "$config")"
   write_output "$config"
 }
 

@@ -215,6 +215,63 @@ def fetch_kubeconfig_with_mgmt_kubeconfig(
     )
 
 
+def rewrite_kubeconfig_servers(
+    config: str,
+    lan: str,
+    public: str = "",
+    current: str = "",
+    domain: str = "",
+    port: str = "",
+    extra: str = "",
+) -> str:
+    from .register import _build_replacements, _rewrite_command
+
+    lan = lan.rstrip("/")
+    replacements = _build_replacements(lan, public, current, extra, domain, port)
+    out = config
+    for u in replacements:
+        out = out.replace(u, lan)
+    if domain:
+        out = re.sub(rf"https://{re.escape(domain)}(?=[/:?'\s\"]|$)", lan, out)
+    lines: list[str] = []
+    for line in out.splitlines(keepends=True):
+        if "server:" in line:
+            prefix, _, rest = line.partition("server:")
+            value = rest.strip()
+            if value:
+                fixed = _rewrite_command(value, lan, replacements, domain)
+                suffix = "\n" if line.endswith("\n") else ""
+                line = f"{prefix}server: {fixed}{suffix}"
+        lines.append(line)
+    return "".join(lines)
+
+
+def cmd_rewrite_kubeconfig(argv: list[str]) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lan", required=True)
+    parser.add_argument("--public", default="")
+    parser.add_argument("--current", default="")
+    parser.add_argument("--domain", default="")
+    parser.add_argument("--port", default="")
+    parser.add_argument("--extra-from", default="")
+    args = parser.parse_args(argv)
+    config = sys.stdin.read()
+    sys.stdout.write(
+        rewrite_kubeconfig_servers(
+            config,
+            args.lan,
+            args.public,
+            args.current,
+            args.domain,
+            args.port,
+            args.extra_from,
+        )
+    )
+    return 0
+
+
 def cmd_list_clusters(argv: list[str]) -> int:
     data = json.load(sys.stdin)
     list_clusters(data)
