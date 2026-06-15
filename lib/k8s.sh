@@ -711,6 +711,9 @@ tulan_k8s_prompt_upgrade_image() {
   done
   echo "  也可直接输入版本号（如 v2.10.0 或 rancher/rancher:v2.10.0）"
   echo ""
+  echo "  版本列表: $(tulan_k8s_versions_file)"
+  echo "  更新列表: brew k8s sync-versions  （从 Docker Hub 拉取 vX.Y.Z）"
+  echo ""
   read -r -p "请选择升级目标 [1-${#versions[@]}] (默认 ${default_idx}): " choice
   choice="${choice:-$default_idx}"
 

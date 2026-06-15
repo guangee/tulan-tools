@@ -225,6 +225,8 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s install --https-port 9443 指定 HTTPS 端口（默认 8443）
   brew k8s ports                     修改已部署实例的 HTTP/HTTPS 端口
   brew k8s ports --https-port 9443 -y  非交互修改 HTTPS 端口
+  brew k8s sync-versions             从 Docker Hub 同步 vX.Y.Z 版本列表
+  brew k8s sync-versions --limit 30  仅保留最新 30 个版本
   brew k8s upgrade                   交互选择升级目标版本
   brew k8s upgrade -V v2.13.3        指定版本升级
   brew k8s upgrade --image rancher/rancher:v2.13.3

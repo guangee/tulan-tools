@@ -34,6 +34,7 @@ usage() {
   ports             修改已部署 Rancher 的 HTTP/HTTPS 端口
   clean             清理 Rancher/K3s/RKE2 组件与数据（危险）
   sync-registries   同步 registries.yaml 到节点清单（见 scripts/k8s/sync-registries.sh -h）
+  sync-versions     从 Docker Hub 同步 Rancher 可升级版本列表
   shell-init        配置 crictl/kubectl 别名（写入 ~/.zshrc）
   status            查看 Rancher 容器与配置
   legacy-run        旧版 run-k8s.sh（Rancher v2.5.17，容器名 k8s）
@@ -81,6 +82,7 @@ install / upgrade / ports 选项:
   brew k8s install --https-port 9443
   brew k8s ports
   brew k8s ports --https-port 9443 -y
+  brew k8s sync-versions
   brew k8s upgrade
   brew k8s upgrade -V v2.13.3
   brew k8s password
@@ -99,6 +101,7 @@ while [[ $# -gt 0 ]]; do
     ports|port|set-ports) ACTION="ports"; shift ;;
     clean|reset) ACTION="clean"; shift ;;
     sync-registries|sync) ACTION="sync-registries"; shift ;;
+    sync-versions|sync-rancher-versions|versions-sync) ACTION="sync-versions"; shift ;;
     shell-init|k3s-init|init-shell) ACTION="shell-init"; shift ;;
     status) ACTION="status"; shift ;;
     legacy-run|run) ACTION="legacy-run"; shift ;;
@@ -217,6 +220,10 @@ main() {
       ;;
     sync-registries)
       tulan_k8s_run_user sync-registries.sh "${EXTRA_ARGS[@]}"
+      ;;
+    sync-versions)
+      tulan_k8s_require_linux || exit 1
+      tulan_k8s_run_user sync-rancher-versions.sh "${EXTRA_ARGS[@]}"
       ;;
     shell-init)
       tulan_k8s_run_user k3s-command-init.sh

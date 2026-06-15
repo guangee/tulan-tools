@@ -1,4 +1,8 @@
-# Rancher 可选升级版本（自上而下，首项为 brew k8s upgrade 默认推荐）
+# 运行 brew k8s sync-versions 从 Docker Hub 自动生成
+# 来源: https://hub.docker.com/r/rancher/rancher/tags
+# 仅保留 vX.Y.Z 稳定版本（排除 -head、-alpha、-amd64 等）
+#
+# 以下为离线 fallback，联网后请执行 sync-versions 更新：
 v2.13.3
 v2.9.3
 v2.8.5

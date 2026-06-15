@@ -7,4 +7,5 @@
 !registries.yaml
 !gpu.md
 !blocks.py
+!sync-rancher-versions.py
 !rancher-migrate-scripts/*
