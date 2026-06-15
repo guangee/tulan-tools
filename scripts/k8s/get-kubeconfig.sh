@@ -47,7 +47,7 @@ usage() {
   brew k8s kubeconfig -c prod -v
 
 说明:
-  - 下游集群通过 Rancher /v3/clusters/{id}?action=generateKubeconfig 获取
+  - 获取顺序: Secret → Steve API(6443) → Norman API(/v3)；可用 RANCHER_TOKEN 作为 Norman 回退
   - local 集群直接导出容器内 /etc/rancher/k3s/k3s.yaml
   - 默认通过内网 IP 调用 Rancher API，并将 kubeconfig 中 server 地址替换为内网
   - 使用域名请加 --public
@@ -201,27 +201,106 @@ write_output() {
   printf '%s' "$content"
 }
 
-# 从管理集群 Secret 直接读取下游 kubeconfig（不经过 Norman API）
+# 从管理集群 Secret 直接读取下游 kubeconfig（不经过 API）
 fetch_kubeconfig_from_secret() {
   local cluster_id="$1"
-  local container secret data_key out
+  local container secret data_key out ns
   container="$(rancher_container)"
+
+  try_secret_data() {
+    local ns="$1" name="$2" key="$3"
+    out="$(run_timeout "$KUBECONFIG_TIMEOUT" docker exec "$container" kubectl get secret "$name" \
+      -n "$ns" -o "jsonpath={.data.${key}}" 2>/dev/null | base64 -d 2>/dev/null || true)"
+    if [[ -n "$out" ]] && grep -q 'apiVersion' <<<"$out"; then
+      log_verbose "从 secret ${ns}/${name} (${key}) 读取成功"
+      printf '%s' "$out"
+      return 0
+    fi
+    return 1
+  }
 
   for secret in kubeconfig full-kubeconfig cluster-kubeconfig; do
     for data_key in config value kubeconfig; do
-      out="$(run_timeout "$KUBECONFIG_TIMEOUT" docker exec "$container" kubectl get secret "$secret" \
-        -n "$cluster_id" -o "jsonpath={.data.${data_key}}" 2>/dev/null | base64 -d 2>/dev/null || true)"
-      if [[ -n "$out" ]] && grep -q 'apiVersion' <<<"$out"; then
-        log_verbose "从 secret ${cluster_id}/${secret} 读取成功"
-        printf '%s' "$out"
-        return 0
-      fi
+      try_secret_data "$cluster_id" "$secret" "$data_key" && return 0
     done
   done
+
+  for ns in fleet-default cattle-global-data; do
+    while read -r secret; do
+      [[ -n "$secret" ]] || continue
+      secret="${secret#secret/}"
+      for data_key in config value kubeconfig; do
+        try_secret_data "$ns" "$secret" "$data_key" && return 0
+      done
+    done < <(run_timeout "$KUBECONFIG_TIMEOUT" docker exec "$container" kubectl get secrets -n "$ns" \
+      -o name 2>/dev/null | grep -i kubeconfig || true)
+  done
+
   return 1
 }
 
-# 获取 Rancher /v3 API 可用的 Bearer token（k3s client 证书不能用于 Norman API）
+# Steve API（6443 + k3s client 证书）— 管理集群标准认证方式
+rancher_fetch_steve_in_container() {
+  local cluster_id="$1"
+  local container curl_max verbose_flag
+  container="$(rancher_container)"
+  curl_max=$((KUBECONFIG_TIMEOUT < 15 ? KUBECONFIG_TIMEOUT : 15))
+  verbose_flag=0
+  [[ "$KUBECONFIG_VERBOSE" == true ]] && verbose_flag=1
+
+  run_timeout "$((KUBECONFIG_TIMEOUT + 10))" docker exec \
+    -e "CLUSTER_ID=${cluster_id}" \
+    -e "CURL_CONNECT=3" \
+    -e "CURL_MAX=${curl_max}" \
+    -e "VERBOSE=${verbose_flag}" \
+    "$container" sh -s <<'EOS'
+CLUSTER_ID="${CLUSTER_ID:?}"
+CURL_CONNECT="${CURL_CONNECT:-3}"
+CURL_MAX="${CURL_MAX:-15}"
+VERBOSE="${VERBOSE:-0}"
+CA=/var/lib/rancher/k3s/server/tls/server-ca.crt
+STEVE_PATH="/v1/management.cattle.io.clusters/${CLUSTER_ID}?action=generateKubeconfig"
+
+vlog() { [ "$VERBOSE" = 1 ] && echo "[kubeconfig/steve] $*" >&2 || true; }
+
+post_steve() {
+  api_base="$1"
+  shift
+  curl -sfk --connect-timeout "$CURL_CONNECT" --max-time "$CURL_MAX" -X POST \
+    -H "Content-Type: application/json" \
+    -d '{}' \
+    "$@" \
+    "${api_base}${STEVE_PATH}"
+}
+
+for crt in \
+  /var/lib/rancher/k3s/server/tls/client-admin.crt \
+  /var/lib/rancher/k3s/server/tls/client-kube-apiserver.crt; do
+  key="${crt%.crt}.key"
+  [ -f "$crt" ] || continue
+  [ -f "$key" ] || continue
+  for api_base in https://127.0.0.1:6443 https://[::1]:6443; do
+    vlog "Steve API client-cert @ ${api_base}"
+    if resp="$(post_steve "$api_base" --cert "$crt" --key "$key" --cacert "$CA" 2>/dev/null || true)" \
+      && [ -n "$resp" ]; then
+      printf '%s' "$resp"
+      exit 0
+    fi
+    vlog "Steve API client-cert @ ${api_base} (insecure)"
+    if resp="$(post_steve "$api_base" --cert "$crt" --key "$key" 2>/dev/null || true)" \
+      && [ -n "$resp" ]; then
+      printf '%s' "$resp"
+      exit 0
+    fi
+  done
+done
+
+vlog "Steve API 未成功"
+exit 1
+EOS
+}
+
+# 获取 Rancher /v3 API 可用的 Bearer token（Norman API 回退用）
 rancher_bearer_token() {
   local container
   container="$(rancher_container)"
@@ -250,6 +329,14 @@ for sa in cattle-admin default admin; do
     try_token "$token" || true
   done
 done
+
+while read -r ns sa; do
+  [ -n "$ns" ] && [ -n "$sa" ] || continue
+  token="$($KTC "$sa" -n "$ns" --duration=10m 2>/dev/null || true)"
+  try_token "$token" || true
+done <<EOF
+$(kubectl get sa -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null | head -n 20)
+EOF
 
 for sa_secret in $(kubectl get sa -n kube-system -o jsonpath='{range .items[*]}{.secrets[0].name}{"\n"}{end}' 2>/dev/null); do
   [ -n "$sa_secret" ] || continue
@@ -333,27 +420,41 @@ EOS
 
 fetch_downstream_kubeconfig() {
   local cluster_id="$1" rancher_url="$2"
-  local clusters_json="$3" resp token mgmt_kc py_timeout
+  local clusters_json="$3" resp token py_timeout
 
-  log_verbose "步骤 3/5: 从集群 Secret 读取（${cluster_id}）"
+  log_verbose "步骤 3/6: 从集群 Secret 读取（${cluster_id}）"
   if resp="$(fetch_kubeconfig_from_secret "$cluster_id" 2>/dev/null || true)" && [[ -n "$resp" ]]; then
     printf '%s' "$resp"
     return 0
   fi
-  log_verbose "集群 Secret 未找到，尝试 Norman API"
+  log_verbose "集群 Secret 未找到，尝试 Steve API"
 
-  log_verbose "步骤 4/5: 容器内 Norman API（Bearer，超时 ${KUBECONFIG_TIMEOUT}s）"
-  if resp="$(rancher_fetch_in_container "$cluster_id" 2>/dev/null || true)" && [[ -n "$resp" ]]; then
-    log_verbose "容器内 API 成功"
+  log_verbose "步骤 4/6: 容器内 Steve API（6443 + client 证书，超时 ${KUBECONFIG_TIMEOUT}s）"
+  if resp="$(rancher_fetch_steve_in_container "$cluster_id" 2>/dev/null || true)" && [[ -n "$resp" ]]; then
+    log_verbose "Steve API 成功"
     printf '%s' "$resp" | tulan_python k8s extract-config
     return 0
   fi
-  log_verbose "容器内 API 未成功，改走宿主机 API"
+  log_verbose "Steve API 未成功，尝试 Norman API"
 
-  log_verbose "步骤 5/5: 宿主机 Norman API（${rancher_url}，Bearer token）"
-  token="$(rancher_bearer_token 2>/dev/null || true)"
+  log_verbose "步骤 5/6: 容器内 Norman API（Bearer，超时 ${KUBECONFIG_TIMEOUT}s）"
+  if resp="$(rancher_fetch_in_container "$cluster_id" 2>/dev/null || true)" && [[ -n "$resp" ]]; then
+    log_verbose "容器内 Norman API 成功"
+    printf '%s' "$resp" | tulan_python k8s extract-config
+    return 0
+  fi
+  log_verbose "容器内 Norman API 未成功，改走宿主机 Norman API"
+
+  log_verbose "步骤 6/6: 宿主机 Norman API（${rancher_url}，Bearer token）"
+  token="${RANCHER_TOKEN:-}"
   if [[ -z "$token" ]]; then
-    tulan_error "无法获取 Rancher API Bearer token（k3s client 证书不能用于 /v3 API）"
+    token="$(rancher_bearer_token 2>/dev/null || true)"
+  else
+    log_verbose "使用环境变量 RANCHER_TOKEN"
+  fi
+  if [[ -z "$token" ]]; then
+    tulan_error "获取 kubeconfig 失败：Secret/Steve/Norman 均未成功，且无法创建 Bearer token"
+    tulan_error "提示: 可在 Rancher UI 创建 API Key，执行: RANCHER_TOKEN=<key> brew k8s kubeconfig -c prod"
     return 1
   fi
   py_timeout="$KUBECONFIG_TIMEOUT"
@@ -380,7 +481,7 @@ main() {
     exit 1
   fi
 
-  log_verbose "步骤 1/5: 读取集群列表（容器 ${container}）"
+  log_verbose "步骤 1/6: 读取集群列表（容器 ${container}）"
   clusters_json="$(rancher_kubectl get clusters.management.cattle.io -o json 2>/dev/null)" || {
     tulan_error "无法读取集群列表（请确认 Rancher 已就绪；可用 -v 查看详情）"
     exit 1
@@ -406,7 +507,7 @@ main() {
     exit 0
   fi
 
-  log_verbose "步骤 2/5: 解析集群名「${KUBECONFIG_CLUSTER}」"
+  log_verbose "步骤 2/6: 解析集群名「${KUBECONFIG_CLUSTER}」"
   resolve_url_bundle
   cluster_id="$(printf '%s' "$clusters_json" | tulan_python k8s resolve-cluster --cluster "$KUBECONFIG_CLUSTER")"
   log_verbose "匹配到集群 ID: ${cluster_id}"
