@@ -147,7 +147,7 @@ password 选项:
   brew k8s gen-pull                    生成 containerd 手工拉取脚本（供另一台机器）
   brew k8s kubeconfig --list           列出 Rancher 集群
   brew k8s kubeconfig -c <集群名>      获取集群 kubeconfig（stdout 或 -o 文件）
-  brew k8s kubeconfig -c prod -v       显示各步骤进度（卡住时便于排查）
+  brew k8s kubeconfig -c prod -v       输出步骤与认证尝试细节
   brew k8s sync-registries -f nodes.txt
   REGISTRY_MIRROR=https://hub.example.com brew k8s install
 EOF

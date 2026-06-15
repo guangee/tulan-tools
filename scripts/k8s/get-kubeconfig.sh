@@ -31,7 +31,7 @@ usage() {
   -o, --output <path> 写入文件（默认输出到 stdout）
   --url <url>         Rancher API 地址（默认从 rancher.env / server-url 读取）
   --timeout <秒>      单步操作超时（默认 30）
-  -v, --verbose       显示详细尝试过程
+  -v, --verbose       输出步骤与认证尝试细节（默认静默，仅报错或写入提示）
   -h, --help          显示帮助
 
 示例:
@@ -46,12 +46,13 @@ usage() {
 EOF
 }
 
-log_step() {
+log_verbose() {
+  [[ "$KUBECONFIG_VERBOSE" == true ]] || return 0
   tulan_log "[kubeconfig] $*"
 }
 
-log_verbose() {
-  [[ "$KUBECONFIG_VERBOSE" == true ]] && tulan_log "[kubeconfig]   $*" || true
+log_result() {
+  tulan_log "[kubeconfig] $*"
 }
 
 run_timeout() {
@@ -139,7 +140,7 @@ write_output() {
     mkdir -p "$(dirname "$KUBECONFIG_OUTPUT")"
     printf '%s' "$content" >"$KUBECONFIG_OUTPUT"
     chmod 600 "$KUBECONFIG_OUTPUT" 2>/dev/null || true
-    log_step "已写入: ${KUBECONFIG_OUTPUT}"
+    log_result "已写入: ${KUBECONFIG_OUTPUT}"
     return 0
   fi
   printf '%s' "$content"
@@ -236,15 +237,15 @@ fetch_downstream_kubeconfig() {
   local cluster_id="$1" rancher_url="$2"
   local clusters_json="$3" resp mgmt_kc py_timeout
 
-  log_step "步骤 3/4: 容器内 Rancher API 获取 kubeconfig（集群 ${cluster_id}，超时 ${KUBECONFIG_TIMEOUT}s）"
+  log_verbose "步骤 3/4: 容器内 Rancher API 获取 kubeconfig（集群 ${cluster_id}，超时 ${KUBECONFIG_TIMEOUT}s）"
   if resp="$(rancher_fetch_in_container "$cluster_id" 2>/dev/null || true)" && [[ -n "$resp" ]]; then
-    log_step "容器内 API 成功，解析 config 字段"
+    log_verbose "容器内 API 成功，解析 config 字段"
     printf '%s' "$resp" | tulan_python k8s extract-config
     return 0
   fi
   log_verbose "容器内 API 未成功，改走宿主机 API"
 
-  log_step "步骤 4/4: 宿主机 API 获取（${rancher_url}，client 证书认证）"
+  log_verbose "步骤 4/4: 宿主机 API 获取（${rancher_url}，client 证书认证）"
   mgmt_kc="$(mktemp)"
   rancher_local_kubeconfig >"$mgmt_kc"
   py_timeout="$KUBECONFIG_TIMEOUT"
@@ -273,12 +274,12 @@ main() {
     exit 1
   fi
 
-  log_step "步骤 1/4: 读取集群列表（容器 ${container}）"
+  log_verbose "步骤 1/4: 读取集群列表（容器 ${container}）"
   clusters_json="$(rancher_kubectl get clusters.management.cattle.io -o json 2>/dev/null)" || {
     tulan_error "无法读取集群列表（请确认 Rancher 已就绪；可用 -v 查看详情）"
     exit 1
   }
-  log_step "集群列表已读取"
+  log_verbose "集群列表已读取"
 
   if [[ "$KUBECONFIG_LIST" == true ]]; then
     echo "Rancher 集群列表"
@@ -293,15 +294,15 @@ main() {
   }
 
   if [[ "$KUBECONFIG_CLUSTER" == "local" ]]; then
-    log_step "导出 local 集群 k3s.yaml"
+    log_verbose "导出 local 集群 k3s.yaml"
     config="$(rancher_local_kubeconfig)"
     write_output "$config"
     exit 0
   fi
 
-  log_step "步骤 2/4: 解析集群名「${KUBECONFIG_CLUSTER}」"
+  log_verbose "步骤 2/4: 解析集群名「${KUBECONFIG_CLUSTER}」"
   cluster_id="$(printf '%s' "$clusters_json" | tulan_python k8s resolve-cluster --cluster "$KUBECONFIG_CLUSTER")"
-  log_step "匹配到集群 ID: ${cluster_id}"
+  log_verbose "匹配到集群 ID: ${cluster_id}"
 
   rancher_url="$(pick_rancher_api_url)" || {
     tulan_error "无法确定 Rancher API 地址，请使用 --url https://..."
