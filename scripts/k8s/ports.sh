@@ -53,7 +53,7 @@ main() {
     log "未发现旧容器 ${CONTAINER_NAME}，将直接创建"
   fi
 
-  log "以新端口启动容器 ${CONTAINER_NAME}"
+  log "以新端口启动容器 ${CONTAINER_NAME} (-p ${HTTP_PORT_MAP} -p ${HTTPS_PORT_MAP})"
   docker run -d --name "${CONTAINER_NAME}" --restart=unless-stopped \
     -p "${HTTP_PORT_MAP}" -p "${HTTPS_PORT_MAP}" \
     -v "${RANCHER_DATA}:/var/lib/rancher" \

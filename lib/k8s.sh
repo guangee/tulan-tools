@@ -781,20 +781,35 @@ tulan_k8s_prompt_upgrade_image() {
 }
 
 tulan_k8s_export_env() {
+  # 调用方显式传入的变量优先于 rancher.env（避免 ports/install 新端口被旧配置覆盖）
+  local env_cert_out="${CERT_OUT:-}"
+  local env_domain="${K8S_SITE_DOMAIN:-}"
+  local env_site_ip="${K8S_SITE_IP:-}"
+  local env_data="${RANCHER_DATA:-}"
+  local env_container="${CONTAINER_NAME:-}"
+  local env_mirror="${REGISTRY_MIRROR:-}"
+  local env_image="${RANCHER_IMAGE:-}"
+  local env_http="${HTTP_PORT_MAP:-}"
+  local env_https="${HTTPS_PORT_MAP:-}"
+  local env_upgrade="${RANCHER_UPGRADE_IMAGE:-}"
+  local env_installed_at="${INSTALLED_AT:-}"
+
   tulan_k8s_load_rancher_config
   if [[ -z "${K8S_SITE_DOMAIN:-}" ]]; then
     tulan_k8s_load_site_config
   fi
-  export CERT_OUT="${CERT_OUT:-$TULAN_K8S_CERT_OUT}"
-  export K8S_SITE_DOMAIN="${K8S_SITE_DOMAIN:-}"
-  export K8S_SITE_IP="${K8S_SITE_IP:-}"
-  export RANCHER_DATA="${RANCHER_DATA:-$TULAN_K8S_RANCHER_DATA}"
-  export RANCHER_IMAGE="${RANCHER_IMAGE:-$TULAN_K8S_RANCHER_IMAGE}"
-  export REGISTRY_MIRROR="${REGISTRY_MIRROR:-$TULAN_K8S_REGISTRY_MIRROR}"
-  export CONTAINER_NAME="${CONTAINER_NAME:-$TULAN_K8S_CONTAINER}"
-  export HTTP_PORT_MAP="${HTTP_PORT_MAP:-$TULAN_K8S_HTTP_PORT}"
-  export HTTPS_PORT_MAP="${HTTPS_PORT_MAP:-$TULAN_K8S_HTTPS_PORT}"
-  export INSTALLED_AT="${INSTALLED_AT:-}"
+
+  export CERT_OUT="${env_cert_out:-${CERT_OUT:-$TULAN_K8S_CERT_OUT}}"
+  export K8S_SITE_DOMAIN="${env_domain:-${K8S_SITE_DOMAIN:-}}"
+  export K8S_SITE_IP="${env_site_ip:-${K8S_SITE_IP:-}}"
+  export RANCHER_DATA="${env_data:-${RANCHER_DATA:-$TULAN_K8S_RANCHER_DATA}}"
+  export RANCHER_IMAGE="${env_image:-${RANCHER_IMAGE:-$TULAN_K8S_RANCHER_IMAGE}}"
+  export REGISTRY_MIRROR="${env_mirror:-${REGISTRY_MIRROR:-$TULAN_K8S_REGISTRY_MIRROR}}"
+  export CONTAINER_NAME="${env_container:-${CONTAINER_NAME:-$TULAN_K8S_CONTAINER}}"
+  export HTTP_PORT_MAP="${env_http:-${HTTP_PORT_MAP:-$TULAN_K8S_HTTP_PORT}}"
+  export HTTPS_PORT_MAP="${env_https:-${HTTPS_PORT_MAP:-$TULAN_K8S_HTTPS_PORT}}"
+  export RANCHER_UPGRADE_IMAGE="${env_upgrade:-${RANCHER_UPGRADE_IMAGE:-}}"
+  export INSTALLED_AT="${env_installed_at:-${INSTALLED_AT:-}}"
   export K8S_REGISTRIES_TEMPLATE
   K8S_REGISTRIES_TEMPLATE="$(tulan_get_home)/config/k8s.registries.yaml"
 }
