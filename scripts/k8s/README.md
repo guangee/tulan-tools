@@ -16,8 +16,8 @@ brew k8s ports       # 修改已部署实例的端口（重建容器，数据不
 brew k8s ports --https-port 9443 -y
 brew k8s ca-clean    # 清理自签证书
 brew k8s password    # 获取 Bootstrap 初始密码
-brew k8s password --set 'YourPassword' -y   # 设置管理员密码
-brew k8s password --reset                    # 交互式重置
+brew k8s password --set 'YourPassword' -y   # 设置指定管理员密码
+brew k8s password --reset                    # 生成随机管理员密码
 brew k8s register-url   # 内网节点注册地址（比 nginx 外网更稳定）
 brew k8s register-command   # 内网版注册命令（server-url 已改但 UI 仍显示外网时用）
 brew k8s node-status        # 在节点上查看注册状态

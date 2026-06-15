@@ -84,8 +84,8 @@ register-command 选项:
   --format text|json|command  text=对比展示, command=仅一行命令
 
 password 选项:
-  --set <密码>          设置 Rancher 管理员密码（至少 8 位）
-  --reset               交互式 reset-password
+  --set <密码>          设置 Rancher 管理员密码（至少 8 位，kubectl 写入 bcrypt）
+  --reset               生成随机管理员密码（Rancher reset-password）
   -y, --yes             --set 时跳过确认
 
 环境变量:

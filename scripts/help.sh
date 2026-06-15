@@ -248,7 +248,7 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s upgrade --image rancher/rancher:v2.13.3
   brew k8s password                  获取 Bootstrap 初始密码
   brew k8s password --set '密码' -y  设置 Rancher 管理员密码
-  brew k8s password --reset          交互式重置管理员密码
+  brew k8s password --reset          生成随机管理员密码
   brew k8s clean                     清理 K8s/Rancher（危险）
   brew k8s sync-registries -f nodes.txt   同步镜像源到节点
   brew k8s shell-init                配置 kubectl/crictl 别名
