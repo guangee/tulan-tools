@@ -58,6 +58,31 @@ brew list --installed
 - 命令：`~/.tulan-tools/bin/`（符号链接）
 - 索引刷新：`brew install --refresh-manifest`（安装二进制时）
 
+### 私有 GitLab 镜像
+
+若 `~/.tulan-tools` 的 `git remote origin` **不是**官方 `github.com/guangee/tulan-tools`，`brew update` / `brew install` 会自动从 **origin 对应的 Git 服务**拉取 `bin` 分支索引与二进制（GitLab 格式：`/-/raw/bin/...`），**不再走**默认 GitHub 代理。
+
+```bash
+cd ~/.tulan-tools
+git remote set-url origin https://gitlab.example.com/group/tulan-tools.git
+brew update
+brew install kubectl
+```
+
+私有仓库需配置访问令牌（可选）：
+
+```bash
+export TULAN_GITLAB_TOKEN=your-token   # 或 TULAN_GIT_REMOTE_TOKEN
+```
+
+SSH 克隆时可指定 HTTPS 基址（用于 raw 下载）：
+
+```bash
+export TULAN_GIT_REMOTE_BASE=https://gitlab.example.com
+```
+
+镜像机需同步 **master** 与 **bin** 分支（含 Git LFS 对象）。
+
 ## OpenJDK 与 Maven
 
 Linux 默认从 **bin 分支** 安装归档（CI 定期同步）；macOS 或无 bin 归档时自动回退上游。支持多版本并存并一键切换 `JAVA_HOME`：

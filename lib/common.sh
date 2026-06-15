@@ -227,6 +227,64 @@ tulan_normalize_github_repo() {
   return 1
 }
 
+TULAN_OFFICIAL_GITHUB_REPO="${TULAN_OFFICIAL_GITHUB_REPO:-guangee/tulan-tools}"
+
+# 当前安装目录的 git origin URL
+tulan_git_origin_url() {
+  local home
+  home="$(tulan_get_home 2>/dev/null || echo "${TULAN_TOOLS_DEFAULT_HOME}")"
+  git -C "$home" remote get-url origin 2>/dev/null || true
+}
+
+# 是否为官方 GitHub 源（github.com + guangee/tulan-tools）
+tulan_is_official_github_origin() {
+  local url repo
+  url="$(tulan_git_origin_url)"
+  [[ -n "$url" ]] || return 1
+  [[ "$url" == *github.com* ]] || return 1
+  repo="$(tulan_normalize_github_repo "$url" 2>/dev/null || true)"
+  [[ "$repo" == "$TULAN_OFFICIAL_GITHUB_REPO" ]]
+}
+
+# 从 origin 解析 GitLab/Gitea 等（非 github.com）的 raw 下载基址与项目路径
+# 输出: base=<url> project=<path>（project 可含子组，如 group/sub/tulan-tools）
+tulan_git_host_project_from_remote() {
+  local remote="${1:-$(tulan_git_origin_url)}"
+  [[ -n "$remote" ]] || return 1
+  [[ "$remote" == *github.com* ]] && return 1
+
+  python3 - "$remote" <<'PY'
+import os, sys
+from urllib.parse import urlparse
+
+remote = sys.argv[1].strip()
+if not remote:
+    sys.exit(1)
+
+override_base = os.environ.get("TULAN_GIT_REMOTE_BASE", "").rstrip("/")
+
+if remote.startswith("git@") and ":" in remote:
+    hostpart, path = remote.split(":", 1)
+    host = hostpart[4:]
+    path = path.removesuffix(".git")
+    base = override_base or f"https://{host}"
+elif "://" in remote:
+    p = urlparse(remote)
+    if not p.netloc:
+        sys.exit(1)
+    path = p.path.strip("/").removesuffix(".git")
+    base = override_base or f"{p.scheme}://{p.netloc}"
+else:
+    sys.exit(1)
+
+if not path:
+    sys.exit(1)
+
+print(f"base={base}")
+print(f"project={path}")
+PY
+}
+
 # 克隆或更新 git 仓库
 tulan_git_sync() {
   local repo_url="$1"
