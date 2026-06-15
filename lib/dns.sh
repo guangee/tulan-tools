@@ -252,19 +252,55 @@ EOF
   fi
 }
 
+tulan_dns_split_by_family() {
+  local -a all=("$@")
+  local -n _v4=$1
+  local -n _v6=$2
+  local s
+  _v4=()
+  _v6=()
+  for s in "${all[@]}"; do
+    [[ -z "$s" ]] && continue
+    if [[ "$s" == *:* ]]; then
+      _v6+=("$s")
+    else
+      _v4+=("$s")
+    fi
+  done
+}
+
 tulan_dns_apply_networkmanager() {
   local -a servers=("$@")
-  local conn device
+  local -a v4=() v6=()
+  local conn device ipv6_method
+
+  tulan_dns_split_by_family v4 v6 "${servers[@]}"
+  ((${#v4[@]} > 0)) || { tulan_error "无有效 IPv4 DNS 地址"; return 1; }
+
   device="$(tulan_dns_default_iface || true)"
   conn="$(nmcli -t -f NAME,DEVICE con show --active 2>/dev/null | awk -F: -v dev="$device" '$2==dev {print $1; exit}')"
   [[ -z "$conn" ]] && conn="$(nmcli -t -f NAME con show --active 2>/dev/null | head -n1)"
   [[ -n "$conn" ]] || { tulan_error "未找到 NetworkManager 活动连接"; return 1; }
 
   tulan_log "NetworkManager 连接: ${conn}"
-  nmcli con mod "$conn" ipv4.dns "${servers[*]}"
-  nmcli con mod "$conn" ipv4.ignore-auto-dns yes
-  nmcli con mod "$conn" ipv6.dns "${servers[*]}"
-  nmcli con mod "$conn" ipv6.ignore-auto-dns yes
+  nmcli con mod "$conn" ipv4.dns "${v4[*]}" ipv4.ignore-auto-dns yes
+
+  ipv6_method="$(nmcli -g ipv6.method con show "$conn" 2>/dev/null || echo disabled)"
+  case "$ipv6_method" in
+    disabled|ignore)
+      tulan_log "IPv6 已禁用 (${ipv6_method})，仅配置 IPv4 DNS"
+      ;;
+    *)
+      if ((${#v6[@]} > 0)); then
+        nmcli con mod "$conn" ipv6.dns "${v6[*]}" ipv6.ignore-auto-dns yes
+        tulan_log "IPv6 DNS: ${v6[*]}"
+      else
+        nmcli con mod "$conn" ipv6.dns "" ipv6.ignore-auto-dns no
+        tulan_log "未指定 IPv6 DNS，保留 IPv6 自动获取（避免写入 IPv4 地址）"
+      fi
+      ;;
+  esac
+
   nmcli con up "$conn"
 }
 
