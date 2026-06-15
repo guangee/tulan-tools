@@ -17,6 +17,9 @@ CA_CLEAN_ALL=false
 PORTS_ASSUME_YES=false
 K8S_PORTS_CLI_HTTP=false
 K8S_PORTS_CLI_HTTPS=false
+REGISTER_URL_MODE="lan"
+REGISTER_URL_FORMAT="text"
+REGISTER_URL_SET=false
 
 usage() {
   cat <<EOF
@@ -37,6 +40,7 @@ usage() {
   sync-versions     开发用：手动同步 Rancher 版本到本地 state
   shell-init        配置 crictl/kubectl 别名（写入 ~/.zshrc）
   status            查看 Rancher 容器与配置
+  register-url      查看/设置节点注册用的内网 Rancher 地址
   legacy-run        旧版 run-k8s.sh（Rancher v2.5.17，容器名 k8s）
 
 ca 选项:
@@ -54,7 +58,13 @@ install / upgrade / ports 选项:
   --http-port <port>    指定 HTTP 宿主机端口
   -V, --version <tag>    upgrade 时指定目标版本（如 v2.13.3）
   --image <name>        upgrade 时指定完整镜像
-  -y, --yes             ports 时跳过确认
+  -y, --yes             ports/register-url --set 时跳过确认
+
+register-url 选项:
+  --lan                 输出内网地址（默认）
+  --public              输出域名/外网地址（register-url）
+  --format text|json|url  输出格式（url 仅一行，便于脚本）
+  --set                 将 Rancher server-url 设为内网地址
 
 环境变量:
   TULAN_K8S_CERT_OUT          证书目录，默认 /etc/certs
@@ -87,6 +97,9 @@ install / upgrade / ports 选项:
   brew k8s upgrade
   brew k8s upgrade -V v2.13.3
   brew k8s password
+  brew k8s register-url                查看内网节点注册地址
+  brew k8s register-url --format url   仅输出内网 URL
+  brew k8s register-url --set -y       将 Rancher server-url 改为内网
   brew k8s sync-registries -f nodes.txt
   REGISTRY_MIRROR=https://hub.example.com brew k8s install
 EOF
@@ -105,6 +118,7 @@ while [[ $# -gt 0 ]]; do
     sync-versions|sync-rancher-versions|versions-sync) ACTION="sync-versions"; shift ;;
     shell-init|k3s-init|init-shell) ACTION="shell-init"; shift ;;
     status) ACTION="status"; shift ;;
+    register-url|reg-url|server-url|node-url) ACTION="register-url"; shift ;;
     legacy-run|run) ACTION="legacy-run"; shift ;;
     -h|--help|help) usage; exit 0 ;;
     -d|--domain)
@@ -143,6 +157,23 @@ while [[ $# -gt 0 ]]; do
     -y|--yes)
       CA_ASSUME_YES=true
       PORTS_ASSUME_YES=true
+      shift
+      ;;
+    --lan|--internal)
+      REGISTER_URL_MODE="lan"
+      shift
+      ;;
+    --public)
+      REGISTER_URL_MODE="public"
+      shift
+      ;;
+    --format)
+      [[ $# -ge 2 ]] || { tulan_error "缺少 --format 参数"; exit 1; }
+      REGISTER_URL_FORMAT="$2"
+      shift 2
+      ;;
+    --set)
+      REGISTER_URL_SET=true
       shift
       ;;
     -a|--all) CA_CLEAN_ALL=true; shift ;;
@@ -231,6 +262,16 @@ main() {
       ;;
     status)
       tulan_k8s_show_status
+      ;;
+    register-url)
+      tulan_k8s_require_linux || exit 1
+      if [[ "$REGISTER_URL_SET" == true ]]; then
+        export TULAN_K8S_REGISTER_SET_YES="$PORTS_ASSUME_YES"
+        tulan_require_privilege || exit 1
+        tulan_k8s_set_register_url
+      else
+        tulan_k8s_print_register_url "$REGISTER_URL_MODE" "$REGISTER_URL_FORMAT"
+      fi
       ;;
     legacy-run)
       tulan_require_privilege || exit 1

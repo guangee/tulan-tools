@@ -234,6 +234,10 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s sync-registries -f nodes.txt   同步镜像源到节点
   brew k8s shell-init                配置 kubectl/crictl 别名
   brew k8s status                    查看状态
+  brew k8s register-url              查看内网节点注册地址（推荐局域网节点使用）
+  brew k8s register-url --format url 仅输出内网 URL（便于脚本）
+  brew k8s register-url --public     查看域名/外网地址
+  brew k8s register-url --set -y     将 Rancher server-url 改为内网地址
 
 脚本目录: ${TULAN_HOME}/scripts/k8s/
 详细说明: ${TULAN_HOME}/scripts/k8s/README.md

@@ -16,6 +16,7 @@ brew k8s ports       # 修改已部署实例的端口（重建容器，数据不
 brew k8s ports --https-port 9443 -y
 brew k8s ca-clean    # 清理自签证书
 brew k8s password    # 获取初始密码
+brew k8s register-url   # 内网节点注册地址（比 nginx 外网更稳定）
 brew k8s status
 brew help k8s        # 完整子命令列表
 ```
@@ -75,6 +76,22 @@ brew k8s password
 
 - `https://<你的域名>:<HTTPS端口>`（默认 HTTPS 8443，实际端口见 `/etc/certs/rancher.env` 中的 `HTTPS_PORT_MAP`）
 - 如使用了默认 hosts/DNS 且做了反向代理，也可按实际入口访问
+
+## 节点注册地址（内网）
+
+局域网内节点注册 Rancher 时，建议使用 **内网 IP + HTTPS 端口**，避免经 nginx 外网映射不稳定：
+
+```bash
+brew k8s register-url
+# 内网（推荐）: https://192.168.x.x:8443
+
+brew k8s register-url --format url    # 仅输出 URL，便于脚本
+brew k8s register-url --set -y        # 将 Rancher server-url 改为内网地址
+```
+
+设置后请在 Rancher UI **重新复制**节点注册命令；注册命令中的 `--server` 应指向内网 URL。
+
+证书 SAN 已包含 `brew k8s ca` 时检测到的局域网 IP，用 IP 访问 HTTPS 不会证书报错。
 
 ## install.sh 可选参数
 

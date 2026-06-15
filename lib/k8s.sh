@@ -861,6 +861,163 @@ tulan_k8s_run_user() {
   bash "$path" "$@"
 }
 
+tulan_k8s_resolve_lan_ip() {
+  tulan_k8s_load_rancher_config
+  if [[ -z "${K8S_SITE_IP:-}" ]]; then
+    tulan_k8s_load_site_config
+  fi
+  if [[ -n "${K8S_REGISTER_IP:-}" ]]; then
+    echo "$K8S_REGISTER_IP"
+    return 0
+  fi
+  if [[ -n "${K8S_SITE_IP:-}" ]]; then
+    echo "$K8S_SITE_IP"
+    return 0
+  fi
+  tulan_k8s_detect_lan_ip
+}
+
+tulan_k8s_rancher_https_host_port() {
+  tulan_k8s_host_port_from_map "${HTTPS_PORT_MAP:-${TULAN_K8S_HTTPS_PORT}}"
+}
+
+tulan_k8s_build_rancher_url() {
+  local host="$1" port="${2:-}"
+  [[ -n "$port" ]] || port="$(tulan_k8s_rancher_https_host_port)"
+  echo "https://${host}:${port}"
+}
+
+tulan_k8s_rancher_kubeconfig() {
+  echo "/etc/rancher/k3s/k3s.yaml"
+}
+
+tulan_k8s_rancher_read_server_url() {
+  local container="${CONTAINER_NAME:-${TULAN_K8S_CONTAINER}}" kc url
+  if ! command -v docker &>/dev/null; then
+    return 1
+  fi
+  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq "$container"; then
+    return 1
+  fi
+  kc="$(tulan_k8s_rancher_kubeconfig)"
+  url="$(docker exec "$container" kubectl get settings.management.cattle.io server-url \
+    -o jsonpath='{.value}' --kubeconfig "$kc" 2>/dev/null || true)"
+  if [[ -z "$url" ]]; then
+    url="$(docker exec "$container" kubectl get setting server-url \
+      -o jsonpath='{.value}' --kubeconfig "$kc" 2>/dev/null || true)"
+  fi
+  [[ -n "$url" ]] && echo "$url"
+}
+
+tulan_k8s_rancher_set_server_url() {
+  local url="$1" container="${CONTAINER_NAME:-${TULAN_K8S_CONTAINER}}" kc patch
+  kc="$(tulan_k8s_rancher_kubeconfig)"
+  patch="$(printf '{"value":"%s"}' "$url")"
+  docker exec "$container" kubectl patch settings.management.cattle.io server-url \
+    --type merge -p "$patch" --kubeconfig "$kc"
+}
+
+tulan_k8s_register_url_bundle() {
+  local lan_ip domain https_port lan_url public_url current_url
+
+  tulan_k8s_require_rancher_config || return 1
+
+  domain="${K8S_SITE_DOMAIN:-}"
+  https_port="$(tulan_k8s_rancher_https_host_port)"
+  lan_ip="$(tulan_k8s_resolve_lan_ip)" || {
+    tulan_error "无法检测局域网 IP，请使用 --ip 指定"
+    return 1
+  }
+
+  lan_url="$(tulan_k8s_build_rancher_url "$lan_ip" "$https_port")"
+  public_url="$(tulan_k8s_build_rancher_url "$domain" "$https_port")"
+  current_url="$(tulan_k8s_rancher_read_server_url 2>/dev/null || true)"
+
+  REGISTER_URL_LAN_IP="$lan_ip"
+  REGISTER_URL_DOMAIN="$domain"
+  REGISTER_URL_HTTPS_PORT="$https_port"
+  REGISTER_URL_LAN="$lan_url"
+  REGISTER_URL_PUBLIC="$public_url"
+  REGISTER_URL_CURRENT="${current_url:-}"
+  export REGISTER_URL_LAN_IP REGISTER_URL_DOMAIN REGISTER_URL_HTTPS_PORT
+  export REGISTER_URL_LAN REGISTER_URL_PUBLIC REGISTER_URL_CURRENT
+}
+
+tulan_k8s_print_register_url() {
+  local mode="${1:-lan}" format="${2:-text}"
+
+  tulan_k8s_register_url_bundle || return 1
+
+  case "$format" in
+    url)
+      if [[ "$mode" == "public" || "$mode" == "domain" ]]; then
+        echo "$REGISTER_URL_PUBLIC"
+      else
+        echo "$REGISTER_URL_LAN"
+      fi
+      ;;
+    json)
+      printf '{"lan_ip":"%s","domain":"%s","https_port":%s,"lan_url":"%s","public_url":"%s"' \
+        "$REGISTER_URL_LAN_IP" "$REGISTER_URL_DOMAIN" "$REGISTER_URL_HTTPS_PORT" \
+        "$REGISTER_URL_LAN" "$REGISTER_URL_PUBLIC"
+      if [[ -n "$REGISTER_URL_CURRENT" ]]; then
+        printf ',"rancher_server_url":"%s"' "$REGISTER_URL_CURRENT"
+      fi
+      echo '}'
+      ;;
+    *)
+      echo "Rancher 节点注册地址"
+      echo "────────────────────────────────────"
+      echo "  内网（推荐）: ${REGISTER_URL_LAN}"
+      echo "  外网/域名:    ${REGISTER_URL_PUBLIC}"
+      if [[ -n "$REGISTER_URL_CURRENT" ]]; then
+        echo "  Rancher 当前 server-url: ${REGISTER_URL_CURRENT}"
+        if [[ "$REGISTER_URL_CURRENT" != "$REGISTER_URL_LAN" ]]; then
+          echo ""
+          echo "  提示: 当前 server-url 与内网地址不一致，节点注册命令可能指向外网。"
+          echo "        可执行: brew k8s register-url --set -y  改为内网地址"
+        fi
+      fi
+      echo ""
+      echo "  用法: 在 Rancher「全局设置 → server-url」填入内网地址，"
+      echo "        或在节点注册命令中将 --server 换为内网 URL。"
+      if [[ "$mode" == "lan" || "$mode" == "internal" ]]; then
+        echo ""
+        echo "  内网 URL（可复制）: ${REGISTER_URL_LAN}"
+      fi
+      ;;
+  esac
+}
+
+tulan_k8s_confirm_set_register_url() {
+  local url="$1"
+  if [[ "${TULAN_K8S_REGISTER_SET_YES:-false}" == true ]]; then
+    return 0
+  fi
+  echo ""
+  echo "将 Rancher server-url 设置为内网地址（影响新节点注册命令）"
+  echo "────────────────────────────────────"
+  echo "  ${url}"
+  echo ""
+  read -r -p "确认修改? [y/N]: " confirm
+  [[ "$confirm" =~ ^[yY]$ ]]
+}
+
+tulan_k8s_set_register_url() {
+  local url
+  tulan_k8s_require_linux || return 1
+  tulan_k8s_require_docker || return 1
+  tulan_k8s_register_url_bundle || return 1
+  url="$REGISTER_URL_LAN"
+  tulan_k8s_confirm_set_register_url "$url" || { tulan_log "已取消"; return 1; }
+  tulan_k8s_rancher_set_server_url "$url" || {
+    tulan_error "设置 server-url 失败（请确认 Rancher 容器已就绪）"
+    return 1
+  }
+  tulan_log "已将 Rancher server-url 设置为: ${url}"
+  tulan_log "请在 Rancher UI 重新复制节点注册命令"
+}
+
 tulan_k8s_show_status() {
   tulan_k8s_require_linux || return 1
   tulan_k8s_require_docker || return 1
@@ -876,6 +1033,9 @@ tulan_k8s_show_status() {
     [[ -n "${RANCHER_IMAGE:-}" ]] && echo "  已装镜像: ${RANCHER_IMAGE}"
     [[ -n "${HTTP_PORT_MAP:-}" ]] && echo "  HTTP 端口:  ${HTTP_PORT_MAP}"
     [[ -n "${HTTPS_PORT_MAP:-}" ]] && echo "  HTTPS 端口: ${HTTPS_PORT_MAP}"
+    if lan_ip="$(tulan_k8s_resolve_lan_ip 2>/dev/null)"; then
+      echo "  内网注册:   $(tulan_k8s_build_rancher_url "$lan_ip" "$(tulan_k8s_host_port_from_map "${HTTPS_PORT_MAP:-}")")"
+    fi
     [[ -n "${INSTALLED_AT:-}" ]] && echo "  安装时间: ${INSTALLED_AT}"
   else
     tulan_k8s_load_site_config
