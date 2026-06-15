@@ -1,24 +1,25 @@
-"""binaries.manifest.json 读取（替代 bash 内联 python -c）."""
+"""binaries.manifest.json 读取."""
 
 from __future__ import annotations
 
-import io
+import argparse
 import sys
-from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any
 
 from .jsonio import get_by_path, load_json
 
 
-def eval_expr(manifest_path: str | Path, expr: str) -> str:
-    """执行与历史 bash tulan_manifest_read 兼容的 print 表达式."""
-    data = load_json(manifest_path)
-    buf = io.StringIO()
-    namespace = {"data": data, "sys": sys}
-    with redirect_stdout(buf):
-        exec(expr, namespace)  # noqa: S102 — 仅内部 manifest 表达式
-    return buf.getvalue().rstrip("\n")
+def branch(manifest_path: str | Path, default: str = "bin") -> str:
+    return get_by_path(load_json(manifest_path), "branch", default) or default
+
+
+def github_proxy(manifest_path: str | Path) -> str:
+    return get_by_path(load_json(manifest_path), "github_proxy", "")
+
+
+def repository(manifest_path: str | Path) -> str:
+    return get_by_path(load_json(manifest_path), "repository", "")
 
 
 def tool_field(manifest_path: str | Path, tool: str, field: str, default: str = "") -> str:
@@ -28,13 +29,25 @@ def tool_field(manifest_path: str | Path, tool: str, field: str, default: str = 
     return "" if val is None else str(val)
 
 
+def tool_install_name(manifest_path: str | Path, tool: str) -> str:
+    name = tool_field(manifest_path, tool, "install_name", "")
+    return name or tool
+
+
+def tool_version(manifest_path: str | Path, tool: str) -> str:
+    return tool_field(manifest_path, tool, "version", "")
+
+
 def tool_platform_path(manifest_path: str | Path, tool: str, platform_key: str) -> str:
     data = load_json(manifest_path)
     tool_data = (data.get("tools") or {}).get(tool)
     if not tool_data:
         raise KeyError(tool)
     path = (tool_data.get("paths") or {}).get(platform_key, "")
-    return str(path or "")
+    result = str(path or "")
+    if not result:
+        raise KeyError(f"{tool}:{platform_key}")
+    return result
 
 
 def tool_platform_sha256(manifest_path: str | Path, tool: str, platform_key: str) -> str:
@@ -44,35 +57,45 @@ def tool_platform_sha256(manifest_path: str | Path, tool: str, platform_key: str
     return str(sha or "")
 
 
-def cmd_eval(argv: list[str]) -> int:
-    import argparse
-
-    parser = argparse.ArgumentParser(description="执行 manifest 读取表达式（兼容旧接口）")
+def cmd_branch(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser()
     parser.add_argument("manifest", type=Path)
-    parser.add_argument("expr", help="如 print(data.get('branch', 'bin'))")
+    parser.add_argument("--default", default="bin")
     args = parser.parse_args(argv)
-    try:
-        print(eval_expr(args.manifest, args.expr))
-    except Exception as exc:  # noqa: BLE001
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
+    print(branch(args.manifest, args.default))
     return 0
 
 
-def cmd_tool_version(argv: list[str]) -> int:
-    import argparse
+def cmd_tool_field(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("manifest", type=Path)
+    parser.add_argument("tool")
+    parser.add_argument("field")
+    parser.add_argument("--default", default="")
+    args = parser.parse_args(argv)
+    print(tool_field(args.manifest, args.tool, args.field, args.default))
+    return 0
 
+
+def cmd_tool_install_name(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("manifest", type=Path)
     parser.add_argument("tool")
     args = parser.parse_args(argv)
-    print(tool_field(args.manifest, args.tool, "version"))
+    print(tool_install_name(args.manifest, args.tool))
+    return 0
+
+
+def cmd_tool_version(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("manifest", type=Path)
+    parser.add_argument("tool")
+    args = parser.parse_args(argv)
+    print(tool_version(args.manifest, args.tool))
     return 0
 
 
 def cmd_tool_path(argv: list[str]) -> int:
-    import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument("manifest", type=Path)
     parser.add_argument("tool")
@@ -85,9 +108,25 @@ def cmd_tool_path(argv: list[str]) -> int:
     return 0
 
 
-def cmd_get(argv: list[str]) -> int:
-    import argparse
+def cmd_tool_sha256(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("manifest", type=Path)
+    parser.add_argument("tool")
+    parser.add_argument("platform")
+    args = parser.parse_args(argv)
+    print(tool_platform_sha256(args.manifest, args.tool, args.platform))
+    return 0
 
+
+def cmd_github_proxy(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("manifest", type=Path)
+    args = parser.parse_args(argv)
+    print(github_proxy(args.manifest))
+    return 0
+
+
+def cmd_get(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("manifest", type=Path)
     parser.add_argument("path")

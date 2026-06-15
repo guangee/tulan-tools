@@ -168,7 +168,7 @@ tulan_install_node_from_bin() {
   local tool version tmp
 
   tool="$(tulan_node_tool_name "$major")"
-  version="$(tulan_manifest_tool_version "$tool")"
+  version="$(tulan_manifest_resolved_tool_version "$tool")"
   [[ -n "$version" ]] || { tulan_error "bin 索引无 Node.js ${major} 版本"; return 1; }
 
   tulan_verbose_step "从 bin 索引安装 Node.js ${major}"

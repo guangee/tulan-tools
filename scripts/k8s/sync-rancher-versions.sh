@@ -22,4 +22,4 @@ if [[ $# -eq 0 ]]; then
     --output "$(tulan_get_home)/state/k8s.rancher.versions.json"
 fi
 
-exec python3 "$PY" "$@"
+exec env PYTHONPATH="${_SCRIPT_ROOT}/lib" python3 "$PY" "$@"

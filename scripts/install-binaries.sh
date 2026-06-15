@@ -212,11 +212,11 @@ install_from_github() {
     local manifest repo branch platform_key path proxy install_name
     manifest="$(tulan_resolve_manifest)"
     repo="$(tulan_manifest_get_repo "$manifest")"
-    branch="$(tulan_manifest_read "$manifest" "print(data.get('branch', 'bin'))")"
+    branch="$(tulan_manifest_branch "$manifest")"
     platform_key="$(tulan_manifest_platform_key)"
-    path="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}']['paths']['${platform_key}'])")"
+    path="$(tulan_python manifest tool-path "$manifest" "$tool" "$platform_key")"
     proxy="$(tulan_get_github_proxy "$manifest")"
-    install_name="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('install_name','${tool}'))")"
+    install_name="$(tulan_manifest_tool_install_name "$manifest" "$tool")"
     if [[ -n "$proxy" ]]; then
       log "[dry-run] blob 代理: $(tulan_proxy_url "$(tulan_binary_blob_url "$repo" "$branch" "$path")" "$proxy")"
     fi
@@ -234,10 +234,6 @@ run_tool() {
 
   major="$(tulan_openjdk_major_for_tool "${canonical:-$raw}")"
   if [[ -n "$major" ]]; then
-    if ! command -v python3 &>/dev/null; then
-      err "安装 OpenJDK 需要 python3"
-      exit 1
-    fi
     case "$SOURCE" in
       github)
         if tulan_manifest_ensure_archive_path "$(tulan_openjdk_tool_name "$major")"; then
@@ -308,10 +304,6 @@ run_tool() {
 
   major="$(tulan_node_major_for_tool "${canonical:-$raw}")"
   if [[ -n "$major" ]]; then
-    if ! command -v python3 &>/dev/null; then
-      err "安装 Node.js 需要 python3"
-      exit 1
-    fi
     case "$SOURCE" in
       github)
         if tulan_manifest_ensure_archive_path "$(tulan_node_tool_name "$major")"; then
@@ -362,6 +354,9 @@ main() {
 
   if ! command -v curl &>/dev/null; then
     err "需要 curl"; exit 1
+  fi
+  if ! command -v python3 &>/dev/null; then
+    err "需要 python3（请运行 install.sh 或手动安装）"; exit 1
   fi
 
   log "安装源: ${SOURCE}（默认安装最新版）"

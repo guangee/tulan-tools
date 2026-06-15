@@ -372,7 +372,7 @@ tulan_install_docker_from_bin() {
   local version tmp
 
   tulan_docker_require_linux || return 1
-  version="$(tulan_manifest_tool_version "docker")"
+  version="$(tulan_manifest_resolved_tool_version "docker")"
   [[ -n "$version" ]] || { tulan_error "bin 索引无 Docker 版本"; return 1; }
 
   tulan_log "安装 Docker ${version}（bin 索引）"

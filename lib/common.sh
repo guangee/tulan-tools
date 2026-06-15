@@ -74,7 +74,7 @@ tulan_install_system_deps() {
   local pkg_manager
   pkg_manager="$(tulan_detect_pkg_manager)"
 
-  local deps=(git curl)
+  local deps=(git curl python3)
 
   case "$pkg_manager" in
     apt)

@@ -111,28 +111,7 @@ tulan_openjdk_fetch_asset() {
   local os arch
   os="$(tulan_jdk_adoptium_os)"
   arch="$(tulan_jdk_adoptium_arch)"
-
-  python3 - "$major" "$os" "$arch" <<'PY'
-import json, sys, urllib.request
-
-major, os_name, arch = sys.argv[1:4]
-url = (
-    f"https://api.adoptium.net/v3/assets/latest/{major}/hotspot"
-    f"?architecture={arch}&image_type=jdk&os={os_name}"
-)
-req = urllib.request.Request(url, headers={"User-Agent": "tulan-tools"})
-with urllib.request.urlopen(req, timeout=60) as resp:
-    data = json.load(resp)
-if not data:
-    sys.exit(1)
-asset = data[0]
-version = asset.get("version", {}).get("semver") or asset.get("version", {}).get("openjdk_version", "")
-link = asset.get("binary", {}).get("package", {}).get("link", "")
-if not link or not version:
-    sys.exit(2)
-print(version)
-print(link)
-PY
+  tulan_python upstream adoptium-fetch "$major" "$os" "$arch"
 }
 
 tulan_openjdk_register() {
@@ -182,7 +161,7 @@ tulan_install_openjdk_from_bin() {
   local tool version tmp
 
   tool="$(tulan_openjdk_tool_name "$major")"
-  version="$(tulan_manifest_tool_version "$tool")"
+  version="$(tulan_manifest_resolved_tool_version "$tool")"
   [[ -n "$version" ]] || { tulan_error "bin 索引无 OpenJDK ${major} 版本"; return 1; }
 
   tulan_verbose_step "从 bin 索引安装 OpenJDK ${major}"
@@ -236,29 +215,7 @@ tulan_install_openjdk() {
 }
 
 tulan_maven_latest_version() {
-  python3 - <<'PY'
-import re, sys, urllib.request
-
-url = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml"
-req = urllib.request.Request(url, headers={"User-Agent": "tulan-tools"})
-with urllib.request.urlopen(req, timeout=30) as resp:
-    text = resp.read().decode()
-
-def is_stable(v):
-    return not re.search(r"(alpha|beta|rc|snapshot)", v, re.I)
-
-m = re.search(r"<release>([^<]+)</release>", text)
-if m and is_stable(m.group(1)) and m.group(1).startswith("3."):
-    print(m.group(1))
-    sys.exit(0)
-
-versions = re.findall(r"<version>([^<]+)</version>", text)
-stable = [v for v in versions if re.match(r"^3\.\d+\.\d+$", v)]
-if stable:
-    print(stable[-1])
-    sys.exit(0)
-sys.exit(1)
-PY
+  tulan_python upstream maven-latest
 }
 
 tulan_maven_install_archive() {
@@ -281,24 +238,16 @@ tulan_maven_install_archive() {
   mkdir -p "$(tulan_get_home)/bin"
   ln -sf "../cellar/maven/${version}/apache-maven-${version}/bin/mvn" "$(tulan_get_home)/bin/mvn"
 
-  python3 - "$version" "$mvn_home" "$source" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys, time
-from pathlib import Path
-
-version, mvn_home, source, reg_path = sys.argv[1:5]
-reg = Path(reg_path)
-reg.parent.mkdir(parents=True, exist_ok=True)
-data = json.loads(reg.read_text()) if reg.exists() else {}
-entry = data.setdefault("maven", {"install_name": "mvn", "active": "", "versions": {}})
-entry["install_name"] = "mvn"
-entry["versions"][version] = {
-    "source": source,
-    "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    "maven_home": mvn_home,
-}
-entry["active"] = version
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  extra_json="$(EXTRA_MVN_HOME="$mvn_home" python3 -c \
+    'import json,os; print(json.dumps({"maven_home":os.environ["EXTRA_MVN_HOME"]}))')"
+  tulan_python registry register \
+    --tool maven \
+    --version "$version" \
+    --install-name mvn \
+    --source "$source" \
+    --activate true \
+    --reg-path "$(tulan_binary_registry_path)" \
+    --extra-json "$extra_json"
 
   tulan_log "  已安装: ${mvn_home}（${source}）"
   tulan_log "  已链接: $(tulan_get_home)/bin/mvn"
@@ -309,7 +258,7 @@ tulan_install_maven_from_bin() {
   local verify="${2:-true}"
   local version tmp
 
-  version="$(tulan_manifest_tool_version "maven")"
+  version="$(tulan_manifest_resolved_tool_version "maven")"
   [[ -n "$version" ]] || { tulan_error "bin 索引无 Maven 版本"; return 1; }
 
   tulan_log "安装 Maven ${version}（bin 索引）"
@@ -467,40 +416,10 @@ tulan_maven_uninstall() {
     return 1
   fi
 
-  python3 - "$version" "$reg" "$home" <<'PY'
-import json, shutil, sys
-from pathlib import Path
-
-version, reg_path, home = sys.argv[1:4]
-reg = Path(reg_path)
-home = Path(home)
-data = json.loads(reg.read_text())
-entry = data.get("maven")
-if not entry:
-    sys.exit(2)
-remove = [version] if version else list(entry.get("versions", {}).keys())
-for ver in remove:
-    cellar = home / "cellar" / "maven" / ver
-    if cellar.exists():
-        shutil.rmtree(cellar)
-    entry.get("versions", {}).pop(ver, None)
-link = home / "bin" / "mvn"
-if not entry.get("versions"):
-    data.pop("maven", None)
-    if link.exists() or link.is_symlink():
-        link.unlink()
-else:
-    entry["active"] = sorted(entry["versions"].keys())[-1]
-    ver = entry["active"]
-    mvn_home = entry["versions"][ver].get("maven_home", "")
-    if mvn_home:
-        rel = f"../cellar/maven/{ver}/apache-maven-{ver}/bin/mvn"
-        link.parent.mkdir(parents=True, exist_ok=True)
-        if link.exists() or link.is_symlink():
-            link.unlink()
-        link.symlink_to(rel)
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  tulan_python archives uninstall-maven \
+    --version "$version" \
+    --reg-path "$reg" \
+    --home "$home"
   local rc=$?
   if [[ $rc -eq 2 ]]; then
     tulan_error "未安装: maven"

@@ -249,16 +249,54 @@ tulan_rancher_versions_refresh() {
   tulan_log "Rancher 版本已缓存: ${cache}"
 }
 
-# 解析 manifest JSON（由 lib/tulan_tools/manifest.py 实现）
-tulan_manifest_read() {
-  local manifest="$1" expr="$2"
-  tulan_python manifest eval "$manifest" "$expr"
+# 解析 manifest JSON（类型化 API，见 lib/tulan_tools/manifest.py）
+tulan_manifest_branch() {
+  tulan_python manifest branch "$1"
+}
+
+tulan_manifest_github_proxy() {
+  tulan_python manifest github-proxy "$1" 2>/dev/null || true
+}
+
+tulan_manifest_tool_version() {
+  tulan_python manifest tool-version "$1" "$2"
+}
+
+# 自动 resolve manifest 后读取工具版本（单参数便捷接口）
+tulan_manifest_resolved_tool_version() {
+  local tool="$1" manifest
+  manifest="$(tulan_resolve_manifest)" || return 1
+  tulan_manifest_tool_version "$manifest" "$tool"
+}
+
+tulan_manifest_tool_install_name() {
+  tulan_python manifest tool-install-name "$1" "$2"
+}
+
+tulan_manifest_tool_platform_path() {
+  tulan_python manifest tool-path "$1" "$2" "$3"
+}
+
+tulan_manifest_tool_platform_sha256() {
+  tulan_python manifest tool-sha256 "$1" "$2" "$3" 2>/dev/null || true
+}
+
+tulan_manifest_tool_index_version() {
+  local manifest="$1" tool="$2" ver path platform_key
+  platform_key="$(tulan_manifest_platform_key)"
+  ver="$(tulan_manifest_tool_version "$manifest" "$tool" 2>/dev/null || true)"
+  path="$(tulan_manifest_tool_platform_path "$manifest" "$tool" "$platform_key" 2>/dev/null || true)"
+  if [[ -z "$path" || -z "$ver" || "$ver" == "上游最新" ]]; then
+    echo "待同步"
+  else
+    echo "$ver"
+  fi
 }
 
 tulan_manifest_get_repo() {
   local manifest="$1"
   local repo
-  repo="$(tulan_manifest_read "$manifest" "print(data.get('repository', '') or '')" 2>/dev/null || true)"
+  repo="$(tulan_json_get "$manifest" "repository" "")"
   if [[ -n "$repo" ]]; then
     echo "$repo"
   else
@@ -400,7 +438,7 @@ tulan_get_github_proxy() {
 
   if [[ -n "$manifest" ]] && [[ -f "$manifest" ]]; then
     local from_manifest
-    from_manifest="$(tulan_manifest_read "$manifest" "print(data.get('github_proxy', '') or '')" 2>/dev/null || true)"
+    from_manifest="$(tulan_manifest_github_proxy "$manifest")"
     if [[ -n "$from_manifest" ]]; then
       echo "$from_manifest"
       return 0
@@ -498,14 +536,7 @@ tulan_curl_download() {
 
 tulan_binary_api_url() {
   local repo="$1" branch="$2" path="$3"
-  python3 -c "
-import json, urllib.request
-url = 'https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}'
-req = urllib.request.Request(url, headers={'Accept': 'application/vnd.github+json'})
-with urllib.request.urlopen(req) as r:
-    data = json.load(r)
-print(data.get('download_url', ''))
-"
+  tulan_python github contents-url --repo "$repo" --branch "$branch" --path "$path"
 }
 
 tulan_resolve_manifest() {
@@ -664,15 +695,10 @@ tulan_download_from_github() {
   manifest="$(tulan_resolve_manifest)" || return 1
 
   repo="$(tulan_manifest_get_repo "$manifest")"
-  branch="$(tulan_manifest_read "$manifest" "print(data.get('branch', 'bin'))")"
+  branch="$(tulan_manifest_branch "$manifest")"
   platform_key="$(tulan_manifest_platform_key)"
 
-  path="$(tulan_manifest_read "$manifest" "
-tool = data['tools'].get('${tool}')
-if not tool:
-    sys.exit(1)
-print(tool['paths'].get('${platform_key}', ''))
-")" || {
+  path="$(tulan_manifest_tool_platform_path "$manifest" "$tool" "$platform_key")" || {
     tulan_error "工具 ${tool} 不支持平台 ${platform_key}"
     return 1
   }
@@ -682,11 +708,9 @@ print(tool['paths'].get('${platform_key}', ''))
     return 1
   fi
 
-  version="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('version', ''))")"
-  install_name="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('install_name', '${tool}'))")"
-  sha256="$(tulan_manifest_read "$manifest" "
-print(data['tools']['${tool}'].get('sha256', {}).get('${platform_key}', ''))
-" 2>/dev/null || echo "")"
+  version="$(tulan_manifest_tool_version "$manifest" "$tool")"
+  install_name="$(tulan_manifest_tool_install_name "$manifest" "$tool")"
+  sha256="$(tulan_manifest_tool_platform_sha256 "$manifest" "$tool" "$platform_key")"
 
   if [[ -n "${TULAN_BINARY_REQUESTED_VERSION:-}" ]] \
       && [[ "${TULAN_BINARY_REQUESTED_VERSION}" != "$version" ]]; then
@@ -774,7 +798,7 @@ tulan_binary_show_versions() {
 
   manifest="$(tulan_resolve_manifest)" || return 1
 
-  index_ver="$(tulan_manifest_read "$manifest" "print(data['tools']['${tool}'].get('version', '') or '待同步')" 2>/dev/null || echo "待同步")"
+  index_ver="$(tulan_manifest_tool_index_version "$manifest" "$tool" 2>/dev/null || echo "待同步")"
   upstream_latest="$(tulan_binary_upstream_latest "$tool")"
   recent="$(tulan_binary_upstream_recent "$tool")"
 

@@ -16,6 +16,14 @@ tulan_python() {
     python3 -m tulan_tools "$@"
 }
 
+# 失败时输出统一错误（用于关键路径）
+tulan_python_or_die() {
+  tulan_python "$@" || {
+    tulan_error "内部命令失败: python3 -m tulan_tools $*"
+    return 1
+  }
+}
+
 # 从 JSON 文件读取点分路径字段（如 tools.kubectl.version）
 tulan_json_get() {
   local file="$1" path="$2" default="${3:-}"

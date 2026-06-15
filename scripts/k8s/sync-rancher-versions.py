@@ -24,17 +24,11 @@ REGISTRY_TAGS_URL = "https://registry.hub.docker.com/v2/rancher/rancher/tags/lis
 USER_AGENT = "tulan-tools/sync-rancher-versions"
 DEFAULT_MIN_VERSION = "v2.8.5"
 
+_LIB = Path(__file__).resolve().parents[2] / "lib"
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
 
-def parse_version(version: str) -> tuple[int, int, int]:
-    text = version.strip()
-    if text.startswith("v"):
-        text = text[1:]
-    major, minor, patch = text.split(".")
-    return int(major), int(minor), int(patch)
-
-
-def version_key(tag: str) -> tuple[int, int, int]:
-    return parse_version(tag)
+from tulan_tools.semver import parse_version, version_key  # noqa: E402
 
 
 def fetch_json(url: str, timeout: int) -> dict:

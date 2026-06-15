@@ -6,6 +6,8 @@
 
 适用于 Debian、Ubuntu、CentOS 及 macOS。
 
+**运行依赖**：`python3`（3.8+）。安装脚本会自动安装；手动部署时请确保系统已有 `python3`。
+
 > **macOS 注意**：若已安装 [Homebrew](https://brew.sh)，系统自带 `/opt/homebrew/bin/brew`，与本工具集命令同名。Linux 服务器可正常使用；Mac 上建议主要在 Linux 环境使用，或调整 PATH 顺序避免冲突。
 
 ## 安装

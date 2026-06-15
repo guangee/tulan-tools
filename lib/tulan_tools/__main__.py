@@ -10,7 +10,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args or args[0] in ("-h", "--help"):
         print(
             "用法: python3 -m tulan_tools <模块> <子命令> [选项]\n"
-            "模块: json, manifest, registry, runtime, rancher, docker, k8s",
+            "模块: json, manifest, registry, runtime, rancher, docker, k8s, archives, github, upstream",
             file=sys.stderr,
         )
         return 0 if args and args[0] in ("-h", "--help") else (1 if not args else 0)
@@ -32,14 +32,18 @@ def main(argv: list[str] | None = None) -> int:
         from . import manifest
 
         if not args:
-            print("manifest 子命令: eval, get, tool-version, tool-path", file=sys.stderr)
+            print("manifest 子命令: branch, tool-version, tool-path, ...", file=sys.stderr)
             return 1
         sub = args.pop(0)
         handlers = {
-            "eval": manifest.cmd_eval,
+            "branch": manifest.cmd_branch,
             "get": manifest.cmd_get,
+            "github-proxy": manifest.cmd_github_proxy,
+            "tool-field": manifest.cmd_tool_field,
+            "tool-install-name": manifest.cmd_tool_install_name,
             "tool-version": manifest.cmd_tool_version,
             "tool-path": manifest.cmd_tool_path,
+            "tool-sha256": manifest.cmd_tool_sha256,
         }
         fn = handlers.get(sub)
         if fn is None:
@@ -145,6 +149,52 @@ def main(argv: list[str] | None = None) -> int:
         fn = handlers.get(sub)
         if fn is None:
             print(f"未知 k8s 子命令: {sub}", file=sys.stderr)
+            return 1
+        return fn(args)
+
+    if module == "archives":
+        from . import archives as archives_mod
+
+        if not args:
+            print("archives 子命令: list, uninstall-maven", file=sys.stderr)
+            return 1
+        sub = args.pop(0)
+        handlers = {
+            "list": archives_mod.cmd_list,
+            "uninstall-maven": archives_mod.cmd_uninstall_maven,
+        }
+        fn = handlers.get(sub)
+        if fn is None:
+            print(f"未知 archives 子命令: {sub}", file=sys.stderr)
+            return 1
+        return fn(args)
+
+    if module == "github":
+        from . import github as github_mod
+
+        if not args:
+            print("github 子命令: contents-url", file=sys.stderr)
+            return 1
+        sub = args.pop(0)
+        if sub == "contents-url":
+            return github_mod.cmd_contents_url(args)
+        print(f"未知 github 子命令: {sub}", file=sys.stderr)
+        return 1
+
+    if module == "upstream":
+        from .upstream import adoptium, maven as maven_upstream
+
+        if not args:
+            print("upstream 子命令: adoptium-fetch, maven-latest", file=sys.stderr)
+            return 1
+        sub = args.pop(0)
+        handlers = {
+            "adoptium-fetch": adoptium.cmd_fetch,
+            "maven-latest": maven_upstream.cmd_latest,
+        }
+        fn = handlers.get(sub)
+        if fn is None:
+            print(f"未知 upstream 子命令: {sub}", file=sys.stderr)
             return 1
         return fn(args)
 

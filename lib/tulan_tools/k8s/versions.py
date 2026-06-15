@@ -2,49 +2,41 @@
 
 from __future__ import annotations
 
-import json
+import argparse
 import sys
 from pathlib import Path
 
-
-def ver_key(tag: str) -> tuple[int, int, int]:
-    tag = tag.strip()
-    if tag.startswith("v"):
-        tag = tag[1:]
-    parts = tag.split(".")
-    while len(parts) < 3:
-        parts.append("0")
-    return tuple(int(p) for p in parts[:3])
+from ..semver import parse_version, version_key
 
 
 def read_versions_from_json(path: str | Path) -> list[str]:
+    import json
+
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     min_raw = (data.get("min_version") or "v2.8.5").strip()
-    min_key = ver_key(min_raw)
+    min_key = parse_version(min_raw)
     tags: list[str] = []
     for tag in data.get("tags") or []:
         tag = str(tag).strip()
-        if tag and ver_key(tag) >= min_key:
+        if tag and version_key(tag) >= min_key:
             tags.append(tag)
     return tags
 
 
 def filter_versions_ge(current_tag: str, lines: list[str]) -> list[str]:
     current = current_tag.strip()
-    cur_key = None if not current or current == "unknown" else ver_key(current)
+    cur_key = None if not current or current == "unknown" else version_key(current)
     out: list[str] = []
     for line in lines:
         tag = line.strip()
         if not tag:
             continue
-        if cur_key is None or ver_key(tag) >= cur_key:
+        if cur_key is None or version_key(tag) >= cur_key:
             out.append(tag)
     return out
 
 
 def cmd_read_versions(argv: list[str]) -> int:
-    import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument("versions_file", type=Path)
     args = parser.parse_args(argv)
@@ -56,8 +48,6 @@ def cmd_read_versions(argv: list[str]) -> int:
 
 
 def cmd_filter_ge(argv: list[str]) -> int:
-    import argparse
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--current", default="")
     args = parser.parse_args(argv)
