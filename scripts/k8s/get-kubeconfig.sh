@@ -8,6 +8,10 @@
 
 set -euo pipefail
 
+_SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=../../lib/common.sh
+source "${_SCRIPT_ROOT}/lib/common.sh"
+
 KUBECONFIG_CLUSTER="${KUBECONFIG_CLUSTER:-}"
 KUBECONFIG_OUTPUT="${KUBECONFIG_OUTPUT:-}"
 KUBECONFIG_LIST="${KUBECONFIG_LIST:-false}"
