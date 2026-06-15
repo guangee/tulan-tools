@@ -972,21 +972,238 @@ tulan_k8s_print_register_url() {
       echo "  外网/域名:    ${REGISTER_URL_PUBLIC}"
       if [[ -n "$REGISTER_URL_CURRENT" ]]; then
         echo "  Rancher 当前 server-url: ${REGISTER_URL_CURRENT}"
-        if [[ "$REGISTER_URL_CURRENT" != "$REGISTER_URL_LAN" ]]; then
+        if [[ "$REGISTER_URL_CURRENT" == "$REGISTER_URL_LAN" ]]; then
           echo ""
-          echo "  提示: 当前 server-url 与内网地址不一致，节点注册命令可能指向外网。"
-          echo "        可执行: brew k8s register-url --set -y  改为内网地址"
+          echo "  说明: server-url 已是内网，但 UI 注册命令可能仍显示外网域名"
+          echo "        （token 创建时写入，或 UI 使用浏览器访问域名生成）。"
+          echo "        请执行: brew k8s register-command  获取替换后的内网注册命令"
+        elif [[ "$REGISTER_URL_CURRENT" != "$REGISTER_URL_LAN" ]]; then
+          echo ""
+          echo "  提示: server-url 与内网地址不一致。"
+          echo "        可执行: brew k8s register-url --set -y"
         fi
       fi
       echo ""
-      echo "  用法: 在 Rancher「全局设置 → server-url」填入内网地址，"
-      echo "        或在节点注册命令中将 --server 换为内网 URL。"
+      echo "  获取内网注册命令: brew k8s register-command"
+      echo "  自签证书集群请优先使用 register-command 输出的 insecure 命令。"
       if [[ "$mode" == "lan" || "$mode" == "internal" ]]; then
         echo ""
         echo "  内网 URL（可复制）: ${REGISTER_URL_LAN}"
       fi
       ;;
   esac
+}
+
+tulan_k8s_rancher_kubectl() {
+  local container="${CONTAINER_NAME:-${TULAN_K8S_CONTAINER}}" kc
+  kc="$(tulan_k8s_rancher_kubeconfig)"
+  docker exec "$container" kubectl "$@" --kubeconfig "$kc"
+}
+
+tulan_k8s_confirm_refresh_registration_tokens() {
+  local cluster="$1"
+  if [[ "${TULAN_K8S_REGISTER_SET_YES:-false}" == true ]]; then
+    return 0
+  fi
+  echo ""
+  echo "将删除 ClusterRegistrationToken 并由 Rancher 重建（注册命令会重新生成）"
+  if [[ -n "$cluster" ]]; then
+    echo "  目标集群: ${cluster}"
+  else
+    echo "  目标: 全部集群"
+  fi
+  echo ""
+  read -r -p "确认刷新? [y/N]: " confirm
+  [[ "$confirm" =~ ^[yY]$ ]]
+}
+
+tulan_k8s_refresh_registration_tokens() {
+  local cluster="${1:-}" json
+  tulan_k8s_confirm_refresh_registration_tokens "$cluster" || {
+    tulan_log "已取消"
+    return 1
+  }
+
+  json="$(tulan_k8s_rancher_kubectl get clusterregistrationtokens.management.cattle.io -A -o json 2>/dev/null)" || {
+    tulan_error "无法读取 ClusterRegistrationToken"
+    return 1
+  }
+
+  local ns name count=0
+  while IFS=$'\t' read -r ns name; do
+    [[ -n "$ns" && -n "$name" ]] || continue
+    tulan_log "删除 token: ${ns}/${name}"
+    tulan_k8s_rancher_kubectl delete clusterregistrationtoken "$name" -n "$ns" --wait=false
+    count=$((count + 1))
+  done < <(
+    K8S_REGISTER_JSON="$json" K8S_REGISTER_CLUSTER="$cluster" python3 <<'PY'
+import json, os, sys
+data = json.loads(os.environ["K8S_REGISTER_JSON"])
+cluster_filter = os.environ.get("K8S_REGISTER_CLUSTER", "")
+for item in data.get("items", []):
+    ns = item["metadata"]["namespace"]
+    name = item["metadata"]["name"]
+    cluster = item.get("spec", {}).get("clusterName") or ns
+    if cluster_filter and cluster_filter not in (cluster, ns, name):
+        continue
+    print(f"{ns}\t{name}")
+PY
+  )
+
+  if (( count == 0 )); then
+    tulan_error "未找到匹配的 ClusterRegistrationToken"
+    return 1
+  fi
+
+  tulan_log "等待 Rancher 重建 token（最多 60s）..."
+  local i
+  for i in $(seq 1 30); do
+    if tulan_k8s_rancher_kubectl get clusterregistrationtokens.management.cattle.io -A \
+      -o jsonpath='{range .items[*]}{.status.nodeCommand}{.status.insecureNodeCommand}{.status.command}{end}' 2>/dev/null \
+      | grep -q 'https\?://'; then
+      tulan_log "token 已重建"
+      return 0
+    fi
+    sleep 2
+  done
+  tulan_log "等待超时，仍将尝试读取现有 token"
+}
+
+tulan_k8s_print_register_command() {
+  local cluster="${1:-}" refresh="${2:-false}" format="${3:-text}" json rc
+
+  tulan_k8s_require_linux || return 1
+  tulan_k8s_require_docker || return 1
+  tulan_k8s_register_url_bundle || return 1
+
+  if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -Fxq "${CONTAINER_NAME:-${TULAN_K8S_CONTAINER}}"; then
+    tulan_error "Rancher 容器未运行"
+    return 1
+  fi
+
+  if [[ "$refresh" == true ]]; then
+    tulan_k8s_refresh_registration_tokens "$cluster" || return 1
+  fi
+
+  json="$(tulan_k8s_rancher_kubectl get clusterregistrationtokens.management.cattle.io -A -o json 2>/dev/null)" || {
+    tulan_error "无法读取 ClusterRegistrationToken（请确认 Rancher 已就绪）"
+    return 1
+  }
+
+  K8S_REGISTER_JSON="$json" \
+  K8S_REGISTER_CLUSTER="$cluster" \
+  K8S_REGISTER_LAN="$REGISTER_URL_LAN" \
+  K8S_REGISTER_PUBLIC="$REGISTER_URL_PUBLIC" \
+  K8S_REGISTER_CURRENT="$REGISTER_URL_CURRENT" \
+  K8S_REGISTER_DOMAIN="$REGISTER_URL_DOMAIN" \
+  K8S_REGISTER_PORT="$REGISTER_URL_HTTPS_PORT" \
+  K8S_REGISTER_EXTRA_FROM="${K8S_REGISTER_EXTRA_FROM_URL:-}" \
+  K8S_REGISTER_FORMAT="$format" \
+  python3 <<'PY'
+import json, os, re, sys
+
+data = json.loads(os.environ["K8S_REGISTER_JSON"])
+cluster_filter = os.environ.get("K8S_REGISTER_CLUSTER", "")
+lan = os.environ["K8S_REGISTER_LAN"].rstrip("/")
+public = os.environ.get("K8S_REGISTER_PUBLIC", "")
+current = os.environ.get("K8S_REGISTER_CURRENT", "")
+domain = os.environ.get("K8S_REGISTER_DOMAIN", "")
+port = os.environ.get("K8S_REGISTER_PORT", "")
+extra = os.environ.get("K8S_REGISTER_EXTRA_FROM", "")
+fmt = os.environ.get("K8S_REGISTER_FORMAT", "text")
+
+replacements = []
+for u in [public, current, extra, f"https://{domain}:{port}" if domain and port else "", f"https://{domain}" if domain else ""]:
+    u = (u or "").rstrip("/")
+    if u and u != lan and u not in replacements:
+        replacements.append(u)
+
+def rewrite(text: str) -> str:
+    if not text:
+        return text
+    out = text
+    for u in replacements:
+        out = out.replace(u, lan)
+    if domain:
+        out = re.sub(rf"https://{re.escape(domain)}(?=[/:?'\s\"]|$)", lan, out)
+    return out
+
+fields = [
+    ("insecureNodeCommand", "节点注册（自签证书，推荐）"),
+    ("nodeCommand", "节点注册"),
+    ("insecureCommand", "集群导入（自签证书）"),
+    ("command", "集群导入"),
+    ("insecureWindowsNodeCommand", "Windows 节点（自签）"),
+    ("windowsNodeCommand", "Windows 节点"),
+]
+
+results = []
+seen = set()
+for item in data.get("items", []):
+    ns = item["metadata"]["namespace"]
+    name = item["metadata"]["name"]
+    cluster = item.get("spec", {}).get("clusterName") or ns
+    if cluster_filter and cluster_filter not in (cluster, ns, name):
+        continue
+    status = item.get("status") or {}
+    for field, label in fields:
+        raw = (status.get(field) or "").strip()
+        if not raw:
+            continue
+        fixed = rewrite(raw)
+        key = (cluster, field, fixed)
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append({
+            "cluster": cluster,
+            "namespace": ns,
+            "token": name,
+            "field": field,
+            "label": label,
+            "raw": raw,
+            "command": fixed,
+            "rewritten": raw != fixed,
+        })
+
+if not results:
+    print("NO_TOKENS", file=sys.stderr)
+    sys.exit(2)
+
+if fmt == "json":
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+    sys.exit(0)
+
+if fmt == "command":
+    for prefer in ("insecureNodeCommand", "nodeCommand", "insecureCommand", "command"):
+        for r in results:
+            if r["field"] == prefer:
+                print(r["command"])
+                sys.exit(0)
+    print(results[0]["command"])
+    sys.exit(0)
+
+print("Rancher 节点注册命令（已替换为内网地址）")
+print(f"内网 server: {lan}")
+if current and current.rstrip('/') != lan:
+    print(f"说明: UI 可能仍显示 {current}，因 token 创建时写入了外网域名")
+print("────────────────────────────────────")
+for r in results:
+    print(f"集群: {r['cluster']} — {r['label']}")
+    if r["rewritten"]:
+        print(f"  原 UI 命令: {r['raw']}")
+        print(f"  内网命令:   {r['command']}")
+    else:
+        print(f"  {r['command']}")
+    print()
+PY
+  rc=$?
+  if (( rc == 2 )); then
+    tulan_error "未找到 ClusterRegistrationToken"
+    tulan_log "请先在 Rancher 创建/导入集群，或指定: brew k8s register-command -c <集群名>"
+    return 1
+  fi
+  return "$rc"
 }
 
 tulan_k8s_confirm_set_register_url() {
@@ -1015,7 +1232,7 @@ tulan_k8s_set_register_url() {
     return 1
   }
   tulan_log "已将 Rancher server-url 设置为: ${url}"
-  tulan_log "请在 Rancher UI 重新复制节点注册命令"
+  tulan_log "请执行 brew k8s register-command 获取内网注册命令（UI 中 token 可能仍显示外网域名）"
 }
 
 tulan_k8s_show_status() {

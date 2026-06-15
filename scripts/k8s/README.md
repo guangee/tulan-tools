@@ -17,6 +17,7 @@ brew k8s ports --https-port 9443 -y
 brew k8s ca-clean    # 清理自签证书
 brew k8s password    # 获取初始密码
 brew k8s register-url   # 内网节点注册地址（比 nginx 外网更稳定）
+brew k8s register-command   # 内网版注册命令（server-url 已改但 UI 仍显示外网时用）
 brew k8s status
 brew help k8s        # 完整子命令列表
 ```
@@ -89,7 +90,20 @@ brew k8s register-url --format url    # 仅输出 URL，便于脚本
 brew k8s register-url --set -y        # 将 Rancher server-url 改为内网地址
 ```
 
-设置后请在 Rancher UI **重新复制**节点注册命令；注册命令中的 `--server` 应指向内网 URL。
+**为何 UI 注册命令仍是外网域名？**  
+Rancher 的注册命令保存在 `ClusterRegistrationToken` 里，创建时写入；部分版本 UI 还会用浏览器访问域名生成命令，与 `server-url` 无关。即使 `server-url` 已是内网，UI 里看到的仍可能是外网。
+
+用下面命令获取**已替换为内网地址**的注册命令（可直接在节点上执行）：
+
+```bash
+brew k8s register-command
+brew k8s register-command -c mycluster           # 指定集群
+brew k8s register-command --format command        # 仅一行命令
+brew k8s register-command --from-url https://nginx.example.com  # nginx 入口与证书域名不同时
+brew k8s register-command --refresh -y -c mycluster  # 重建 token 后再输出
+```
+
+设置后请在 Rancher UI **重新复制**节点注册命令；自签证书请优先用 `insecureNodeCommand` 对应的那条。
 
 证书 SAN 已包含 `brew k8s ca` 时检测到的局域网 IP，用 IP 访问 HTTPS 不会证书报错。
 

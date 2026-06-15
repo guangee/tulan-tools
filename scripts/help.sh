@@ -238,6 +238,10 @@ brew k8s — Rancher 单机 K8s 快捷安装（scripts/k8s）
   brew k8s register-url --format url 仅输出内网 URL（便于脚本）
   brew k8s register-url --public     查看域名/外网地址
   brew k8s register-url --set -y     将 Rancher server-url 改为内网地址
+  brew k8s register-command          内网版节点注册命令（UI 仍显示外网时用此命令）
+  brew k8s register-command -c <名>  指定集群
+  brew k8s register-command --format command  仅输出一行可执行命令
+  brew k8s register-command --from-url https://nginx.example.com  额外替换 nginx 入口
 
 脚本目录: ${TULAN_HOME}/scripts/k8s/
 详细说明: ${TULAN_HOME}/scripts/k8s/README.md
