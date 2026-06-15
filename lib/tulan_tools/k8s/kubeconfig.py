@@ -187,32 +187,13 @@ def fetch_kubeconfig_with_mgmt_kubeconfig(
     *,
     timeout: float = 30.0,
 ) -> str:
-    errors: list[str] = []
+    """Rancher /v3 API 仅接受 Bearer token，k3s client 证书无效。"""
     token = extract_token_from_kubeconfig(mgmt_kubeconfig)
-    if token:
-        try:
-            return fetch_kubeconfig(rancher_url, token, cluster_id, timeout=timeout)
-        except RuntimeError as exc:
-            errors.append(f"token: {exc}")
-
-    client_cert = extract_client_cert_from_kubeconfig(mgmt_kubeconfig)
-    if client_cert:
-        try:
-            payload = _post_generate_kubeconfig(
-                rancher_url,
-                cluster_id,
-                client_cert=client_cert,
-                timeout=timeout,
-            )
-            return extract_config_from_response(payload)
-        except RuntimeError as exc:
-            errors.append(f"client-cert: {exc}")
-
-    if errors:
-        raise RuntimeError("; ".join(errors))
-    raise RuntimeError(
-        "管理集群 kubeconfig 中无 token 或 client-certificate-data，无法认证 Rancher API"
-    )
+    if not token:
+        raise RuntimeError(
+            "管理集群 kubeconfig 无 token；请通过容器内 kubectl create token 获取 Bearer 认证"
+        )
+    return fetch_kubeconfig(rancher_url, token, cluster_id, timeout=timeout)
 
 
 def rewrite_kubeconfig_servers(
