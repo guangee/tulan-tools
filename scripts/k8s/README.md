@@ -18,6 +18,7 @@ brew k8s ca-clean    # 清理自签证书
 brew k8s password    # 获取初始密码
 brew k8s register-url   # 内网节点注册地址（比 nginx 外网更稳定）
 brew k8s register-command   # 内网版注册命令（server-url 已改但 UI 仍显示外网时用）
+brew k8s node-status        # 在节点上查看注册状态（system-agent + rke2/k3s）
 brew k8s status
 brew help k8s        # 完整子命令列表
 ```
@@ -106,6 +107,32 @@ brew k8s register-command --refresh -y -c mycluster  # 重建 token 后再输出
 设置后请在 Rancher UI **重新复制**节点注册命令；自签证书请优先用 `insecureNodeCommand` 对应的那条。
 
 证书 SAN 已包含 `brew k8s ca` 时检测到的局域网 IP，用 IP 访问 HTTPS 不会证书报错。
+
+## 节点上查看注册状态
+
+新版 Rancher 自定义集群在节点上是 **rancher-system-agent** + **rke2-agent**（或 k3s-agent）。
+
+在**待检查节点**上执行：
+
+```bash
+brew k8s node-status
+brew k8s node-status -v    # 附带 systemd 日志
+```
+
+手动排查常用命令：
+
+```bash
+sudo systemctl status rancher-system-agent
+sudo journalctl -u rancher-system-agent -n 50 --no-pager
+sudo cat /etc/rancher/agent/config.yaml
+
+sudo systemctl status rke2-agent
+sudo cat /etc/rancher/rke2/config.yaml
+
+sudo /var/lib/rancher/rke2/bin/crictl --runtime-endpoint unix:///run/rancher/rke2/agent/containerd/containerd.sock ps
+```
+
+注册成功时上述服务一般为 **active**，Rancher UI 节点状态为 **Active**。
 
 ## install.sh 可选参数
 

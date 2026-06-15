@@ -45,6 +45,7 @@ usage() {
   status            查看 Rancher 容器与配置
   register-url      查看/设置节点注册用的内网 Rancher 地址
   register-command  输出内网版节点注册命令（替换 UI 中的外网域名）
+  node-status       在节点上查看注册/Agent 状态（system-agent + rke2/k3s）
   legacy-run        旧版 run-k8s.sh（Rancher v2.5.17，容器名 k8s）
 
 ca 选项:
@@ -112,6 +113,7 @@ register-command 选项:
   brew k8s register-url --set -y       将 Rancher server-url 改为内网
   brew k8s register-command            内网版节点注册命令（替换 UI 外网域名）
   brew k8s register-command --format command -c mycluster
+  brew k8s node-status                 在节点上查看注册状态
   brew k8s sync-registries -f nodes.txt
   REGISTRY_MIRROR=https://hub.example.com brew k8s install
 EOF
@@ -132,6 +134,7 @@ while [[ $# -gt 0 ]]; do
     status) ACTION="status"; shift ;;
     register-url|reg-url|server-url|node-url) ACTION="register-url"; shift ;;
     register-command|reg-cmd|register-cmd) ACTION="register-command"; shift ;;
+    node-status|node|check-node) ACTION="node-status"; shift ;;
     legacy-run|run) ACTION="legacy-run"; shift ;;
     -h|--help|help) usage; exit 0 ;;
     -d|--domain)
@@ -203,7 +206,10 @@ while [[ $# -gt 0 ]]; do
       REGISTER_CMD_REFRESH=true
       shift
       ;;
-    -a|--all) CA_CLEAN_ALL=true; shift ;;
+    -v|--verbose)
+      export NODE_STATUS_VERBOSE=true
+      shift
+      ;;
     -*) EXTRA_ARGS+=("$1"); shift ;;
     *) EXTRA_ARGS+=("$1"); shift ;;
   esac
@@ -305,6 +311,10 @@ main() {
       export TULAN_K8S_REGISTER_SET_YES="$PORTS_ASSUME_YES"
       export K8S_REGISTER_EXTRA_FROM_URL
       tulan_k8s_print_register_command "$REGISTER_CMD_CLUSTER" "$REGISTER_CMD_REFRESH" "$REGISTER_URL_FORMAT"
+      ;;
+    node-status)
+      tulan_k8s_require_linux || exit 1
+      tulan_k8s_run_user node-status.sh "${EXTRA_ARGS[@]}"
       ;;
     legacy-run)
       tulan_require_privilege || exit 1
