@@ -114,7 +114,7 @@ tulan_k8s_validate_domain() {
 }
 
 tulan_k8s_list_cert_domains() {
-  local cert_out="${1:-${TULAN_K8S_CERT_OUT}}" f domain
+  local cert_out="${TULAN_K8S_CERT_OUT}" f domain
   [[ -d "$cert_out" ]] || return 0
   for f in "${cert_out}"/*.crt; do
     [[ -f "$f" ]] || continue
@@ -336,7 +336,7 @@ tulan_k8s_warn_port_conflict() {
 }
 
 tulan_k8s_detect_container_config() {
-  local name="${1:-${CONTAINER_NAME:-${TULAN_K8S_CONTAINER}}}"
+  local name="${CONTAINER_NAME:-${TULAN_K8S_CONTAINER}}"
   local cert_src http_host https_host data_dir
 
   if ! command -v docker &>/dev/null; then

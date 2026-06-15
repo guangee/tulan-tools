@@ -1,4 +1,7 @@
+#!/usr/bin/env bash
 # 1. 立即修复主机名解析 (解决 sudo 报无法解析 host 的烦人信息)
+set -euo pipefail
+
 CURRENT_HOSTNAME=$(hostname)
 if ! grep -q "$CURRENT_HOSTNAME" /etc/hosts; then
   echo "127.0.0.1 $CURRENT_HOSTNAME" | sudo tee -a /etc/hosts
