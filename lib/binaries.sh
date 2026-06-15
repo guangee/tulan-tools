@@ -13,8 +13,6 @@ TULAN_MANIFEST_PROXY_DEFAULT="https://gh.coding-space.cn/"
 TULAN_OFFICIAL_GITHUB_REPO="${TULAN_OFFICIAL_GITHUB_REPO:-guangee/tulan-tools}"
 
 tulan_bin_source_init() {
-  local origin repo parsed base project
-
   if [[ -n "${TULAN_BIN_SOURCE:-}" ]]; then
     return 0
   fi
@@ -24,67 +22,36 @@ tulan_bin_source_init() {
     return 0
   fi
 
-  origin="$(tulan_git_origin_url 2>/dev/null || true)"
-  if [[ -z "$origin" ]]; then
-    export TULAN_BIN_SOURCE="github_official"
-    return 0
-  fi
-
-  if [[ "$origin" == *github.com* ]]; then
-    repo="$(tulan_normalize_github_repo "$origin" 2>/dev/null || true)"
-    if [[ "$repo" == "$TULAN_OFFICIAL_GITHUB_REPO" ]]; then
-      export TULAN_BIN_SOURCE="github_official"
-    else
-      export TULAN_BIN_SOURCE="github_remote"
-      export TULAN_GITHUB_REMOTE_REPO="$repo"
-    fi
-    return 0
-  fi
-
-  if parsed="$(tulan_git_host_project_from_remote "$origin" 2>/dev/null)"; then
-    base="$(printf '%s\n' "$parsed" | awk -F= '/^base=/ {print substr($0, 6)}')"
-    project="$(printf '%s\n' "$parsed" | awk -F= '/^project=/ {print substr($0, 9)}')"
-    if [[ -n "$base" && -n "$project" ]]; then
-      export TULAN_BIN_SOURCE="git_host"
-      export TULAN_GIT_REMOTE_BASE="${TULAN_GIT_REMOTE_BASE:-$base}"
-      export TULAN_GIT_REMOTE_PROJECT="$project"
-      return 0
-    fi
-  fi
-
+  # 二进制与 manifest 始终从官方 GitHub bin 分支经代理获取，不随 git clone 源（如 GitLab 镜像）变化
   export TULAN_BIN_SOURCE="github_official"
 }
 
+tulan_bin_official_github_repo() {
+  if [[ -n "${TULAN_GITHUB_REPO:-}" ]]; then
+    local normalized
+    if normalized="$(tulan_normalize_github_repo "${TULAN_GITHUB_REPO}" 2>/dev/null)"; then
+      echo "$normalized"
+      return 0
+    fi
+    echo "${TULAN_GITHUB_REPO}"
+    return 0
+  fi
+  echo "${TULAN_MANIFEST_DEFAULT_REPO}"
+}
+
 tulan_bin_uses_git_host() {
-  tulan_bin_source_init
-  [[ "${TULAN_BIN_SOURCE:-}" == "git_host" ]]
+  false
 }
 
 tulan_bin_effective_github_repo() {
-  tulan_bin_source_init
-  case "${TULAN_BIN_SOURCE:-github_official}" in
-    github_remote) echo "${TULAN_GITHUB_REMOTE_REPO:-$(tulan_manifest_default_repo)}" ;;
-    *) tulan_manifest_default_repo ;;
-  esac
+  tulan_bin_official_github_repo
 }
 
-# 构建 bin 分支文件 URL（manifest / 二进制 / rancher 版本索引）
+# 构建 bin 分支文件 URL（始终官方 GitHub raw）
 tulan_bin_branch_file_url() {
   local branch="$1" file="$2" repo
-  tulan_bin_source_init
-  case "${TULAN_BIN_SOURCE:-github_official}" in
-    git_host)
-      echo "${TULAN_GIT_REMOTE_BASE%/}/${TULAN_GIT_REMOTE_PROJECT}/-/raw/${branch}/${file}"
-      ;;
-    github_remote)
-      repo="$(tulan_bin_effective_github_repo)"
-      echo "https://raw.githubusercontent.com/${repo}/${branch}/${file}"
-      ;;
-    *)
-      repo="$(tulan_manifest_default_repo)"
-      echo "https://raw.githubusercontent.com/${repo}/${branch}/${file}"
-      ;;
-  esac
+  repo="$(tulan_bin_official_github_repo)"
+  echo "https://raw.githubusercontent.com/${repo}/${branch}/${file}"
 }
 
 tulan_manifest_cache_path() {
@@ -95,29 +62,9 @@ tulan_manifest_cache_ts_path() {
   echo "$(tulan_get_home)/state/manifest-fetched-at"
 }
 
-# 推断默认仓库地址（owner/repo）
+# 推断 manifest / 二进制仓库（官方 GitHub，不随 clone 源变化）
 tulan_manifest_default_repo() {
-  local home remote normalized
-
-  if [[ -n "${TULAN_GITHUB_REPO:-}" ]]; then
-    if normalized="$(tulan_normalize_github_repo "${TULAN_GITHUB_REPO}")"; then
-      echo "$normalized"
-      return 0
-    fi
-    echo "${TULAN_GITHUB_REPO}"
-    return 0
-  fi
-
-  home="$(tulan_get_home)"
-  if git -C "$home" remote get-url origin &>/dev/null; then
-    remote="$(git -C "$home" remote get-url origin)"
-    if normalized="$(tulan_normalize_github_repo "$remote")"; then
-      echo "$normalized"
-      return 0
-    fi
-  fi
-
-  echo "${TULAN_MANIFEST_DEFAULT_REPO}"
+  tulan_bin_official_github_repo
 }
 
 # 构建 manifest 远程 raw URL
@@ -159,10 +106,7 @@ tulan_manifest_refresh() {
   mkdir -p "$(dirname "$cache")"
 
   tulan_bin_source_init
-  tulan_debug "bin 源: ${TULAN_BIN_SOURCE:-github_official}"
-  if [[ "${TULAN_BIN_SOURCE:-}" == "git_host" ]]; then
-    tulan_debug "Git 镜像: ${TULAN_GIT_REMOTE_BASE}/${TULAN_GIT_REMOTE_PROJECT}"
-  fi
+  tulan_debug "bin 源: ${TULAN_BIN_SOURCE:-github_official}（官方 GitHub）"
   tulan_debug "manifest 仓库: ${repo}"
   tulan_debug "manifest 分支: ${TULAN_MANIFEST_DEFAULT_BRANCH}"
   tulan_debug "manifest 直连: ${url}"
@@ -174,8 +118,6 @@ tulan_manifest_refresh() {
 
   if [[ -n "$proxy" ]]; then
     tulan_log "刷新二进制索引: $(tulan_proxy_url "$url" "$proxy")"
-  elif [[ "${TULAN_BIN_SOURCE:-}" == "git_host" ]]; then
-    tulan_log "刷新二进制索引（Git 镜像）: ${url}"
   else
     tulan_log "刷新二进制索引: ${url}"
   fi
@@ -315,56 +257,12 @@ tulan_binary_blob_url() {
   echo "https://github.com/${repo}/blob/${branch}/${path}"
 }
 
-tulan_git_host_raw_url() {
-  local branch="$1" path="$2"
-  tulan_bin_branch_file_url "$branch" "$path"
-}
-
-tulan_curl_download_git_host() {
-  local url="$1" dest="$2"
-  local -a curl_args=(-fsSL)
-
-  if [[ -n "${TULAN_GITLAB_TOKEN:-}" ]]; then
-    curl_args+=(-H "PRIVATE-TOKEN: ${TULAN_GITLAB_TOKEN}")
-  elif [[ -n "${TULAN_GIT_REMOTE_TOKEN:-}" ]]; then
-    curl_args+=(-H "PRIVATE-TOKEN: ${TULAN_GIT_REMOTE_TOKEN}")
-  fi
-
-  mkdir -p "$(dirname "$dest")"
-  if [[ "${TULAN_VERBOSE:-}" == true ]]; then
-    tulan_verbose_step "Git 镜像下载"
-    tulan_verbose "URL: ${url}"
-    curl -fSL "${curl_args[@]}" --progress-bar "$url" -o "$dest"
-  else
-    curl "${curl_args[@]}" "$url" -o "$dest"
-  fi
-}
-
-# 下载 bin 分支二进制：Git 镜像 raw → GitHub blob 代理 → media → API
+# 下载 bin 分支二进制：GitHub blob 代理 → media → API
 tulan_download_binary_file() {
   local repo="$1" branch="$2" path="$3" dest="$4" proxy="$5"
-  local blob media api url
+  local blob media api
 
-  tulan_bin_source_init
   tulan_verbose_step "下载 ${path}"
-
-  if [[ "${TULAN_BIN_SOURCE:-}" == "git_host" ]]; then
-    url="$(tulan_git_host_raw_url "$branch" "$path")"
-    tulan_debug "git 镜像 raw: ${url}"
-    tulan_verbose "尝试 Git 镜像 raw"
-    if tulan_curl_download_git_host "$url" "$dest"; then
-      tulan_verbose "Git 镜像下载成功"
-      return 0
-    fi
-    tulan_error "Git 镜像下载失败: ${url}"
-    [[ -n "${TULAN_GITLAB_TOKEN:-}${TULAN_GIT_REMOTE_TOKEN:-}" ]] || \
-      tulan_log "提示: 私有 GitLab 可设置 TULAN_GITLAB_TOKEN 或 TULAN_GIT_REMOTE_TOKEN"
-    return 1
-  fi
-
-  if [[ "${TULAN_BIN_SOURCE:-}" == "github_remote" ]]; then
-    repo="$(tulan_bin_effective_github_repo)"
-  fi
 
   blob="$(tulan_binary_blob_url "$repo" "$branch" "$path")"
   media="$(tulan_binary_media_url "$repo" "$branch" "$path")"
@@ -394,7 +292,7 @@ tulan_download_binary_file() {
   tulan_curl_download "$api" "$dest" ""
 }
 
-# manifest 刷新专用代理（官方 GitHub 默认 gh.coding-space.cn；Git 镜像源不启用）
+# manifest / 二进制下载默认经 GitHub 代理（与 clone 源无关）
 tulan_manifest_proxy() {
   if [[ "${TULAN_GITHUB_PROXY_DISABLED:-}" == "true" ]] \
       || [[ "${TULAN_MANIFEST_PROXY_DISABLED:-}" == "true" ]]; then
@@ -411,11 +309,6 @@ tulan_manifest_proxy() {
     return 0
   fi
 
-  tulan_bin_source_init
-  if [[ "${TULAN_BIN_SOURCE:-github_official}" != "github_official" ]]; then
-    return 0
-  fi
-
   echo "${TULAN_MANIFEST_PROXY_DEFAULT}"
 }
 
@@ -428,11 +321,6 @@ tulan_get_github_proxy() {
 
   if [[ -n "${TULAN_GITHUB_PROXY:-}" ]]; then
     echo "${TULAN_GITHUB_PROXY}"
-    return 0
-  fi
-
-  tulan_bin_source_init
-  if [[ "${TULAN_BIN_SOURCE:-github_official}" != "github_official" ]]; then
     return 0
   fi
 
@@ -728,11 +616,10 @@ tulan_download_from_github() {
 
   if ! tulan_download_binary_file "$repo" "$branch" "$path" "$cellar_tmp" "$proxy"; then
     tulan_error "下载失败: ${tool}"
-    if tulan_bin_uses_git_host; then
-      tulan_error "  raw: $(tulan_git_host_raw_url "$branch" "$path")"
-    else
-      tulan_error "  blob: $(tulan_binary_blob_url "$repo" "$branch" "$path")"
-      tulan_error "  media: $(tulan_binary_media_url "$repo" "$branch" "$path")"
+    tulan_error "  blob: $(tulan_binary_blob_url "$repo" "$branch" "$path")"
+    tulan_error "  media: $(tulan_binary_media_url "$repo" "$branch" "$path")"
+    if [[ -n "$proxy" ]]; then
+      tulan_error "  代理: $(tulan_proxy_url "$(tulan_binary_blob_url "$repo" "$branch" "$path")" "$proxy")"
     fi
     return 1
   fi
