@@ -6,7 +6,12 @@ import unittest
 from pathlib import Path
 
 from tulan_tools.docker.daemon import build_daemon_json
-from tulan_tools.k8s.kubeconfig import find_clusters, resolve_cluster_id
+from tulan_tools.k8s.kubeconfig import (
+    extract_client_cert_from_kubeconfig,
+    extract_token_from_kubeconfig,
+    find_clusters,
+    resolve_cluster_id,
+)
 from tulan_tools.k8s.register import build_register_results
 from tulan_tools.k8s.versions import filter_versions_ge, read_versions_from_json
 from tulan_tools.manifest import (
@@ -150,6 +155,22 @@ class K8sKubeconfigTests(unittest.TestCase):
         }
         self.assertEqual(resolve_cluster_id(data, "prod"), "c-m-abc")
         self.assertEqual(len(find_clusters(data, "c-m-xyz")), 1)
+
+
+    def test_extract_client_cert(self) -> None:
+        sample = """
+users:
+- name: default
+  user:
+    client-certificate-data: Y2VydA==
+    client-key-data: a2V5
+"""
+        certs = extract_client_cert_from_kubeconfig(sample)
+        self.assertIsNotNone(certs)
+        assert certs is not None
+        self.assertEqual(certs[0], b"cert")
+        self.assertEqual(certs[1], b"key")
+        self.assertIsNone(extract_token_from_kubeconfig(sample))
 
 
 if __name__ == "__main__":

@@ -145,6 +145,7 @@ def main(argv: list[str] | None = None) -> int:
             "cluster-display": k8s_register.cmd_cluster_display,
             "list-clusters": k8s_kubeconfig.cmd_list_clusters,
             "resolve-cluster": k8s_kubeconfig.cmd_resolve_cluster,
+            "extract-config": k8s_kubeconfig.cmd_extract_config,
             "kubeconfig": k8s_kubeconfig.cmd_kubeconfig,
             "list-tokens": k8s_register.cmd_list_tokens,
             "tokens-delete": k8s_register.cmd_tokens_delete,
