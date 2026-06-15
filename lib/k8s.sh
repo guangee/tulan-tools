@@ -1062,14 +1062,34 @@ tulan_k8s_confirm_refresh_registration_tokens() {
   [[ "$confirm" =~ ^[yY]$ ]]
 }
 
+tulan_k8s_cluster_display_json() {
+  tulan_k8s_rancher_kubectl get clusters.management.cattle.io -o json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except json.JSONDecodeError:
+    print("{}")
+    sys.exit(0)
+out = {}
+for item in data.get("items") or []:
+    cid = (item.get("metadata") or {}).get("name") or ""
+    dname = ((item.get("spec") or {}).get("displayName") or "").strip()
+    if cid:
+        out[cid] = dname or cid
+print(json.dumps(out, ensure_ascii=False))
+' 2>/dev/null || echo "{}"
+}
+
 tulan_k8s_list_registration_clusters() {
-  local json="${1:-}"
+  local json="${1:-}" display_json
   if [[ -z "$json" ]]; then
     json="$(tulan_k8s_rancher_kubectl get clusterregistrationtokens.management.cattle.io -A -o json 2>/dev/null)" || return 1
   fi
-  K8S_REGISTER_JSON="$json" python3 <<'PY'
+  display_json="$(tulan_k8s_cluster_display_json)"
+  K8S_REGISTER_JSON="$json" K8S_CLUSTER_DISPLAY_JSON="$display_json" python3 <<'PY'
 import json, os, sys
 data = json.loads(os.environ["K8S_REGISTER_JSON"])
+display = json.loads(os.environ.get("K8S_CLUSTER_DISPLAY_JSON") or "{}")
 items = data.get("items") or []
 if not items:
     print("  (无任何 ClusterRegistrationToken，请先在 UI 创建/导入集群)")
@@ -1083,10 +1103,17 @@ for item in items:
     if key in seen:
         continue
     seen.add(key)
+    dname = display.get(cluster) or display.get(ns) or ""
+    label = f"{cluster}"
+    if dname and dname != cluster:
+        label = f"{cluster} (UI: {dname})"
+    if cluster == "local" or ns == "local":
+        label += " [Rancher 内置 local 集群]"
     status = item.get("status") or {}
     ready = "有命令" if any(status.get(f) for f in (
         "insecureNodeCommand", "nodeCommand", "insecureCommand", "command")) else "无命令"
-    print(f"  集群名={cluster}  namespace={ns}  token={name}  ({ready})")
+    hint = " ← worker 用这个" if name == "default-token" and cluster != "local" else ""
+    print(f"  {label}  token={name}  ({ready}){hint}")
 PY
 }
 
@@ -1102,6 +1129,9 @@ tulan_k8s_refresh_registration_tokens() {
     return 1
   }
 
+  local display_json
+  display_json="$(tulan_k8s_cluster_display_json)"
+
   local ns name count=0
   while IFS=$'\t' read -r ns name; do
     [[ -n "$ns" && -n "$name" ]] || continue
@@ -1109,15 +1139,30 @@ tulan_k8s_refresh_registration_tokens() {
     tulan_k8s_rancher_kubectl delete clusterregistrationtoken "$name" -n "$ns" --wait=false
     count=$((count + 1))
   done < <(
-    K8S_REGISTER_JSON="$json" K8S_REGISTER_CLUSTER="$cluster" python3 <<'PY'
+    K8S_REGISTER_JSON="$json" \
+    K8S_REGISTER_CLUSTER="$cluster" \
+    K8S_CLUSTER_DISPLAY_JSON="$display_json" \
+    python3 <<'PY'
 import json, os, sys
 data = json.loads(os.environ["K8S_REGISTER_JSON"])
 cluster_filter = os.environ.get("K8S_REGISTER_CLUSTER", "")
+display = json.loads(os.environ.get("K8S_CLUSTER_DISPLAY_JSON") or "{}")
+
+def cluster_match(cluster, ns, name):
+    if not cluster_filter:
+        return True
+    keys = {cluster_filter, cluster, ns, name}
+    for cid, dname in display.items():
+        if cluster_filter in (cid, dname):
+            keys.update({cid, dname})
+    targets = {cluster, ns, name}
+    return bool(keys & targets)
+
 for item in data.get("items", []):
     ns = item["metadata"]["namespace"]
     name = item["metadata"]["name"]
     cluster = item.get("spec", {}).get("clusterName") or ns
-    if cluster_filter and cluster_filter not in (cluster, ns, name):
+    if not cluster_match(cluster, ns, name):
         continue
     print(f"{ns}\t{name}")
 PY
@@ -1127,7 +1172,7 @@ PY
     tulan_error "未找到匹配的 ClusterRegistrationToken${cluster:+（过滤: ${cluster}）}"
     tulan_log "当前 Rancher 中可用的 registration token："
     tulan_k8s_list_registration_clusters "$json" || true
-    tulan_log "可省略 -c 查看全部，或使用上面「集群名 / token 名」之一"
+    tulan_log "可省略 -c 查看全部；UI 显示名（如 prod）与内部 ID（c-m-xxx）均可用于 -c"
     return 1
   fi
 
@@ -1166,8 +1211,12 @@ tulan_k8s_print_register_command() {
     return 1
   }
 
+  local display_json
+  display_json="$(tulan_k8s_cluster_display_json)"
+
   K8S_REGISTER_JSON="$json" \
   K8S_REGISTER_CLUSTER="$cluster" \
+  K8S_CLUSTER_DISPLAY_JSON="$display_json" \
   K8S_REGISTER_LAN="$REGISTER_URL_LAN" \
   K8S_REGISTER_PUBLIC="$REGISTER_URL_PUBLIC" \
   K8S_REGISTER_CURRENT="$REGISTER_URL_CURRENT" \
@@ -1180,6 +1229,7 @@ import json, os, re, sys
 
 data = json.loads(os.environ["K8S_REGISTER_JSON"])
 cluster_filter = os.environ.get("K8S_REGISTER_CLUSTER", "")
+display = json.loads(os.environ.get("K8S_CLUSTER_DISPLAY_JSON") or "{}")
 lan = os.environ["K8S_REGISTER_LAN"].rstrip("/")
 public = os.environ.get("K8S_REGISTER_PUBLIC", "")
 current = os.environ.get("K8S_REGISTER_CURRENT", "")
@@ -1213,14 +1263,39 @@ fields = [
     ("windowsNodeCommand", "Windows 节点"),
 ]
 
+def cluster_match(cluster, ns, name):
+    if not cluster_filter:
+        return True
+    keys = {cluster_filter, cluster, ns, name}
+    for cid, dname in display.items():
+        if cluster_filter in (cid, dname):
+            keys.update({cid, dname})
+    targets = {cluster, ns, name}
+    return bool(keys & targets)
+
+def display_label(cluster_id):
+    dname = display.get(cluster_id) or ""
+    if dname and dname != cluster_id:
+        return f"{cluster_id} (UI: {dname})"
+    return cluster_id
+
 results = []
 seen = set()
 for item in data.get("items", []):
     ns = item["metadata"]["namespace"]
     name = item["metadata"]["name"]
     cluster = item.get("spec", {}).get("clusterName") or ns
-    if cluster_filter and cluster_filter not in (cluster, ns, name):
+    if not cluster_match(cluster, ns, name):
         continue
+    # system token 用于集群导入，节点注册优先 default-token
+    if name == "system" and cluster_filter:
+        has_default = any(
+            (it.get("spec", {}).get("clusterName") or it["metadata"]["namespace"]) == cluster
+            and it["metadata"]["name"] == "default-token"
+            for it in data.get("items", [])
+        )
+        if has_default:
+            continue
     status = item.get("status") or {}
     for field, label in fields:
         raw = (status.get(field) or "").strip()
@@ -1233,6 +1308,7 @@ for item in data.get("items", []):
         seen.add(key)
         results.append({
             "cluster": cluster,
+            "cluster_label": display_label(cluster),
             "namespace": ns,
             "token": name,
             "field": field,
@@ -1265,7 +1341,7 @@ if current and current.rstrip('/') != lan:
     print(f"说明: UI 可能仍显示 {current}，因 token 创建时写入了外网域名")
 print("────────────────────────────────────")
 for r in results:
-    print(f"集群: {r['cluster']} — {r['label']}")
+    print(f"集群: {r['cluster_label']} — {r['label']} (token: {r['token']})")
     if r["rewritten"]:
         print(f"  原 UI 命令: {r['raw']}")
         print(f"  内网命令:   {r['command']}")
@@ -1278,7 +1354,7 @@ PY
     tulan_error "未找到 ClusterRegistrationToken${cluster:+（过滤: ${cluster}）}"
     tulan_log "当前 Rancher 中可用的 registration token："
     tulan_k8s_list_registration_clusters "$json" || true
-    tulan_log "请使用: brew k8s register-command -c <集群名>  （集群名见上方）"
+    tulan_log "请使用: brew k8s register-command -c <集群名>  （UI 显示名或 c-m-xxx 均可）"
     return 1
   fi
   return "$rc"
