@@ -58,19 +58,11 @@ tulan_maven_cellar_root() {
 
 tulan_java_save_state() {
   local major="$1" version="$2" java_home="$3"
-  python3 - "$major" "$version" "$java_home" "$(tulan_java_state_path)" <<'PY'
-import json, sys
-from pathlib import Path
-
-major, version, java_home, state_path = sys.argv[1:5]
-state = Path(state_path)
-state.parent.mkdir(parents=True, exist_ok=True)
-data = json.loads(state.read_text()) if state.exists() else {"active_major": "", "java_home": "", "runtimes": {}}
-data["active_major"] = major
-data["java_home"] = java_home
-data["runtimes"][major] = {"version": version, "java_home": java_home}
-state.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  tulan_python runtime save-java \
+    --major "$major" \
+    --version "$version" \
+    --java-home "$java_home" \
+    --state-path "$(tulan_java_state_path)"
 }
 
 tulan_java_activate() {
@@ -78,15 +70,7 @@ tulan_java_activate() {
   local tool version java_home cellar_root
 
   tool="$(tulan_openjdk_tool_name "$major")"
-  version="$(python3 - "$tool" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-tool, reg_path = sys.argv[1:3]
-data = json.loads(Path(reg_path).read_text()) if Path(reg_path).exists() else {}
-entry = data.get(tool, {})
-print(entry.get("active", "") or "")
-PY
-)"
+  version="$(tulan_python registry active-version --tool "$tool" --reg-path "$(tulan_binary_registry_path)")"
 
   if [[ -z "$version" ]]; then
     tulan_error "未安装 OpenJDK ${major}"
@@ -94,15 +78,9 @@ PY
     return 1
   fi
 
-  java_home="$(python3 - "$tool" "$version" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-tool, version, reg_path = sys.argv[1:4]
-data = json.loads(Path(reg_path).read_text())
-entry = data.get(tool, {}).get("versions", {}).get(version, {})
-print(entry.get("java_home", ""))
-PY
-)"
+  java_home="$(tulan_python registry version-field \
+    --tool "$tool" --version "$version" --field java_home \
+    --reg-path "$(tulan_binary_registry_path)")"
 
   if [[ -z "$java_home" ]] || [[ ! -d "$java_home" ]]; then
     local java_bin
@@ -159,28 +137,18 @@ PY
 
 tulan_openjdk_register() {
   local major="$1" version="$2" java_home="$3" activate="${4:-true}" source="${5:-adoptium}"
-  local tool
+  local tool extra_json
   tool="$(tulan_openjdk_tool_name "$major")"
-  python3 - "$tool" "$version" "$java_home" "$activate" "$source" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys, time
-from pathlib import Path
-
-tool, version, java_home, activate, source, reg_path = sys.argv[1:7]
-reg = Path(reg_path)
-reg.parent.mkdir(parents=True, exist_ok=True)
-data = json.loads(reg.read_text()) if reg.exists() else {}
-entry = data.setdefault(tool, {"install_name": tool, "active": "", "versions": {}})
-entry["install_name"] = tool
-entry["versions"][version] = {
-    "source": source,
-    "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    "java_home": java_home,
-    "major": tool.replace("openjdk-", ""),
-}
-if activate == "true":
-    entry["active"] = version
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  extra_json="$(EXTRA_JAVA_HOME="$java_home" EXTRA_MAJOR="$major" python3 -c \
+    'import json,os; print(json.dumps({"java_home":os.environ["EXTRA_JAVA_HOME"],"major":os.environ["EXTRA_MAJOR"]}))')"
+  tulan_python registry register \
+    --tool "$tool" \
+    --version "$version" \
+    --install-name "$tool" \
+    --source "$source" \
+    --activate "$activate" \
+    --reg-path "$(tulan_binary_registry_path)" \
+    --extra-json "$extra_json"
 }
 
 tulan_openjdk_install_archive() {
@@ -406,27 +374,20 @@ tulan_openjdk_show_versions() {
   fi
 
   if [[ -f "$(tulan_binary_registry_path)" ]]; then
-    python3 - "$tool" "$(tulan_binary_registry_path)" "$(tulan_java_state_path)" <<'PY'
-import json, sys
-from pathlib import Path
-
-tool, reg_path, state_path = sys.argv[1:4]
-data = json.loads(Path(reg_path).read_text())
-entry = data.get(tool, {})
-active = entry.get("active", "")
-versions = sorted(entry.get("versions", {}).keys())
-state = json.loads(Path(state_path).read_text()) if Path(state_path).exists() else {}
-active_major = state.get("active_major", "")
-if versions:
-    text = ", ".join(f"{v}{'*' if v == active else ''}" for v in versions)
-    print(f"  本地已装: {text}")
-else:
-    print("  本地已装: (无)")
-if active_major:
-    print(f"  JAVA_HOME 当前: Java {active_major} -> {state.get('java_home', '')}")
-else:
-    print("  JAVA_HOME 当前: (未设置)")
-PY
+    local installed_text java_home_cur active_major_cur
+    installed_text="$(tulan_python registry versions-display --tool "$tool" --reg-path "$(tulan_binary_registry_path)")"
+    if [[ -n "$installed_text" ]]; then
+      echo "  本地已装: ${installed_text}"
+    else
+      echo "  本地已装: (无)"
+    fi
+    active_major_cur="$(tulan_python runtime state-field "$(tulan_java_state_path)" active_major 2>/dev/null || true)"
+    java_home_cur="$(tulan_python runtime state-field "$(tulan_java_state_path)" java_home 2>/dev/null || true)"
+    if [[ -n "$active_major_cur" ]]; then
+      echo "  JAVA_HOME 当前: Java ${active_major_cur} -> ${java_home_cur}"
+    else
+      echo "  JAVA_HOME 当前: (未设置)"
+    fi
   else
     echo "  本地已装: (无)"
     echo "  JAVA_HOME 当前: (未设置)"
@@ -459,17 +420,7 @@ tulan_maven_show_versions() {
   [[ -n "$latest" ]] && echo "  上游最新: ${latest}"
 
   if [[ -f "$(tulan_binary_registry_path)" ]]; then
-    installed="$(python3 - "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-data = json.loads(Path(sys.argv[1]).read_text())
-entry = data.get("maven", {})
-active = entry.get("active", "")
-versions = sorted(entry.get("versions", {}).keys())
-if versions:
-    print(", ".join(f"{v}{'*' if v == active else ''}" for v in versions))
-PY
-)"
+    installed="$(tulan_python registry versions-display --tool maven --reg-path "$(tulan_binary_registry_path)" 2>/dev/null || true)"
     [[ -n "$installed" ]] && echo "  本地已装: ${installed}" || echo "  本地已装: (无)"
   else
     echo "  本地已装: (无)"
@@ -491,43 +442,9 @@ tulan_openjdk_uninstall() {
     return 1
   fi
 
-  python3 - "$tool" "$version" "$reg" "$home" <<'PY'
-import json, shutil, sys
-from pathlib import Path
+  tulan_binary_uninstall "$tool" "$version" || return 1
 
-tool, version, reg_path, home = sys.argv[1:5]
-reg = Path(reg_path)
-home = Path(home)
-data = json.loads(reg.read_text())
-entry = data.get(tool)
-if not entry:
-    sys.exit(2)
-remove = [version] if version else list(entry.get("versions", {}).keys())
-for ver in remove:
-    cellar = home / "cellar" / tool / ver
-    if cellar.exists():
-        shutil.rmtree(cellar)
-    entry.get("versions", {}).pop(ver, None)
-if not entry.get("versions"):
-    data.pop(tool, None)
-else:
-    entry["active"] = sorted(entry["versions"].keys())[-1]
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
-  local rc=$?
-  if [[ $rc -eq 2 ]]; then
-    tulan_error "未安装: ${tool}"
-    return 1
-  fi
-
-  active_major="$(python3 - "$(tulan_java_state_path)" <<'PY'
-import json, sys
-from pathlib import Path
-p = Path(sys.argv[1])
-if p.exists():
-    print(json.loads(p.read_text()).get("active_major", ""))
-PY
-)"
+  active_major="$(tulan_python runtime state-field "$(tulan_java_state_path)" active_major 2>/dev/null || true)"
   if [[ "$active_major" == "$major" ]]; then
     tulan_java_unlink_bin
     rm -f "$(tulan_java_state_path)"

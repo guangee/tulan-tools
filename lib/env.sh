@@ -56,24 +56,10 @@ tulan_env_render() {
   node_state="$(tulan_get_home)/state/node.json"
 
   if [[ -f "$java_state" ]]; then
-    java_home="$(python3 - "$java_state" <<'PY' 2>/dev/null || true
-import json, sys
-from pathlib import Path
-p = Path(sys.argv[1])
-if p.exists():
-    print(json.loads(p.read_text()).get("java_home", ""))
-PY
-)"
+    java_home="$(tulan_python runtime state-field "$java_state" java_home 2>/dev/null || true)"
   fi
   if [[ -f "$node_state" ]]; then
-    node_home="$(python3 - "$node_state" <<'PY' 2>/dev/null || true
-import json, sys
-from pathlib import Path
-p = Path(sys.argv[1])
-if p.exists():
-    print(json.loads(p.read_text()).get("node_home", ""))
-PY
-)"
+    node_home="$(tulan_python runtime state-field "$node_state" node_home 2>/dev/null || true)"
   fi
 
   {
@@ -102,11 +88,7 @@ tulan_link_tool_bin() {
   for cmd in "$@"; do
     target="${tool_home}/bin/${cmd}"
     [[ -x "$target" ]] || continue
-    rel="$(python3 - "$target" "$bin_dir" <<'PY'
-import os, sys
-print(os.path.relpath(sys.argv[1], sys.argv[2]))
-PY
-)"
+    rel="$(tulan_python runtime relpath "$target" "$bin_dir")"
     ln -sf "$rel" "${bin_dir}/${cmd}"
   done
 }

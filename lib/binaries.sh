@@ -249,15 +249,10 @@ tulan_rancher_versions_refresh() {
   tulan_log "Rancher 版本已缓存: ${cache}"
 }
 
-# 解析 JSON 字段（依赖 python3）
+# 解析 manifest JSON（由 lib/tulan_tools/manifest.py 实现）
 tulan_manifest_read() {
   local manifest="$1" expr="$2"
-  python3 -c "
-import json, sys
-with open('${manifest}') as f:
-    data = json.load(f)
-${expr}
-"
+  tulan_python manifest eval "$manifest" "$expr"
 }
 
 tulan_manifest_get_repo() {
@@ -586,25 +581,13 @@ tulan_binary_bin_link() {
 
 tulan_binary_register() {
   local tool="$1" version="$2" install_name="$3" source="$4" activate="${5:-true}"
-  python3 - "$tool" "$version" "$install_name" "$source" "$activate" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys, time
-from pathlib import Path
-
-tool, version, install_name, source, activate, reg_path = sys.argv[1:7]
-reg = Path(reg_path)
-reg.parent.mkdir(parents=True, exist_ok=True)
-data = json.loads(reg.read_text()) if reg.exists() else {}
-entry = data.setdefault(tool, {"install_name": install_name, "active": "", "versions": {}})
-entry["install_name"] = install_name
-entry["versions"][version] = {
-    "source": source,
-    "installed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    "cellar": f"cellar/{tool}/{version}/{install_name}",
-}
-if activate == "true":
-    entry["active"] = version
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  tulan_python registry register \
+    --tool "$tool" \
+    --version "$version" \
+    --install-name "$install_name" \
+    --source "$source" \
+    --activate "$activate" \
+    --reg-path "$(tulan_binary_registry_path)"
 }
 
 tulan_binary_activate() {
@@ -612,13 +595,7 @@ tulan_binary_activate() {
   local install_name cellar_file link_path rel target home
   home="$(tulan_get_home)"
 
-  install_name="$(python3 - "$tool" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-data = json.loads(Path(sys.argv[2]).read_text()) if Path(sys.argv[2]).exists() else {}
-print(data.get(sys.argv[1], {}).get("install_name", sys.argv[1]))
-PY
-)"
+  install_name="$(tulan_python registry install-name --tool "$tool" --reg-path "$(tulan_binary_registry_path)")"
   cellar_file="$(tulan_binary_cellar_file "$tool" "$version" "$install_name")"
   if [[ ! -f "$cellar_file" ]]; then
     tulan_error "版本未安装: ${tool} ${version}"
@@ -631,17 +608,10 @@ PY
   mkdir -p "$(dirname "$link_path")"
   ln -sf "$rel" "$link_path"
 
-  python3 - "$tool" "$version" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-tool, version, reg_path = sys.argv[1:4]
-reg = Path(reg_path)
-data = json.loads(reg.read_text()) if reg.exists() else {}
-if tool not in data or version not in data[tool].get("versions", {}):
-    sys.exit(1)
-data[tool]["active"] = version
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-PY
+  tulan_python registry activate \
+    --tool "$tool" \
+    --version "$version" \
+    --reg-path "$(tulan_binary_registry_path)"
 
   tulan_log "已切换 ${install_name} -> ${version}"
 }
@@ -672,50 +642,11 @@ tulan_binary_uninstall() {
     return 1
   fi
 
-  python3 - "$tool" "$version" "$reg" "$home" <<'PY'
-import json, shutil, sys
-from pathlib import Path
-
-tool, version, reg_path, home = sys.argv[1:5]
-reg = Path(reg_path)
-home = Path(home)
-if not reg.exists():
-    sys.exit(2)
-data = json.loads(reg.read_text())
-entry = data.get(tool)
-if not entry:
-    sys.exit(2)
-install_name = entry.get("install_name", tool)
-versions = list(entry.get("versions", {}).keys())
-remove = [version] if version else versions
-for ver in remove:
-    cellar = home / "cellar" / tool / ver
-    if cellar.exists():
-        shutil.rmtree(cellar)
-    entry.get("versions", {}).pop(ver, None)
-remaining = list(entry.get("versions", {}).keys())
-link = home / "bin" / install_name
-if version and version != entry.get("active"):
-    pass
-elif remaining:
-    entry["active"] = sorted(remaining)[-1]
-    ver = entry["active"]
-    rel = f"../cellar/{tool}/{ver}/{install_name}"
-    link.parent.mkdir(parents=True, exist_ok=True)
-    if link.exists() or link.is_symlink():
-        link.unlink()
-    link.symlink_to(rel)
-else:
-    entry["active"] = ""
-    if link.exists() or link.is_symlink():
-        link.unlink()
-    if not entry.get("versions"):
-        data.pop(tool, None)
-if not remaining and not version:
-    data.pop(tool, None)
-reg.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-print(install_name)
-PY
+  tulan_python registry uninstall \
+    --tool "$tool" \
+    --version "$version" \
+    --reg-path "$reg" \
+    --home "$home"
   local rc=$?
   if [[ $rc -eq 2 ]]; then
     tulan_error "未安装: ${tool}"
@@ -858,20 +789,7 @@ tulan_binary_show_versions() {
   fi
 
   if [[ -f "$(tulan_binary_registry_path)" ]]; then
-    installed="$(python3 - "$tool" "$(tulan_binary_registry_path)" <<'PY'
-import json, sys
-from pathlib import Path
-tool, reg_path = sys.argv[1:3]
-data = json.loads(Path(reg_path).read_text())
-entry = data.get(tool, {})
-active = entry.get("active", "")
-versions = sorted(entry.get("versions", {}).keys())
-if versions:
-    print(", ".join(f"{v}{'*' if v == active else ''}" for v in versions))
-else:
-    print("")
-PY
-)"
+    installed="$(tulan_python registry versions-display --tool "$tool" --reg-path "$(tulan_binary_registry_path)" 2>/dev/null || true)"
     if [[ -n "$installed" ]]; then
       echo "  本地已装（* 当前）: ${installed}"
     else
@@ -902,43 +820,10 @@ tulan_binaries_list() {
   fi
   echo "────────────────────────────────────"
 
-  python3 - "$manifest" "$(tulan_binary_registry_path)" "$(tulan_get_home)/bin" "$installed_only" <<'PY'
-import json, os, sys
-from pathlib import Path
-
-manifest_path, reg_path, bin_dir, installed_only = sys.argv[1:5]
-installed_only = installed_only == "true"
-with open(manifest_path) as f:
-    manifest = json.load(f)
-registry = json.loads(Path(reg_path).read_text()) if Path(reg_path).exists() else {}
-found = False
-for tool, info in manifest.get("tools", {}).items():
-    if tool != "docker" and (
-        info.get("artifact_type") == "archive"
-        or tool.startswith("openjdk-")
-        or tool.startswith("node-")
-        or tool == "maven"
-    ):
-        continue
-    install_name = info.get("install_name", tool)
-    index_ver = info.get("version", "") or "待同步"
-    reg = registry.get(tool, {})
-    active = reg.get("active", "")
-    versions = sorted(reg.get("versions", {}).keys())
-    linked = os.path.join(bin_dir, install_name)
-    is_linked = os.path.islink(linked) or (os.path.isfile(linked) and os.access(linked, os.X_OK))
-    if installed_only and not versions and not is_linked:
-        continue
-    found = True
-    if versions:
-        ver_text = ", ".join(f"{v}{'*' if v == active else ''}" for v in versions)
-        print(f"  {install_name:18s} 最新:{index_ver:<12} 已装:[{ver_text}]")
-    else:
-        status = "已安装" if is_linked else "未安装"
-        print(f"  {install_name:18s} 最新:{index_ver:<12} {status}")
-if not found:
-    print("  (无)" if installed_only else "  (manifest 中无工具定义)")
-PY
+  tulan_python registry list "$manifest" \
+    --reg-path "$(tulan_binary_registry_path)" \
+    --bin-dir "$(tulan_get_home)/bin" \
+    --installed-only "$installed_only"
 
   if [[ "$installed_only" == true ]]; then
     return 0

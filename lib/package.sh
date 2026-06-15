@@ -17,20 +17,8 @@ tulan_pkg_read_manifest() {
     return 1
   fi
 
-  # 使用 python3 或 jq 解析 JSON
-  if command -v python3 &>/dev/null; then
-    python3 -c "
-import json, sys
-with open('${manifest}') as f:
-    data = json.load(f)
-print(data.get('${field}', ''))
-" 2>/dev/null
-  elif command -v jq &>/dev/null; then
-    jq -r ".${field} // empty" "$manifest"
-  else
-    tulan_error "需要 python3 或 jq 来解析 manifest.json"
-    return 1
-  fi
+  # 使用 tulan_tools JSON 模块解析 manifest.json
+  tulan_json_get "$manifest" "$field"
 }
 
 # 判断私有包是否存在

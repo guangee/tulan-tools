@@ -365,3 +365,7 @@ tulan_as_root() {
     sudo "$@"
   fi
 }
+
+# Python 模块（lib/tulan_tools）
+# shellcheck source=python.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/python.sh"
