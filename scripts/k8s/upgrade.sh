@@ -4,23 +4,19 @@
 #   sudo bash upgrade.sh
 #
 # 可选变量:
-#   RANCHER_IMAGE=rancher/rancher:v2.9.0
-#   CONTAINER_NAME=rancher
-#   HTTP_PORT_MAP=8080:80
-#   HTTPS_PORT_MAP=8443:443
+#   RANCHER_IMAGE=rancher/rancher:v2.9.0   升级目标镜像（未指定时用脚本默认）
+#   HTTP_PORT_MAP / HTTPS_PORT_MAP         未指定时从 rancher.env 读取
 #   CERT_OUT=/etc/certs
 #   RANCHER_DATA=/opt/rancher-data
-#   K8S_SITE_DOMAIN=...   （默认从 rancher.env 读取）
 
 set -euo pipefail
 
-CONTAINER_NAME="${CONTAINER_NAME:-rancher}"
-RANCHER_IMAGE="${RANCHER_IMAGE:-rancher/rancher:v2.13.3}"
-HTTP_PORT_MAP="${HTTP_PORT_MAP:-8080:80}"
-HTTPS_PORT_MAP="${HTTPS_PORT_MAP:-8443:443}"
-CERT_OUT="${CERT_OUT:-/etc/certs}"
-RANCHER_DATA="${RANCHER_DATA:-/opt/rancher-data}"
-REGISTRY_MIRROR="${REGISTRY_MIRROR:-https://hub.local.tulan.wang}"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib-config.sh
+source "${_SCRIPT_DIR}/lib-config.sh"
+
+# 升级目标镜像（与 rancher.env 中记录的旧版本无关）
+RANCHER_UPGRADE_IMAGE="${RANCHER_UPGRADE_IMAGE:-rancher/rancher:v2.13.3}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -40,47 +36,6 @@ require_docker() {
   fi
 }
 
-load_rancher_config() {
-  if [[ -f "${CERT_OUT}/rancher.env" ]]; then
-    # shellcheck source=/dev/null
-    source "${CERT_OUT}/rancher.env"
-  elif [[ -f "${CERT_OUT}/site.env" ]]; then
-    # shellcheck source=/dev/null
-    source "${CERT_OUT}/site.env"
-  fi
-  K8S_SITE_DOMAIN="${K8S_SITE_DOMAIN:-k8s.local.tulan.wang}"
-  CONTAINER_NAME="${CONTAINER_NAME:-rancher}"
-  RANCHER_DATA="${RANCHER_DATA:-/opt/rancher-data}"
-  HTTP_PORT_MAP="${HTTP_PORT_MAP:-8080:80}"
-  HTTPS_PORT_MAP="${HTTPS_PORT_MAP:-8443:443}"
-  REGISTRY_MIRROR="${REGISTRY_MIRROR:-https://hub.local.tulan.wang}"
-
-  if [[ ! -f "${CERT_OUT}/${K8S_SITE_DOMAIN}.crt" && -f "${CERT_OUT}/k8s.local.tulan.wang.crt" ]]; then
-    K8S_SITE_DOMAIN="k8s.local.tulan.wang"
-  fi
-}
-
-update_rancher_env() {
-  local ts installed_at
-  ts="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S')"
-  installed_at="${INSTALLED_AT:-$ts}"
-  cat > "${CERT_OUT}/rancher.env" <<EOF
-# brew k8s install 写入，upgrade 读取
-K8S_SITE_DOMAIN=${K8S_SITE_DOMAIN}
-K8S_SITE_IP=${K8S_SITE_IP:-}
-CERT_OUT=${CERT_OUT}
-RANCHER_IMAGE=${RANCHER_IMAGE}
-RANCHER_DATA=${RANCHER_DATA}
-CONTAINER_NAME=${CONTAINER_NAME}
-HTTP_PORT_MAP=${HTTP_PORT_MAP}
-HTTPS_PORT_MAP=${HTTPS_PORT_MAP}
-REGISTRY_MIRROR=${REGISTRY_MIRROR}
-INSTALLED_AT=${installed_at}
-UPDATED_AT=${ts}
-EOF
-  chmod 644 "${CERT_OUT}/rancher.env"
-}
-
 check_files() {
   [[ -f "${CERT_OUT}/rancher.env" || -f "${CERT_OUT}/site.env" ]] || {
     echo "缺少部署记录: ${CERT_OUT}/rancher.env（请先 brew k8s install）"
@@ -95,7 +50,12 @@ check_files() {
 main() {
   require_root
   require_docker
-  load_rancher_config
+
+  # 先从 rancher.env 加载证书/端口等；升级目标镜像单独指定
+  unset RANCHER_IMAGE
+  k8s_load_rancher_config
+  RANCHER_IMAGE="${RANCHER_UPGRADE_IMAGE}"
+
   check_files
 
   log "使用部署证书: ${K8S_SITE_DOMAIN}（来自 rancher.env）"
@@ -122,7 +82,7 @@ main() {
     --privileged \
     "${RANCHER_IMAGE}" >/dev/null
 
-  update_rancher_env
+  k8s_write_rancher_env
 
   log "升级命令已执行完成，当前容器状态："
   docker ps --filter "name=${CONTAINER_NAME}"

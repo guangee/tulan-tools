@@ -631,16 +631,16 @@ tulan_k8s_export_env() {
   if [[ -z "${K8S_SITE_DOMAIN:-}" ]]; then
     tulan_k8s_load_site_config
   fi
-  if [[ -n "${K8S_SITE_DOMAIN:-}" ]]; then
-    export K8S_SITE_DOMAIN K8S_SITE_IP
-  fi
   export CERT_OUT="${CERT_OUT:-$TULAN_K8S_CERT_OUT}"
+  export K8S_SITE_DOMAIN="${K8S_SITE_DOMAIN:-}"
+  export K8S_SITE_IP="${K8S_SITE_IP:-}"
   export RANCHER_DATA="${RANCHER_DATA:-$TULAN_K8S_RANCHER_DATA}"
   export RANCHER_IMAGE="${RANCHER_IMAGE:-$TULAN_K8S_RANCHER_IMAGE}"
   export REGISTRY_MIRROR="${REGISTRY_MIRROR:-$TULAN_K8S_REGISTRY_MIRROR}"
   export CONTAINER_NAME="${CONTAINER_NAME:-$TULAN_K8S_CONTAINER}"
   export HTTP_PORT_MAP="${HTTP_PORT_MAP:-$TULAN_K8S_HTTP_PORT}"
   export HTTPS_PORT_MAP="${HTTPS_PORT_MAP:-$TULAN_K8S_HTTPS_PORT}"
+  export INSTALLED_AT="${INSTALLED_AT:-}"
   export K8S_REGISTRIES_TEMPLATE
   K8S_REGISTRIES_TEMPLATE="$(tulan_get_home)/config/k8s.registries.yaml"
 }
@@ -665,7 +665,20 @@ tulan_k8s_run() {
   path="$(tulan_k8s_script_path "$script")" || return 1
   tulan_k8s_export_env
   tulan_log "执行: ${script} $*"
-  tulan_as_root bash "$path" "$@"
+  # sudo 默认不保留环境变量，显式传入部署配置（尤其端口映射）
+  tulan_as_root env \
+    CERT_OUT="${CERT_OUT}" \
+    K8S_SITE_DOMAIN="${K8S_SITE_DOMAIN:-}" \
+    K8S_SITE_IP="${K8S_SITE_IP:-}" \
+    RANCHER_DATA="${RANCHER_DATA}" \
+    RANCHER_IMAGE="${RANCHER_IMAGE}" \
+    CONTAINER_NAME="${CONTAINER_NAME}" \
+    HTTP_PORT_MAP="${HTTP_PORT_MAP}" \
+    HTTPS_PORT_MAP="${HTTPS_PORT_MAP}" \
+    REGISTRY_MIRROR="${REGISTRY_MIRROR}" \
+    INSTALLED_AT="${INSTALLED_AT:-}" \
+    K8S_REGISTRIES_TEMPLATE="${K8S_REGISTRIES_TEMPLATE:-}" \
+    bash "$path" "$@"
 }
 
 tulan_k8s_run_user() {
