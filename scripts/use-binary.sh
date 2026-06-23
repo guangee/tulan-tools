@@ -14,6 +14,8 @@ source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 source "${_SCRIPT_ROOT}/lib/node.sh"
 # shellcheck source=../lib/docker.sh
 source "${_SCRIPT_ROOT}/lib/docker.sh"
+# shellcheck source=../lib/go.sh
+source "${_SCRIPT_ROOT}/lib/go.sh"
 
 usage() {
   cat <<EOF
@@ -28,6 +30,7 @@ Java / Node 切换会更新 ~/.bashrc / ~/.zshrc 中的环境变量。
   brew use java 11
   brew use node 20
   brew use node 22
+  brew use go go1.22.5
   brew list --binaries --installed   # 查看已装版本
 EOF
 }
@@ -81,8 +84,14 @@ main() {
     exit 0
   fi
 
+  if [[ "$canonical" == go ]]; then
+    version="$(tulan_go_normalize_version "$version")"
+    tulan_go_activate "$version"
+    exit 0
+  fi
+
   if [[ -z "$canonical" ]]; then
-    tulan_error "未知工具: $tool（可选: kubectl, docker-compose, mc, docker, java, maven, node）"
+    tulan_error "未知工具: $tool（可选: kubectl, docker-compose, mc, docker, java, maven, node, go）"
     exit 1
   fi
 

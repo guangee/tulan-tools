@@ -40,6 +40,13 @@ def save_node_state(major: str, version: str, node_home: str, state_path: str | 
     state.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def save_go_state(version: str, go_root: str, state_path: str | Path) -> None:
+    state = Path(state_path)
+    state.parent.mkdir(parents=True, exist_ok=True)
+    data = {"version": version, "go_root": go_root}
+    state.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def relpath(target: str, base: str) -> str:
     import os
 
@@ -82,6 +89,18 @@ def cmd_save_node(argv: list[str]) -> int:
     parser.add_argument("--state-path", required=True)
     args = parser.parse_args(argv)
     save_node_state(args.major, args.version, args.node_home, args.state_path)
+    return 0
+
+
+def cmd_save_go(argv: list[str]) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--version", required=True)
+    parser.add_argument("--go-root", required=True)
+    parser.add_argument("--state-path", required=True)
+    args = parser.parse_args(argv)
+    save_go_state(args.version, args.go_root, args.state_path)
     return 0
 
 

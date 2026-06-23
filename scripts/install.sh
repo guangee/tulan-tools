@@ -15,12 +15,13 @@ usage() {
   cat <<EOF
 用法: brew install <名称> [名称...] [选项]
 
-安装二进制工具（kubectl、docker-compose、mc、docker、openjdk、maven、node）或私有软件包。
+安装二进制工具（kubectl、docker-compose、mc、docker、openjdk、maven、node、go）或私有软件包。
 请先 brew list 查看可用项，默认安装最新版本。
 
 选项:
   --source SRC      二进制源: github（默认）| upstream
   --version VER     指定版本
+  --upgrade         升级到最新稳定版（go）
   --force           强制重装（仅私有包）
   --refresh-manifest  刷新 bin 索引（仅二进制）
   --no-verify       跳过 SHA256（仅二进制）
@@ -34,6 +35,8 @@ usage() {
   brew install kubectl
   brew install kubectl mc
   brew install openjdk-11 maven node-20
+  brew install go
+  brew install go --upgrade
   brew use java 11
   brew use node 20
   brew install my-tool
@@ -60,6 +63,11 @@ main() {
         version="$2"
         args+=("$1" "$2")
         shift 2
+        ;;
+      --upgrade)
+        has_binary_flags=true
+        args+=("$1")
+        shift
         ;;
       --no-verify|--no-proxy|--refresh-manifest|--debug|--verbose|--dry-run)
         has_binary_flags=true

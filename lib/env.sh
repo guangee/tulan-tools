@@ -45,15 +45,17 @@ tulan_refresh_shell_config() {
 }
 
 tulan_env_render() {
-  local env_file java_home node_home
+  local env_file java_home node_home go_root
   env_file="$(tulan_env_file_path)"
   mkdir -p "$(dirname "$env_file")"
 
   java_home=""
   node_home=""
-  local java_state node_state
+  go_root=""
+  local java_state node_state go_state
   java_state="$(tulan_get_home)/state/java.json"
   node_state="$(tulan_get_home)/state/node.json"
+  go_state="$(tulan_get_home)/state/go.json"
 
   if [[ -f "$java_state" ]]; then
     java_home="$(tulan_python runtime state-field "$java_state" java_home 2>/dev/null || true)"
@@ -61,18 +63,25 @@ tulan_env_render() {
   if [[ -f "$node_state" ]]; then
     node_home="$(tulan_python runtime state-field "$node_state" node_home 2>/dev/null || true)"
   fi
+  if [[ -f "$go_state" ]]; then
+    go_root="$(tulan_python runtime state-field "$go_state" go_root 2>/dev/null || true)"
+  fi
 
   {
-    echo "# tulan-tools 运行时环境（brew use java/node 自动更新，请勿手改）"
+    echo "# tulan-tools 运行时环境（brew use java/node/go 自动更新，请勿手改）"
     if [[ -n "$java_home" ]] && [[ -d "$java_home" ]]; then
       echo "export JAVA_HOME=\"${java_home}\""
     fi
     if [[ -n "$node_home" ]] && [[ -d "$node_home" ]]; then
       echo "export NODE_HOME=\"${node_home}\""
     fi
+    if [[ -n "$go_root" ]] && [[ -d "$go_root" ]]; then
+      echo "export GOROOT=\"${go_root}\""
+    fi
     echo -n 'export PATH="'
     [[ -n "$java_home" ]] && [[ -d "$java_home" ]] && echo -n '${JAVA_HOME}/bin:'
     [[ -n "$node_home" ]] && [[ -d "$node_home" ]] && echo -n '${NODE_HOME}/bin:'
+    [[ -n "$go_root" ]] && [[ -d "$go_root" ]] && echo -n '${GOROOT}/bin:'
     echo '${PATH}"'
   } > "$env_file"
 }

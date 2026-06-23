@@ -79,13 +79,14 @@ def main(argv: list[str] | None = None) -> int:
         from . import runtime
 
         if not args:
-            print("runtime 子命令: state-field, save-java, save-node, relpath", file=sys.stderr)
+            print("runtime 子命令: state-field, save-java, save-node, save-go, relpath", file=sys.stderr)
             return 1
         sub = args.pop(0)
         handlers = {
             "state-field": runtime.cmd_state_field,
             "save-java": runtime.cmd_save_java,
             "save-node": runtime.cmd_save_node,
+            "save-go": runtime.cmd_save_go,
             "relpath": runtime.cmd_relpath,
         }
         fn = handlers.get(sub)
@@ -188,14 +189,17 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if module == "upstream":
-        from .upstream import adoptium, maven as maven_upstream
+        from .upstream import adoptium, go as go_upstream, maven as maven_upstream
 
         if not args:
-            print("upstream 子命令: adoptium-fetch, maven-latest", file=sys.stderr)
+            print("upstream 子命令: adoptium-fetch, go-latest, go-list, go-download-url, maven-latest", file=sys.stderr)
             return 1
         sub = args.pop(0)
         handlers = {
             "adoptium-fetch": adoptium.cmd_fetch,
+            "go-latest": go_upstream.cmd_latest,
+            "go-list": go_upstream.cmd_list,
+            "go-download-url": go_upstream.cmd_download_url,
             "maven-latest": maven_upstream.cmd_latest,
         }
         fn = handlers.get(sub)

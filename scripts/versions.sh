@@ -18,6 +18,8 @@ source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 source "${_SCRIPT_ROOT}/lib/node.sh"
 # shellcheck source=../lib/docker.sh
 source "${_SCRIPT_ROOT}/lib/docker.sh"
+# shellcheck source=../lib/go.sh
+source "${_SCRIPT_ROOT}/lib/go.sh"
 
 usage() {
   cat <<EOF
@@ -32,6 +34,7 @@ usage() {
   brew versions maven
   brew versions node
   brew versions node-20
+  brew versions go
   brew versions my-tool
   brew list                 # 查看所有可安装项
 EOF
@@ -82,6 +85,11 @@ main() {
 
   if [[ "$canonical" == docker ]]; then
     tulan_docker_show_versions
+    exit 0
+  fi
+
+  if [[ "$canonical" == go ]] || [[ "$name" == golang ]]; then
+    tulan_go_show_versions
     exit 0
   fi
 

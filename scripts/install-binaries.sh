@@ -16,6 +16,8 @@ source "${_SCRIPT_ROOT}/lib/jdk-maven.sh"
 source "${_SCRIPT_ROOT}/lib/node.sh"
 # shellcheck source=../lib/docker.sh
 source "${_SCRIPT_ROOT}/lib/docker.sh"
+# shellcheck source=../lib/go.sh
+source "${_SCRIPT_ROOT}/lib/go.sh"
 
 INSTALL_DIR="$(tulan_get_home)/bin"
 TOOL_ARGS=()
@@ -23,10 +25,11 @@ SOURCE="github"
 DRY_RUN=false
 VERIFY_CHECKSUM=true
 REQUESTED_VERSION=""
+UPGRADE=false
 
 usage() {
   cat <<EOF
-安装二进制工具: kubectl, docker-compose, mc, docker, openjdk, maven, node
+安装二进制工具: kubectl, docker-compose, mc, docker, openjdk, maven, node, go
 
 用法:
   brew install <工具> [工具...] [选项]
@@ -36,6 +39,7 @@ usage() {
 选项:
   --source SRC        源: github（默认，bin 索引最新）| upstream（官方最新）
   --version VER       指定版本（通常需 --source upstream）
+  --upgrade           升级到上游最新稳定版（go 等）
   --no-verify         跳过 SHA256 校验
   --proxy URL         GitHub 代理前缀
   --no-proxy          禁用代理
@@ -49,6 +53,9 @@ usage() {
   brew install kubectl
   brew install kubectl mc
   brew install openjdk-11 maven node-20
+  brew install go
+  brew install go --upgrade
+  brew install go --version go1.22.5
   brew install kubectl --version v1.32.0 --source upstream
   brew use java 11
   brew use node 20
@@ -65,6 +72,7 @@ while [[ $# -gt 0 ]]; do
     --install-dir) INSTALL_DIR="$2"; shift 2 ;;
     --tool) TOOL_ARGS+=("$2"); shift 2 ;;
     --version) REQUESTED_VERSION="$2"; shift 2 ;;
+    --upgrade) UPGRADE=true; shift ;;
     --no-verify) VERIFY_CHECKSUM=false; shift ;;
     --proxy) export TULAN_GITHUB_PROXY="$2"; shift 2 ;;
     --no-proxy) export TULAN_GITHUB_PROXY_DISABLED=true; shift ;;
@@ -302,6 +310,26 @@ run_tool() {
     return
   fi
 
+  if [[ "$canonical" == go ]] || [[ "$raw" == go ]] || [[ "$raw" == golang ]]; then
+    case "$SOURCE" in
+      github)
+        if tulan_manifest_ensure_archive_path "go"; then
+          tulan_install_go_from_bin "$DRY_RUN" "$VERIFY_CHECKSUM"
+        else
+          log "bin 索引无 go 归档，从 go.dev 上游安装"
+          tulan_install_go "$REQUESTED_VERSION" "$DRY_RUN" "$UPGRADE" "$VERIFY_CHECKSUM"
+        fi
+        ;;
+      upstream)
+        tulan_install_go "$REQUESTED_VERSION" "$DRY_RUN" "$UPGRADE" "$VERIFY_CHECKSUM"
+        ;;
+      *)
+        err "未知源: $SOURCE"; exit 1
+        ;;
+    esac
+    return
+  fi
+
   major="$(tulan_node_major_for_tool "${canonical:-$raw}")"
   if [[ -n "$major" ]]; then
     case "$SOURCE" in
@@ -339,6 +367,7 @@ run_tool() {
         docker-compose) install_compose_upstream ;;
         mc)             install_mc_upstream ;;
         kubectl)        install_kubectl_upstream ;;
+        go)             tulan_install_go "$REQUESTED_VERSION" "$DRY_RUN" "$UPGRADE" "$VERIFY_CHECKSUM" ;;
       esac
       ;;
     *)

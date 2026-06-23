@@ -186,5 +186,16 @@ users:
         self.assertNotIn("irr-k8s.tulan.wang", out)
 
 
+class GoUpstreamTests(unittest.TestCase):
+    def test_version_key_sort(self) -> None:
+        from tulan_tools.upstream import go as go_upstream
+
+        versions = ["go1.21.13", "go1.22.5", "go1.23.4"]
+        self.assertEqual(
+            sorted(versions, key=go_upstream._version_key, reverse=True),
+            ["go1.23.4", "go1.22.5", "go1.21.13"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -471,6 +471,7 @@ tulan_binary_canonical_name() {
     docker|docker-engine|dockerd) echo "docker" ;;
     mc|minio)                    echo "mc" ;;
     kubectl|k8s)                 echo "kubectl" ;;
+    go|golang)                   echo "go" ;;
     maven|mvn)                   echo "maven" ;;
     openjdk-8|jdk8|java8)        echo "openjdk-8" ;;
     openjdk-11|jdk11|java11)     echo "openjdk-11" ;;
