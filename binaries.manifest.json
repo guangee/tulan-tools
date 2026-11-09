@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "updated_at": "2026-11-09T14:44:41Z",
+  "repository": "guangee/tulan-tools",
+  "branch": "bin",
+  "manifest_file": "binaries.manifest.json",
+  "rancher_versions_file": "k8s.rancher.versions.json",
+  "github_proxy": "https://gh.coding-space.cn/",
+  "tools": {
+    "kubectl": {
+      "version": "v1.37.2",
+      "install_name": "kubectl",
+      "artifact_type": "binary",
+      "paths": {
+        "linux-amd64": "linux-amd64/kubectl",
+        "linux-arm64": "linux-arm64/kubectl"
+      },
+      "sha256": {
+        "linux-amd64": "c04487523e7aa7d1493f7808174c899db93d7a9cf57531420cd76b9bd415f8f4",
+        "linux-arm64": "fcc16f63186659d9722014b7e02d5fdd2d4e669cb8c0ab66365d7d3b8ba03509"
+      }
+    },
+    "docker-compose": {
+      "version": "v5.7.0",
+      "install_name": "docker-compose",
+      "artifact_type": "binary",
+      "paths": {
+        "linux-amd64": "linux-amd64/docker-compose",
+        "linux-arm64": "linux-arm64/docker-compose"
+      },
+      "sha256": {
+        "linux-amd64": "7758048ad38e580f22559603312874fec8bb638d021a9e64182385fc17cc12a2",
+        "linux-arm64": "15861535d14e26555736b49376c95e14bfd94285366c8446bfac7156a972e76f"
+      }
+    },
+    "mc": {
+      "version": "RELEASE.2025-08-13T08-35-41Z",
+      "install_name": "mc",
+      "artifact_type": "binary",
+      "paths": {
+        "linux-amd64": "linux-amd64/mc",
+        "linux-arm64": "linux-arm64/mc"
+      },
+      "sha256": {
+        "linux-amd64": "01f866e9c5f9b87c2b09116fa5d7c06695b106242d829a8bb32990c00312e891",
+        "linux-arm64": "14c8c9616cfce4636add161304353244e8de383b2e2752c0e9dad01d4c27c12c"
+      }
+    },
+    "docker": {
+      "version": "29.9.3",
+      "install_name": "docker",
+      "artifact_type": "archive",
+      "archive_format": "tgz",
+      "description": "Docker Engine 静态包（docker + dockerd + containerd）",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/docker.tar.gz",
+        "linux-arm64": "linux-arm64/archives/docker.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "3fb5d1f13014c18cc54945bc177c58a9056a482dada031e17d12cf2e6922c973",
+        "linux-arm64": "1b27fd739378ef938401e81ce5afb73b7ad7432d4f598814a9ff5f826bb464d2"
+      }
+    },
+    "openjdk-8": {
+      "version": "8.0.512+9",
+      "install_name": "openjdk-8",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Eclipse Temurin JDK 8",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/openjdk-8.tar.gz",
+        "linux-arm64": "linux-arm64/archives/openjdk-8.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "fb3bfa869012419b562bb4235d0d83ec4f8c1dda62ae432ba20c6c3a7e43f7e4",
+        "linux-arm64": "01263df22c4553f63146bbae807e70cd4628dd0d9ec7582f01cb2453f7c69aaa"
+      }
+    },
+    "openjdk-11": {
+      "version": "11.0.33+10",
+      "install_name": "openjdk-11",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Eclipse Temurin JDK 11",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/openjdk-11.tar.gz",
+        "linux-arm64": "linux-arm64/archives/openjdk-11.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "c4b8eaf56c93b95b689ffc08d155df1bcdbbffb666f8f71d21d97aedaea6f0ec",
+        "linux-arm64": "60b0fb79bb678b6fae3e499c7b0a353e68633ed0ab69d1a6bafe6092ed1e59e4"
+      }
+    },
+    "openjdk-17": {
+      "version": "17.0.21+9",
+      "install_name": "openjdk-17",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Eclipse Temurin JDK 17",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/openjdk-17.tar.gz",
+        "linux-arm64": "linux-arm64/archives/openjdk-17.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "8b9b611d917e3dfd8419d3566b5949226f69b052fed7e109c1368add1dfe8711",
+        "linux-arm64": "3e4eca7ead088f080af1476007decf010a240a1eb4e1e78c54fa32fbcc347084"
+      }
+    },
+    "maven": {
+      "version": "3.10.0",
+      "install_name": "mvn",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Apache Maven",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/apache-maven-bin.tar.gz",
+        "linux-arm64": "linux-arm64/archives/apache-maven-bin.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "a46cc51bc74fa23fd267c7a0b9132b146dcf526da60d31aa5174e565632e9e0e",
+        "linux-arm64": "a46cc51bc74fa23fd267c7a0b9132b146dcf526da60d31aa5174e565632e9e0e"
+      }
+    },
+    "node-16": {
+      "version": "v16.20.2",
+      "install_name": "node-16",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Node.js 16 LTS",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-16.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-16.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "c9193e6c414891694759febe846f4f023bf48410a6924a8b1520c46565859665",
+        "linux-arm64": "b6945fcc9ad220386bb814bfae7137189fd17297f2959a744105e1bee006035a"
+      }
+    },
+    "node-18": {
+      "version": "v18.20.8",
+      "install_name": "node-18",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Node.js 18 LTS",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-18.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-18.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "27a9f3f14d5e99ad05a07ed3524ba3ee92f8ff8b6db5ff80b00f9feb5ec8097a",
+        "linux-arm64": "2e3dfc51154e6fea9fc86a90c4ea8f3ecb8b60acaf7367c4b76691da192571c1"
+      }
+    },
+    "node-20": {
+      "version": "v20.20.2",
+      "install_name": "node-20",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Node.js 20 LTS",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-20.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-20.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "19e56f0825510207dd904f087fe52faa0a4eb6b2aab5f0ea7a33830d04888b8b",
+        "linux-arm64": "47ef73d543ecf6eb19435f6c03a0ac4809b3bf0dd6b26c7c571efc2a6572a74d"
+      }
+    },
+    "node-22": {
+      "version": "v22.23.4",
+      "install_name": "node-22",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Node.js 22 LTS",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-22.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-22.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "b8492284c76a54baf58d61668dd0e41ee0fc98adabf9503d30f05d08f55b4406",
+        "linux-arm64": "f7a1e486dbc8b286847815b477d4fb5e9fb963ed4489c3e1588853d685f589f9"
+      }
+    },
+    "node-24": {
+      "version": "v24.22.2",
+      "install_name": "node-24",
+      "artifact_type": "archive",
+      "archive_format": "tar.gz",
+      "description": "Node.js 24",
+      "paths": {
+        "linux-amd64": "linux-amd64/archives/node-24.tar.gz",
+        "linux-arm64": "linux-arm64/archives/node-24.tar.gz"
+      },
+      "sha256": {
+        "linux-amd64": "361718c444e49af2ca5a110c83ba6a8901143f23ab285ebbef0341f391f482a9",
+        "linux-arm64": "95c264150aceb7f3437a29fd6984924f5f8d1511ea3cbd6c508b83f6c555dae2"
+      }
+    }
+  }
+}
